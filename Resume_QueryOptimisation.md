@@ -319,6 +319,22 @@ Ce document est un cours complet sur l'optimisation des requêtes dans les syst�
 
 ### Optimisation des Requêtes
 
+#### Catégorisation des Optimisations (Notes de cours)
+Les techniques d'optimisation de requêtes peuvent être divisées en deux grandes catégories selon leur impact sur le stockage :
+
+1. **Structures redondantes** (qui dupliquent ou pré-calculent la donnée, consommant de l'espace disque) :
+   - Stockage (organisation physique)
+   - Mises à jour (MAJ)
+   - Index (B-Tree, etc.)
+   - Bitmap Index
+   - Bitmap Join Index
+   - Vues Matérialisées (VM)
+
+2. **Structures non redondantes** (qui n'ajoutent pas de données supplémentaires sur le disque, basées sur le traitement) :
+   - Réécriture de la requête (Query Rewrite)
+   - Algorithmes de jointure (Nested Loop, Hash Join, Sort-Merge)
+   - Hints (Indicateurs donnés à l'optimiseur, ex: `/*+ RULE */`)
+
 #### Optimisation Logique
 - **Transformations algébriques**: Application de règles d'équivalence
 - **Règles de réécriture**: 

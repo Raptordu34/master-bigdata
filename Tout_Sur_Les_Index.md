@@ -59,3 +59,26 @@ Si les index sont si géniaux, pourquoi ne pas en mettre sur chaque colonne ?
     *   *Si vous avez 10 index, une simple insertion devient 11 écritures !*
 
 **Règle d'or :** On indexe les colonnes qui servent souvent dans les `WHERE` et les `JOIN`, mais on reste économe.
+
+---
+
+## 6. Les Index de Jointure (Join Index & Bitmap Join Index)
+
+*Notes de cours / Tableau :*
+
+Un **Index de Jointure** (Join Index) est une structure d'optimisation pré-calculée qui stocke le résultat d'une jointure entre deux ou plusieurs tables. Il a été **proposé initialement en 1984**.
+
+### Le concept mathématique (selon le tableau)
+- **Formule de base :** $\alpha = V \times C \times A$
+- **Pire des cas (ou coût) :** $FS(J_1) \times FS(J_2) \times \alpha$ 
+  *(Où $FS$ correspond au Full Scan de la table $J_1$ et de la table $J_2$. Sans index, le pire des cas d'une jointure est un produit cartésien ou un Nested Loop complet).*
+- **Cas idéal :** L'utilisation de l'index de jointure permet d'éviter ces Full Scans coûteux en accédant directement aux paires de lignes qui matchent.
+
+### Le Bitmap Join Index
+C'est une évolution très puissante (particulièrement sous Oracle et dans les Data Warehouses). 
+Au lieu de stocker les ROWIDs classiques pour la jointure, on utilise des **Bitmaps** (grilles de bits 0 et 1) pour représenter la relation entre une table de faits (très volumineuse) et une table de dimension.
+
+**Pourquoi c'est utile ?**
+1. **Pré-calcul :** La jointure est déjà "résolue" dans l'index. Au moment de la requête, le moteur n'a plus besoin de faire correspondre les clés, il lit juste l'index.
+2. **Gain de performance massif :** Remplace des jointures très lourdes (qui feraient des Full Scans) par de simples opérations logiques (ET / OU) sur des chaînes de bits.
+3. **Idéal pour l'analytique :** Parfait pour les requêtes en étoile (Star Schema) où l'on filtre sur des dimensions (ex: "Ventes" joint à "Magasin" où `Région = 'Nord'`).
