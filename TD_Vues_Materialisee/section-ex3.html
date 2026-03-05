@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="content.css">
+</head>
+<body class="mode-detailed">
+    <h2>Exercice 3 : Mise à Jour Incrémentale</h2>
+
+    <!-- Mode Résumé -->
+    <div class="compact-content">
+        <h3 style="margin-top:0;">Synthèse</h3>
+        <ul>
+            <li><strong>Contexte</strong> — V = R ⋈ S ⋈ T. On insère un nouvel ensemble ΔR dans R.</li>
+            <li><strong>Q3.1</strong> — Calcul de ΔV = ΔR ⋈ S ⋈ T. La nouvelle vue est V_nouvelle = V_ancienne ∪ ΔV.</li>
+            <li><strong>Q3.2</strong> — Coût bien inférieur au recalcul complet car on ne fait la jointure que sur les nouvelles lignes ΔR, très petites devant R.</li>
+            <li><strong>Q3.3</strong> — Pour des insertions simultanées ΔR et ΔS : ΔV = (ΔR ⋈ S ⋈ T) ∪ (R ⋈ ΔS ⋈ T) ∪ (ΔR ⋈ ΔS ⋈ T).</li>
+        </ul>
+    </div>
+
+    <!-- Mode Détaillé -->
+    <div class="detailed-content">
+
+        <h3>Contexte</h3>
+        <p>
+            Une vue matérialisée est maintenue de manière incrémentale. Cette maintenance consiste à identifier le nouvel
+            ensemble de n-uplets à ajouter à la vue dans le cas d'une insertion (ou de suppressions) dans les relations sources.
+        </p>
+        <p>Considérons trois relations <strong>R</strong>, <strong>S</strong>, et <strong>T</strong>. Soit une vue définie comme suit :</p>
+        <div class="formula-box" style="text-align: center;">
+            <span class="formula-text" style="font-size: 1.2rem;">V = R ⋈ S ⋈ T</span>
+        </div>
+        <p>Supposons qu'on insère un ensemble de n-uplets <strong>ΔR</strong> dans la relation R.</p>
+
+        <!-- ===== Q3.1 ===== -->
+        <h3>Question 3.1 — Méthodes de mise à jour</h3>
+        <p>
+            Proposer des méthodes de mise à jour de la vue V. Comment calculer l'ensemble <strong>ΔV</strong> à ajouter à V
+            sans recalculer complètement la vue ?
+        </p>
+
+        <div class="card-mono">
+            <h4>Réponse : Algèbre relationnelle</h4>
+            <p>
+                Lorsqu'on ajoute <strong>ΔR</strong> à <strong>R</strong>, la nouvelle relation R devient <code>R_nouveau = R ∪ ΔR</code>.
+                La nouvelle vue <code>V_nouveau</code> sera :
+            </p>
+            <div class="formula-box-sm" style="background: rgba(0,0,0,0.2);">
+                V_nouveau = (R ∪ ΔR) ⋈ S ⋈ T
+            </div>
+            <p>
+                Par distributivité de la jointure sur l'union, on obtient :
+            </p>
+            <div class="formula-box-sm" style="background: rgba(0,0,0,0.2);">
+                V_nouveau = (R ⋈ S ⋈ T) ∪ (ΔR ⋈ S ⋈ T)
+            </div>
+            <p>
+                Comme on sait que <code>V = (R ⋈ S ⋈ T)</code>, alors la partie à ajouter (le delta) est simplement :
+            </p>
+            <div class="formula-box" style="margin-top: 1rem;">
+                <span class="formula-text" style="color: #86efac; font-weight: bold;">ΔV = ΔR ⋈ S ⋈ T</span>
+            </div>
+            <p>
+                <strong>Méthode :</strong> On calcule uniquement la jointure entre les nouvelles lignes <code>ΔR</code> et
+                les relations existantes <code>S</code> et <code>T</code>, puis on ajoute ce résultat à <code>V</code>.
+            </p>
+        </div>
+
+        <!-- ===== Q3.2 ===== -->
+        <h3>Question 3.2 — Évaluation du coût</h3>
+        <p>Évaluer le coût de calcul de chaque méthode proposée en Question 3.1.</p>
+
+        <div class="two-col-cards">
+            <div>
+                <h4>Recalcul Complet (Naïf)</h4>
+                <ul>
+                    <li><strong>Opération :</strong> R_nouveau ⋈ S ⋈ T</li>
+                    <li><strong>Nombre de jointures :</strong> 2 (sur de très grandes tables)</li>
+                    <li><strong>Taille des intermédiaires :</strong> Très grande. Par ex, |R_nouveau| × |S| lignes à croiser avec |T|.</li>
+                    <li><strong>Coût :</strong> O(|R| × |S| × |T|)</li>
+                </ul>
+            </div>
+            <div>
+                <h4>Maintenance Incrémentale</h4>
+                <ul>
+                    <li><strong>Opération :</strong> ΔR ⋈ S ⋈ T</li>
+                    <li><strong>Nombre de jointures :</strong> 2 (mais sur un sous-ensemble)</li>
+                    <li><strong>Taille des intermédiaires :</strong> Très faible. |ΔR| est généralement minuscule par rapport à |R|.</li>
+                    <li><strong>Coût :</strong> O(|ΔR| × |S| × |T|)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tip-box">
+            <strong>Conclusion :</strong> La maintenance incrémentale est <strong>infiniment plus rapide</strong> et moins coûteuse.
+            Le nombre de jointures (2) reste le même dans l'absolu, mais la taille de la relation de gauche (ΔR au lieu de R tout entier)
+            réduit drastiquement le nombre de comparaisons et l'I/O disque.
+        </div>
+
+        <!-- ===== Q3.3 ===== -->
+        <h3>Question 3.3 — Insertions multiples</h3>
+        <p>
+            Même question si on insère des ensembles de n-uplets <strong>ΔR</strong> et <strong>ΔS</strong>
+            dans les relations R et S, respectivement.
+        </p>
+
+        <div class="card-mono">
+            <h4>Réponse : Double distributivité</h4>
+            <p>
+                Les nouvelles relations sont <code>R_nouveau = R ∪ ΔR</code> et <code>S_nouveau = S ∪ ΔS</code>.
+                La nouvelle vue est :
+            </p>
+            <div class="formula-box-sm" style="background: rgba(0,0,0,0.2);">
+                V_nouveau = (R ∪ ΔR) ⋈ (S ∪ ΔS) ⋈ T
+            </div>
+            <p>En développant cette expression, on obtient quatre termes :</p>
+            <ol style="color:#cbd5e1; margin:0.5rem 0; padding-left:1.4rem; line-height:1.8;">
+                <li><code>R ⋈ S ⋈ T</code>  (C'est l'ancienne vue <strong>V</strong>)</li>
+                <li><code>ΔR ⋈ S ⋈ T</code> (Nouvelles lignes de R croisées avec les anciennes de S)</li>
+                <li><code>R ⋈ ΔS ⋈ T</code> (Anciennes lignes de R croisées avec les nouvelles de S)</li>
+                <li><code>ΔR ⋈ ΔS ⋈ T</code> (Croisement des nouvelles lignes entre elles)</li>
+            </ol>
+            <p>Le delta global <strong>ΔV</strong> à ajouter est donc l'union des trois derniers termes :</p>
+            <div class="formula-box" style="margin-top: 1rem;">
+                <span class="formula-text" style="color: #fb923c; font-weight: bold; font-size: 0.95rem;">
+                    ΔV = (ΔR ⋈ S ⋈ T) ∪ (R ⋈ ΔS ⋈ T) ∪ (ΔR ⋈ ΔS ⋈ T)
+                </span>
+            </div>
+        </div>
+
+        <div class="tip-box">
+            <strong>Implémentation pratique :</strong> Dans les SGBD modernes (Oracle, PostgreSQL avec <code>pg_ivm</code>),
+            ces algorithmes algébriques sont implémentés sous forme de triggers internes ou de processus asynchrones
+            qui capturent les deltas (via des logs de type WAL) et appliquent exactement ces équations pour maintenir la vue à jour.
+        </div>
+
+    </div>
+
+    <style>
+        .sql-block {
+            background: #0d1117;
+            border: 1px solid rgba(249,115,22,0.25);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1.2rem 1.4rem;
+            margin: 1rem 0 1.5rem;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.93rem;
+            line-height: 1.7;
+            color: #e2e8f0;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .kw  { color: #7dd3fc; font-weight: 600; }
+        .fn  { color: #a5f3fc; }
+        .str { color: #86efac; }
+        .cmt { color: #64748b; }
+
+        .tip-box {
+            background:
+                linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 50%, transparent 100%),
+                rgba(255,255,255,0.04);
+            backdrop-filter: blur(12px) saturate(150%);
+            -webkit-backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            font-size: 0.97rem;
+            color: #e2e8f0;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .tip-box strong { color: #fb923c; }
+        .tip-box code { background: rgba(255,255,255,0.08); padding: 0.1em 0.4em; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+
+        .two-col-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0 1.5rem; }
+        @media (max-width: 700px) { .two-col-cards { grid-template-columns: 1fr; } }
+        .two-col-cards > div {
+            border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.93rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-top-color: rgba(255,255,255,0.18);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .two-col-cards h4 { margin: 0 0 0.6rem; font-size: 0.97rem; color: #fb923c; }
+        .two-col-cards p  { margin: 0.4rem 0; color: #cbd5e1; }
+        .two-col-cards ul { margin: 0.3rem 0; padding-left: 1.2rem; color: #cbd5e1; }
+        .two-col-cards li { margin: 0.25rem 0; font-size: 0.9rem; }
+
+        .card-mono {
+            border-radius: 10px; padding: 1rem 1.4rem; font-size: 0.95rem;
+            background: rgba(249,115,22,0.07);
+            border: 1px solid rgba(249,115,22,0.25);
+            border-top-color: rgba(249,115,22,0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(249,115,22,0.2), 0 4px 12px rgba(0,0,0,0.2);
+            margin: 1rem 0;
+        }
+        .card-mono h4 { color: #fb923c; margin: 0 0 0.6rem; }
+        .card-mono p  { margin: 0.4rem 0; color: #cbd5e1; }
+
+        /* Formula boxes */
+        .formula-box {
+            background: rgba(125,211,252,0.06);
+            border: 1px solid rgba(125,211,252,0.2);
+            border-left: 4px solid #7dd3fc;
+            border-radius: 0 10px 10px 0;
+            padding: 0.9rem 1.2rem;
+            margin: 1rem 0 1.5rem;
+            backdrop-filter: blur(8px);
+            box-shadow: inset 0 1px 0 rgba(125,211,252,0.12), 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .formula-text {
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 1rem;
+            color: #7dd3fc;
+        }
+        .formula-box-sm {
+            background: rgba(125,211,252,0.05);
+            border: 1px solid rgba(125,211,252,0.15);
+            border-radius: 6px;
+            padding: 0.5rem 0.8rem;
+            margin: 0.4rem 0;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.88rem;
+            color: #7dd3fc;
+            text-align: center;
+        }
+    </style>
+</body>
+</html>

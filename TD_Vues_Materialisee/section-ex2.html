@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="content.css">
+</head>
+<body class="mode-detailed">
+    <h2>Exercice 2 : Sélection de Vues Matérialisées</h2>
+
+    <!-- Mode Résumé -->
+    <div class="compact-content">
+        <h3 style="margin-top:0;">Synthèse</h3>
+        <ul>
+            <li><strong>Q2.1</strong> — Fonction objectif : minimiser Σ freq(qᵢ) × coût(qᵢ, S). Contraintes : espace ≤ B, coût MAJ acceptable. Problème NP-difficile.</li>
+            <li><strong>Q2.2</strong> — Solution naïve : matérialiser toutes les sous-expressions → 2ⁿ VMs candidates. Optimal en lecture, prohibitif en espace.</li>
+            <li><strong>Q2.3</strong> — Heuristique gloutonne : sélectionner itérativement la VM avec le meilleur ratio bénéfice/coût, en tenant compte de la réutilisation entre requêtes.</li>
+        </ul>
+    </div>
+
+    <!-- Mode Détaillé -->
+    <div class="detailed-content">
+
+        <h3>Contexte — Schéma de la base de données</h3>
+        <p>
+            La base de données de vente est composée de quatre tables :
+        </p>
+
+        <div class="tables-grid">
+            <div class="schema-table">
+                <div class="schema-table-header">Ventes</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>PID</td><td>INT (FK → Produit)</td></tr>
+                        <tr><td>CID</td><td>INT (FK → Client)</td></tr>
+                        <tr><td>TID</td><td>INT (FK → Temps)</td></tr>
+                        <tr><td>Ventes_Dollars</td><td>DECIMAL</td></tr>
+                        <tr><td>Cout_Unitaire</td><td>DECIMAL</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="schema-table">
+                <div class="schema-table-header">Produit</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>PID</td><td>INT (PK)</td></tr>
+                        <tr><td>Gamme</td><td>VARCHAR</td></tr>
+                        <tr><td>Taille</td><td>VARCHAR</td></tr>
+                        <tr><td>Poids</td><td>DECIMAL</td></tr>
+                        <tr><td>Type_Paquet</td><td>VARCHAR</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="schema-table">
+                <div class="schema-table-header">Temps</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>TID</td><td>INT (PK)</td></tr>
+                        <tr><td>Date</td><td>DATE</td></tr>
+                        <tr><td>Mois</td><td>VARCHAR</td></tr>
+                        <tr><td>Saison</td><td>VARCHAR</td></tr>
+                        <tr><td>Annee</td><td>INT</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="schema-table">
+                <div class="schema-table-header">Client</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>CID</td><td>INT (PK)</td></tr>
+                        <tr><td>Sexe</td><td>CHAR(1)</td></tr>
+                        <tr><td>Ville</td><td>VARCHAR</td></tr>
+                        <tr><td>Etat</td><td>VARCHAR</td></tr>
+                        <tr><td>Age</td><td>INT</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <h3>Workload — Les 5 requêtes fréquentes</h3>
+        <p>On suppose que les cinq requêtes suivantes sont exécutées fréquemment sur cette base :</p>
+
+        <div class="comparison-table-container">
+            <table class="comparison-table">
+                <thead><tr><th>Req.</th><th>SQL</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Q1</strong></td>
+                        <td><code class="sql-inline">SELECT C.CID, SUM(V.Ventes_Dollars)<br>FROM Client C, Ventes V<br>WHERE C.CID = V.CID<br>GROUP BY C.CID</code></td>
+                        <td>Ventes totales par client</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Q2</strong></td>
+                        <td><code class="sql-inline">SELECT P.PID, SUM(V.Ventes_Dollars)<br>FROM Ventes V, Produit P<br>WHERE P.Type_Paquet = 'Boite'<br>AND P.PID = V.PID<br>GROUP BY V.PID</code></td>
+                        <td>Ventes des produits en boîte par produit</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Q3</strong></td>
+                        <td><code class="sql-inline">SELECT T.TID, SUM(V.Ventes_Dollars)<br>FROM Ventes V, Temps T, Produit P, Client C<br>WHERE T.Mois = 'Mars' AND C.Sexe = 'M'<br>AND P.PID = V.PID AND C.CID = V.CID<br>AND T.TID = V.TID<br>GROUP BY T.TID</code></td>
+                        <td>Ventes de Mars pour clients hommes, par période</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Q4</strong></td>
+                        <td><code class="sql-inline">SELECT C.CID, SUM(V.Ventes_Dollars)<br>FROM Ventes V, Temps T, Client C<br>WHERE T.Mois = 'Mars'<br>AND C.CID = V.CID AND T.TID = V.TID<br>GROUP BY C.CID</code></td>
+                        <td>Ventes du mois de Mars par client</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Q5</strong></td>
+                        <td><code class="sql-inline">SELECT P.PID, SUM(V.Ventes_Dollars)<br>FROM Ventes V, Produit P, Client C<br>WHERE C.Sexe = 'M'<br>AND P.PID = V.PID AND C.CID = V.CID<br>GROUP BY P.PID</code></td>
+                        <td>Ventes aux clients hommes par produit</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ===== Q2.1 ===== -->
+        <h3>Question 2.1 — Formalisation du problème</h3>
+
+        <h4>Fonction objectif</h4>
+        <p>
+            On cherche à sélectionner un ensemble S de vues matérialisées qui
+            <strong>minimise le coût total d'exécution</strong> du workload W :
+        </p>
+        <div class="formula-box">
+            <span class="formula-text">Minimiser : Cost(W, S) = Σ<sub>qᵢ ∈ W</sub> freq(qᵢ) × coût(qᵢ, S)</span>
+        </div>
+        <p>
+            Où <code>coût(qᵢ, S)</code> est le coût d'exécution de la requête qᵢ
+            en utilisant les meilleures vues disponibles dans S (ou les tables de base si aucune VM n'est utile).
+        </p>
+
+        <h4>Contraintes</h4>
+        <div class="two-col-cards">
+            <div>
+                <h4>Contrainte d'espace</h4>
+                <p>La somme des tailles des VMs sélectionnées doit rester sous un budget :</p>
+                <div class="formula-box-sm">Σ<sub>vᵢ ∈ S</sub> taille(vᵢ) ≤ B</div>
+                <p style="font-size:0.88rem; color:#94a3b8; margin-top:0.5rem;">B = espace disque disponible pour les VMs</p>
+            </div>
+            <div>
+                <h4>Contrainte de maintenance</h4>
+                <p>Le coût total de mise à jour des VMs lors d'une modification de la base doit rester acceptable :</p>
+                <div class="formula-box-sm">Σ<sub>vᵢ ∈ S</sub> coût_MAJ(vᵢ) ≤ T_max</div>
+                <p style="font-size:0.88rem; color:#94a3b8; margin-top:0.5rem;">T_max = temps maximal de rafraîchissement toléré</p>
+            </div>
+        </div>
+
+        <div class="tip-box">
+            <strong>Complexité :</strong> ce problème est <strong>NP-difficile</strong>
+            (réductible au problème du sac-à-dos). Pour n requêtes, il y a jusqu'à 2ⁿ
+            sous-ensembles de VMs candidates à évaluer. On doit donc recourir à des
+            heuristiques ou algorithmes approchés.
+        </div>
+
+        <!-- ===== Q2.2 ===== -->
+        <h3>Question 2.2 — Solution naïve</h3>
+        <p>
+            La solution naïve consiste à <strong>énumérer toutes les vues candidates possibles</strong>
+            à partir du workload, puis à sélectionner le sous-ensemble optimal.
+        </p>
+
+        <div class="card-mono">
+            <h4>Algorithme naïf</h4>
+            <p>
+                1. Générer toutes les sous-expressions de toutes les requêtes du workload.<br>
+                2. Pour chaque sous-ensemble possible de ces expressions → calculer Cost(W, S).<br>
+                3. Retenir le sous-ensemble S* qui minimise Cost(W, S) sous les contraintes.
+            </p>
+        </div>
+
+        <div class="two-col-cards">
+            <div>
+                <h4>Avantage</h4>
+                <ul>
+                    <li>Garantit la solution <strong>optimale</strong></li>
+                    <li>Simple à comprendre conceptuellement</li>
+                </ul>
+            </div>
+            <div>
+                <h4>Inconvénient</h4>
+                <ul>
+                    <li>Complexité exponentielle : <strong>2ⁿ</strong> sous-ensembles à évaluer</li>
+                    <li>Totalement impraticable dès que n &gt; 20–30 requêtes</li>
+                    <li>L'espace de stockage des VMs serait prohibitif si toutes sont créées</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tip-box">
+            <strong>Exemple sur notre workload (5 requêtes) :</strong>
+            On pourrait générer jusqu'à 2⁵ = 32 sous-ensembles de vues.
+            Chacune devrait être évaluée en termes de bénéfice sur les 5 requêtes.
+            C'est faisable ici, mais explose pour un workload de 100+ requêtes réelles.
+        </div>
+
+        <!-- ===== Q2.3 ===== -->
+        <h3>Question 2.3 — Heuristique de sélection</h3>
+        <p>
+            Une <strong>heuristique gloutonne</strong> sélectionne itérativement les vues les plus
+            bénéfiques en tenant compte de la fréquence, du coût et de la réutilisation.
+        </p>
+
+        <div class="card-mono">
+            <h4>Algorithme glouton</h4>
+            <p>
+                <strong>Entrées :</strong> workload W = {q₁…qₙ} avec fréquences, budget B.<br>
+                <strong>Initialisation :</strong> S = ∅, budget_restant = B.<br><br>
+                <strong>Répéter jusqu'à saturation du budget :</strong>
+            </p>
+            <ol style="color:#cbd5e1; margin:0.5rem 0; padding-left:1.4rem; line-height:1.8;">
+                <li>Pour chaque vue candidate vᵢ non encore sélectionnée, calculer son <em>bénéfice marginal</em> :<br>
+                    <span style="font-family:monospace; color:#a5f3fc;">bénéfice(vᵢ) = Σ freq(qⱼ) × [coût(qⱼ, S) − coût(qⱼ, S ∪ {vᵢ})]</span>
+                </li>
+                <li>Calculer le ratio : <span style="font-family:monospace; color:#a5f3fc;">ratio(vᵢ) = bénéfice(vᵢ) / taille(vᵢ)</span></li>
+                <li>Sélectionner la vue v* avec le plus grand ratio qui tient dans le budget restant.</li>
+                <li>Ajouter v* à S, déduire taille(v*) du budget.</li>
+                <li>Mettre à jour les coûts des requêtes (qui peuvent maintenant utiliser v*).</li>
+            </ol>
+        </div>
+
+        <h4>Application aux 5 requêtes</h4>
+        <p>
+            En analysant les recouvrements entre Q1–Q5, on identifie les vues candidates
+            offrant le meilleur potentiel de réutilisation :
+        </p>
+
+        <div class="comparison-table-container">
+            <table class="comparison-table">
+                <thead>
+                    <tr><th>Vue candidate</th><th>Définition</th><th>Requêtes couvertes</th><th>Intérêt</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>VM_A</strong></td>
+                        <td><code class="sql-inline">SELECT CID, SUM(Ventes_Dollars)<br>FROM Ventes GROUP BY CID</code></td>
+                        <td>Q1, Q4 (partiellement)</td>
+                        <td>Forte réutilisation — jointure minimale</td>
+                    </tr>
+                    <tr>
+                        <td><strong>VM_B</strong></td>
+                        <td><code class="sql-inline">SELECT PID, SUM(Ventes_Dollars)<br>FROM Ventes V, Produit P<br>WHERE P.PID = V.PID GROUP BY PID</code></td>
+                        <td>Q2, Q5 (partiellement)</td>
+                        <td>Élimine le JOIN Produit pour Q2 et Q5</td>
+                    </tr>
+                    <tr>
+                        <td><strong>VM_C</strong></td>
+                        <td><code class="sql-inline">SELECT CID, Mois, SUM(Ventes_Dollars)<br>FROM Ventes V, Temps T<br>WHERE T.TID=V.TID GROUP BY CID, Mois</code></td>
+                        <td>Q3, Q4</td>
+                        <td>Pré-calcule la dimension temporelle — couvre Q4 directement</td>
+                    </tr>
+                    <tr>
+                        <td><strong>VM_D</strong></td>
+                        <td><code class="sql-inline">SELECT PID, Sexe, SUM(Ventes_Dollars)<br>FROM Ventes V, Client C, Produit P<br>WHERE C.CID=V.CID AND P.PID=V.PID<br>GROUP BY PID, Sexe</code></td>
+                        <td>Q2, Q5</td>
+                        <td>Filtre <code>Sexe='M'</code> et <code>Type_Paquet='Boite'</code> applicables directement</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tip-box">
+            <strong>Critères de l'heuristique :</strong>
+            <ul style="margin:0.4rem 0 0; padding-left:1.2rem;">
+                <li><strong>Fréquence d'exécution :</strong> une requête exécutée 1 000 fois/jour pèse 10× plus qu'une exécutée 100 fois.</li>
+                <li><strong>Coût de calcul :</strong> une requête avec 4 JOINs bénéficie davantage d'une VM qu'une requête simple.</li>
+                <li><strong>Coût de stockage :</strong> une VM volumineuse doit apporter un bénéfice proportionnellement plus grand.</li>
+                <li><strong>Réutilisation :</strong> une VM couvrant 3 requêtes est préférable à trois VMs spécialisées si elle tient dans le budget.</li>
+            </ul>
+        </div>
+
+    </div>
+
+    <style>
+        .sql-block {
+            background: #0d1117;
+            border: 1px solid rgba(249,115,22,0.25);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1.2rem 1.4rem;
+            margin: 1rem 0 1.5rem;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.93rem;
+            line-height: 1.7;
+            color: #e2e8f0;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .kw  { color: #7dd3fc; font-weight: 600; }
+        .fn  { color: #a5f3fc; }
+        .str { color: #86efac; }
+        .cmt { color: #64748b; }
+
+        code.sql-inline {
+            display: block;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.78rem;
+            line-height: 1.6;
+            color: #a5f3fc;
+            background: rgba(0,0,0,0.3);
+            padding: 0.4rem 0.6rem;
+            border-radius: 5px;
+            white-space: pre;
+        }
+
+        .tip-box {
+            background:
+                linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 50%, transparent 100%),
+                rgba(255,255,255,0.04);
+            backdrop-filter: blur(12px) saturate(150%);
+            -webkit-backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            font-size: 0.97rem;
+            color: #e2e8f0;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .tip-box strong { color: #fb923c; }
+        .tip-box code { background: rgba(255,255,255,0.08); padding: 0.1em 0.4em; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+        .tip-box ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+        .tip-box li { margin: 0.25rem 0; }
+
+        .two-col-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0 1.5rem; }
+        @media (max-width: 700px) { .two-col-cards { grid-template-columns: 1fr; } }
+        .two-col-cards > div {
+            border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.93rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-top-color: rgba(255,255,255,0.18);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .two-col-cards h4 { margin: 0 0 0.6rem; font-size: 0.97rem; color: #fb923c; }
+        .two-col-cards p  { margin: 0.4rem 0; color: #cbd5e1; }
+        .two-col-cards ul { margin: 0.3rem 0; padding-left: 1.2rem; color: #cbd5e1; }
+        .two-col-cards li { margin: 0.25rem 0; font-size: 0.9rem; }
+
+        .card-mono {
+            border-radius: 10px; padding: 1rem 1.4rem; font-size: 0.95rem;
+            background: rgba(249,115,22,0.07);
+            border: 1px solid rgba(249,115,22,0.25);
+            border-top-color: rgba(249,115,22,0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(249,115,22,0.2), 0 4px 12px rgba(0,0,0,0.2);
+            margin: 1rem 0;
+        }
+        .card-mono h4 { color: #fb923c; margin: 0 0 0.6rem; }
+        .card-mono p  { margin: 0.4rem 0; color: #cbd5e1; }
+
+        /* Formula boxes */
+        .formula-box {
+            background: rgba(125,211,252,0.06);
+            border: 1px solid rgba(125,211,252,0.2);
+            border-left: 4px solid #7dd3fc;
+            border-radius: 0 10px 10px 0;
+            padding: 0.9rem 1.2rem;
+            margin: 1rem 0 1.5rem;
+            backdrop-filter: blur(8px);
+            box-shadow: inset 0 1px 0 rgba(125,211,252,0.12), 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .formula-text {
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 1rem;
+            color: #7dd3fc;
+        }
+        .formula-box-sm {
+            background: rgba(125,211,252,0.05);
+            border: 1px solid rgba(125,211,252,0.15);
+            border-radius: 6px;
+            padding: 0.5rem 0.8rem;
+            margin: 0.4rem 0;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.88rem;
+            color: #7dd3fc;
+        }
+
+        /* Tables */
+        .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.5rem 0; }
+        @media (max-width: 700px) { .tables-grid { grid-template-columns: 1fr; } }
+        .schema-table { border-radius: 10px; overflow: hidden; border: 1px solid rgba(249,115,22,0.3); background: rgba(15,23,42,0.6); backdrop-filter: blur(10px); }
+        .schema-table-header { background: rgba(249,115,22,0.15); color: #fb923c; font-weight: 700; font-size: 0.95rem; padding: 0.5rem 1rem; border-bottom: 1px solid rgba(249,115,22,0.25); }
+        .schema-table table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .schema-table thead tr { background: rgba(255,255,255,0.05); }
+        .schema-table th { padding: 6px 10px; text-align: left; color: #94a3b8; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .schema-table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+        .schema-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.05); }
+        .schema-table td { padding: 6px 10px; color: #e2e8f0; border-top: 1px solid rgba(255,255,255,0.05); }
+        .schema-table td:first-child { color: #f8fafc; font-weight: 500; font-family: monospace; }
+        .schema-table td:nth-child(2) { color: #7dd3fc; font-family: monospace; font-size: 0.8rem; }
+
+        .comparison-table-container { margin: 1.5rem 0; overflow-x: auto; }
+        .comparison-table { width: 100%; border-collapse: collapse; font-family: 'Inter', system-ui, sans-serif; font-size: 0.9rem; }
+        .comparison-table thead tr { background: rgba(17,24,39,0.92) !important; }
+        .comparison-table th { padding: 12px 14px; text-align: left; font-weight: 600; color: #fff7ed !important; }
+        .comparison-table th:first-child { border-radius: 11px 0 0 0; }
+        .comparison-table th:last-child  { border-radius: 0 11px 0 0; }
+        .comparison-table tbody tr:nth-child(odd)  { background: rgba(255,255,255,0.03) !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
+        .comparison-table tbody tr:nth-child(even) { background: rgba(249,115,22,0.06) !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
+        .comparison-table tbody tr:last-child { border-bottom: none !important; }
+        .comparison-table tbody tr:hover { background: rgba(249,115,22,0.12) !important; }
+        .comparison-table td { padding: 10px 14px; color: #cbd5e1 !important; vertical-align: top; border-bottom: none !important; }
+        .comparison-table td:first-child { color: #fb923c !important; font-weight: 600; }
+    </style>
+</body>
+</html>

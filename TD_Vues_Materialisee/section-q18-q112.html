@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="content.css">
+</head>
+<body class="mode-detailed">
+    <h2>Q1.8 – Q1.12 : Requêtes, Index &amp; Compromis</h2>
+
+    <!-- Mode Résumé -->
+    <div class="compact-content">
+        <h3 style="margin-top:0;">Synthèse</h3>
+        <ul>
+            <li><strong>Q1.8</strong> — 3 requêtes SQL exploitant les VMs créées : TOP 10 étudiants, meilleur département, enseignants &gt; 100h.</li>
+            <li><strong>Q1.9</strong> — Avantage clé : les agrégats sont pré-calculés → lecture directe sans JOIN ni GROUP BY.</li>
+            <li><strong>Q1.10</strong> — <code>CREATE INDEX idx_vm_perf_niveau ON VM_Performance_Etudiants (Niveau);</code></li>
+            <li><strong>Q1.11</strong> — Compromis : performance ↑ vs stockage ↑, fraîcheur ↓, complexité ↑.</li>
+            <li><strong>Q1.12</strong> — Ajout de <code>Mention</code> dans Inscriptions : la VM n'est <em>pas</em> à recréer si Mention n'est pas inclus dans la VM.</li>
+        </ul>
+    </div>
+
+    <!-- Mode Détaillé -->
+    <div class="detailed-content">
+
+        <!-- ===== Q1.8 ===== -->
+        <h3>Question 1.8 — Requêtes sur les vues</h3>
+        <p>En utilisant les vues matérialisées créées, écrire les requêtes SQL pour :</p>
+
+        <h4>1. Les 10 étudiants avec la meilleure moyenne générale</h4>
+        <pre class="sql-block"><span class="kw">SELECT</span>
+    ID_etudiant,
+    Nom_Complet,
+    Niveau,
+    Nb_Cours_Suivis,
+    Moyenne_Generale
+<span class="kw">FROM</span>   VM_Performance_Etudiants
+<span class="kw">ORDER BY</span> Moyenne_Generale <span class="kw">DESC NULLS LAST</span>
+<span class="kw">LIMIT</span>  10;</pre>
+
+        <div class="tip-box">
+            <strong>NULLS LAST</strong> : les étudiants sans aucune note (moyenne = NULL) apparaissent
+            en fin de liste plutôt qu'en tête, ce qui serait le cas par défaut avec <code>DESC</code>
+            seul sous PostgreSQL.
+        </div>
+
+        <h4>2. Le département avec la meilleure moyenne étudiante</h4>
+        <pre class="sql-block"><span class="kw">SELECT</span>
+    Departement,
+    Nb_Cours,
+    Nb_Enseignants,
+    Moyenne_Etudiants
+<span class="kw">FROM</span>   VM_Stats_Departement
+<span class="kw">ORDER BY</span> Moyenne_Etudiants <span class="kw">DESC NULLS LAST</span>
+<span class="kw">LIMIT</span>  1;</pre>
+
+        <h4>3. Les enseignants ayant plus de 100 heures de cours</h4>
+        <pre class="sql-block"><span class="kw">SELECT</span>
+    Nom_Complet,
+    Departement,
+    Nb_Cours_Enseignes,
+    Total_Heures,
+    Moy_Etudiants_Par_Cours
+<span class="kw">FROM</span>   VM_Charge_Enseignants
+<span class="kw">WHERE</span>  Total_Heures &gt; 100
+<span class="kw">ORDER BY</span> Total_Heures <span class="kw">DESC</span>;</pre>
+
+        <div class="card-mono">
+            <h4>Remarque sur la simplicité des requêtes</h4>
+            <p>
+                Ces trois requêtes sont <strong>triviales</strong> grâce aux vues matérialisées :
+                un simple <code>SELECT … ORDER BY … LIMIT</code> ou <code>WHERE</code> sur une table
+                pré-calculée, sans aucune jointure ni agrégation à l'exécution.
+                Sans les VMs, chaque requête nécessiterait un JOIN multi-tables + GROUP BY sur
+                les 500 000 lignes d'Inscriptions.
+            </p>
+        </div>
+
+        <!-- ===== Q1.9 ===== -->
+        <h3>Question 1.9 — Avantages des vues matérialisées</h3>
+        <p>Pourquoi les VMs sont-elles avantageuses pour ces requêtes comparé à l'exécution directe sur les tables de base ?</p>
+
+        <div class="comparison-table-container">
+            <table class="comparison-table">
+                <thead>
+                    <tr><th>Aspect</th><th>Sans VM (tables de base)</th><th>Avec VM</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Opérations à l'exécution</strong></td>
+                        <td>JOIN Etudiants ⋈ Inscriptions (550 000 lignes) + GROUP BY + ORDER BY</td>
+                        <td>Scan VM (~50 000 lignes) + ORDER BY simple</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Lecture disque</strong></td>
+                        <td>Toutes les pages des deux tables + index</td>
+                        <td>Pages de la VM uniquement</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Indexabilité</strong></td>
+                        <td>Index sur tables de base, peu utiles après JOIN</td>
+                        <td>Index direct sur <code>Niveau</code>, <code>Moyenne_Generale</code>, <code>Total_Heures</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Temps de réponse</strong></td>
+                        <td>Secondes (voire dizaines de secondes)</td>
+                        <td>Millisecondes</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Charge serveur (×100/jour)</strong></td>
+                        <td>100 × recalcul complet</td>
+                        <td>100 × lecture légère + 1 rafraîchissement nocturne</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ===== Q1.10 ===== -->
+        <h3>Question 1.10 — Index</h3>
+        <p>
+            Proposer un index approprié pour optimiser les recherches d'étudiants par niveau
+            dans la vue <code>VM_Performance_Etudiants</code>.
+        </p>
+
+        <div class="answer-label">Réponse</div>
+        <pre class="sql-block"><span class="cmt">-- Index pour les filtres WHERE Niveau = 'Master'</span>
+<span class="kw">CREATE INDEX</span> idx_vm_perf_niveau
+    <span class="kw">ON</span> VM_Performance_Etudiants (Niveau);
+
+<span class="cmt">-- Index pour les tris ORDER BY Moyenne_Generale DESC</span>
+<span class="kw">CREATE INDEX</span> idx_vm_perf_moyenne
+    <span class="kw">ON</span> VM_Performance_Etudiants (Moyenne_Generale <span class="kw">DESC NULLS LAST</span>);
+
+<span class="cmt">-- Index combiné pour les deux en une seule passe</span>
+<span class="kw">CREATE INDEX</span> idx_vm_perf_niveau_moy
+    <span class="kw">ON</span> VM_Performance_Etudiants (Niveau, Moyenne_Generale <span class="kw">DESC NULLS LAST</span>);</pre>
+
+        <div class="tip-box">
+            <strong>Impact :</strong> avec <code>idx_vm_perf_niveau_moy</code>, la requête
+            <code>WHERE Niveau = 'Master' ORDER BY Moyenne_Generale DESC</code>
+            est satisfaite <em>entièrement par l'index</em> (index-only scan) — le moteur ne touche
+            même pas les pages de données de la VM.
+            <br><br>
+            <strong>Attention :</strong> les index sur une vue matérialisée doivent être
+            <strong>recréés</strong> (ou mis à jour automatiquement selon le SGBD) après un
+            <code>REFRESH MATERIALIZED VIEW</code> complet. Avec <code>CONCURRENTLY</code>,
+            ils sont maintenus automatiquement.
+        </div>
+
+        <!-- ===== Q1.11 ===== -->
+        <h3>Question 1.11 — Compromis</h3>
+        <p>Avantages et inconvénients des vues matérialisées dans le contexte universitaire :</p>
+
+        <div class="two-col-cards">
+            <div class="card-green">
+                <h4>Avantages — Performance</h4>
+                <ul>
+                    <li>Temps de réponse drastiquement réduit pour les requêtes analytiques (ms vs s)</li>
+                    <li>Allègement de la charge CPU : les agrégats coûteux sont calculés une seule fois</li>
+                    <li>Indexation possible directement sur les résultats agrégés</li>
+                    <li>Réécriture automatique : le SGBD peut utiliser la VM sans modifier les requêtes applicatives</li>
+                    <li>Idéal pour les dashboards consultés fréquemment (100×/jour)</li>
+                </ul>
+            </div>
+            <div class="card-red">
+                <h4>Inconvénients — Stockage &amp; Fraîcheur</h4>
+                <ul>
+                    <li>Espace disque supplémentaire (~50 000 lignes × nb de VMs)</li>
+                    <li>Données potentiellement obsolètes entre deux rafraîchissements</li>
+                    <li>Coût de maintenance : le recalcul complet bloque la VM pendant quelques secondes</li>
+                    <li>Complexité de gestion : décider quelles vues créer, quand les rafraîchir</li>
+                    <li>Risque de désynchronisation si les politiques de rafraîchissement sont mal définies</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card-mono">
+            <h4>Bilan pour le contexte universitaire</h4>
+            <p>
+                Le contexte académique est <strong>très favorable</strong> aux vues matérialisées :
+                les données évoluent lentement (inscriptions et notes saisies par lots),
+                les requêtes analytiques sont fréquentes (tableaux de bord, suivi pédagogique)
+                et une légère obsolescence des données (24h) est parfaitement acceptable.
+                Le gain de performance justifie largement le surcoût de stockage.
+            </p>
+        </div>
+
+        <!-- ===== Q1.12 ===== -->
+        <h3>Question 1.12 — Mise à jour du schéma</h3>
+        <p>
+            Si on ajoute une nouvelle colonne <code>Mention VARCHAR(20)</code> dans la table
+            <code>Inscriptions</code>, faut-il recréer la vue matérialisée
+            <code>VM_Performance_Etudiants</code> ?
+        </p>
+
+        <div class="two-col-cards">
+            <div>
+                <h4>Cas 1 — Mention non utilisée dans la VM</h4>
+                <p>
+                    <strong>Non, la VM n'a pas besoin d'être recréée.</strong>
+                    Elle continue de fonctionner normalement car sa définition ne référence pas
+                    la colonne <code>Mention</code>. Un simple <code>REFRESH</code> suffit
+                    si des notes ont été modifiées en parallèle.
+                </p>
+                <pre class="sql-block-sm"><span class="cmt">-- Aucune modification de la VM nécessaire.</span>
+<span class="cmt">-- Optionnel : rafraîchir si des données ont changé</span>
+<span class="kw">REFRESH MATERIALIZED VIEW</span>
+    VM_Performance_Etudiants;</pre>
+            </div>
+            <div>
+                <h4>Cas 2 — On veut inclure Mention dans la VM</h4>
+                <p>
+                    <strong>Oui, il faut recréer la VM</strong> avec
+                    <code>CREATE OR REPLACE MATERIALIZED VIEW</code> pour ajouter
+                    <code>Mention</code> à la définition.
+                </p>
+                <pre class="sql-block-sm"><span class="kw">CREATE OR REPLACE MATERIALIZED VIEW</span>
+    VM_Performance_Etudiants <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    e.ID_etudiant,
+    e.Nom || <span class="str">' '</span> || e.Prenom <span class="kw">AS</span> Nom_Complet,
+    e.Niveau,
+    <span class="fn">COUNT</span>(i.ID_cours)    <span class="kw">AS</span> Nb_Cours_Suivis,
+    <span class="fn">ROUND</span>(<span class="fn">AVG</span>(i.Note),2)  <span class="kw">AS</span> Moyenne_Generale,
+    <span class="fn">MODE</span>() <span class="kw">WITHIN GROUP</span>
+        (<span class="kw">ORDER BY</span> i.Mention) <span class="kw">AS</span> Mention_Freq
+<span class="kw">FROM</span>   Etudiants e
+<span class="kw">LEFT JOIN</span> Inscriptions i
+    <span class="kw">ON</span> e.ID_etudiant = i.ID_etudiant
+<span class="kw">GROUP BY</span>
+    e.ID_etudiant, e.Nom,
+    e.Prenom, e.Niveau;</pre>
+            </div>
+        </div>
+
+        <div class="tip-box">
+            <strong>Règle générale :</strong> une vue matérialisée est <em>indépendante</em> des
+            modifications de schéma des tables sources tant que les colonnes qu'elle référence
+            dans son <code>SELECT</code> et ses <code>JOIN</code> existent toujours.
+            Ajouter une colonne à une table source est une opération <strong>non destructive</strong>
+            pour les VMs existantes.
+        </div>
+
+    </div>
+
+    <style>
+        .sql-block {
+            background: #0d1117;
+            border: 1px solid rgba(249,115,22,0.25);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1.2rem 1.4rem;
+            margin: 1rem 0 1.5rem;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.93rem;
+            line-height: 1.7;
+            color: #e2e8f0;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .sql-block-sm {
+            background: #0d1117;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 0.9rem 1rem;
+            margin: 0.6rem 0 0;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.65;
+            color: #e2e8f0;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .kw  { color: #7dd3fc; font-weight: 600; }
+        .fn  { color: #a5f3fc; }
+        .str { color: #86efac; }
+        .cmt { color: #64748b; }
+
+        .answer-label {
+            display: inline-block;
+            background: rgba(249,115,22,0.15);
+            border: 1px solid rgba(249,115,22,0.3);
+            color: #fb923c;
+            font-weight: 700;
+            font-size: 0.82rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0.25rem 0.8rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .tip-box {
+            background:
+                linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 50%, transparent 100%),
+                rgba(255,255,255,0.04);
+            backdrop-filter: blur(12px) saturate(150%);
+            -webkit-backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            font-size: 0.97rem;
+            color: #e2e8f0;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .tip-box strong { color: #fb923c; }
+        .tip-box code { background: rgba(255,255,255,0.08); padding: 0.1em 0.4em; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+
+        .two-col-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0 1.5rem; }
+        @media (max-width: 700px) { .two-col-cards { grid-template-columns: 1fr; } }
+        .two-col-cards > div {
+            border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.93rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-top-color: rgba(255,255,255,0.18);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .two-col-cards h4 { margin: 0 0 0.6rem; font-size: 0.97rem; color: #fb923c; }
+        .two-col-cards p  { margin: 0.4rem 0; color: #cbd5e1; font-size: 0.92rem; }
+        .two-col-cards ul { margin: 0.3rem 0; padding-left: 1.2rem; color: #cbd5e1; }
+        .two-col-cards li { margin: 0.3rem 0; font-size: 0.9rem; }
+
+        .card-green { border-color: rgba(134,239,172,0.25) !important; border-top-color: rgba(134,239,172,0.4) !important; background: rgba(134,239,172,0.05) !important; box-shadow: inset 0 1px 0 rgba(134,239,172,0.15), 0 4px 12px rgba(0,0,0,0.2) !important; }
+        .card-green h4 { color: #86efac !important; }
+        .card-red   { border-color: rgba(248,113,113,0.25) !important; border-top-color: rgba(248,113,113,0.4) !important; background: rgba(248,113,113,0.05) !important; box-shadow: inset 0 1px 0 rgba(248,113,113,0.15), 0 4px 12px rgba(0,0,0,0.2) !important; }
+        .card-red h4 { color: #fca5a5 !important; }
+
+        .card-mono {
+            border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.95rem;
+            background: rgba(249,115,22,0.07);
+            border: 1px solid rgba(249,115,22,0.25);
+            border-top-color: rgba(249,115,22,0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(249,115,22,0.2), 0 4px 12px rgba(0,0,0,0.2);
+            margin: 1rem 0;
+        }
+        .card-mono h4 { color: #fb923c; margin: 0 0 0.6rem; }
+        .card-mono p  { margin: 0.4rem 0; color: #cbd5e1; }
+
+        .comparison-table-container { margin: 1.5rem 0; overflow-x: auto; }
+        .comparison-table { width: 100%; border-collapse: collapse; font-family: 'Inter', system-ui, sans-serif; font-size: 0.93rem; }
+        .comparison-table thead tr { background: rgba(17,24,39,0.92) !important; }
+        .comparison-table th { padding: 12px 16px; text-align: left; font-weight: 600; color: #fff7ed !important; }
+        .comparison-table th:first-child { border-radius: 11px 0 0 0; }
+        .comparison-table th:last-child  { border-radius: 0 11px 0 0; }
+        .comparison-table tbody tr:nth-child(odd)  { background: rgba(255,255,255,0.03) !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
+        .comparison-table tbody tr:nth-child(even) { background: rgba(249,115,22,0.06) !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
+        .comparison-table tbody tr:last-child { border-bottom: none !important; }
+        .comparison-table tbody tr:hover { background: rgba(249,115,22,0.12) !important; }
+        .comparison-table td { padding: 11px 16px; color: #cbd5e1 !important; vertical-align: top; border-bottom: none !important; }
+        .comparison-table td:first-child { color: #f1f5f9 !important; font-weight: 500; }
+    </style>
+</body>
+</html>
