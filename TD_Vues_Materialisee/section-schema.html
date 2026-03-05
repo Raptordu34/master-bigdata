@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="content.css">
+</head>
+<body class="mode-detailed">
+    <h2>Exercice 1 : Vues Matérialisées</h2>
+
+    <!-- Mode Résumé -->
+    <div class="compact-content">
+        <h3 style="margin-top: 0;">Synthèse du schéma</h3>
+        <ul>
+            <li><strong>Etudiants</strong> — ID, Nom, Prenom, Date_naissance, Niveau (Licence / Master / Doctorat)</li>
+            <li><strong>Cours</strong> — ID, Nom_cours, Code_cours, Departement, Credits</li>
+            <li><strong>Inscriptions</strong> — ID, ID_etudiant, ID_cours, Date, Semestre, Note /20, Statut (En cours / Validé / Echoué)</li>
+            <li><strong>Enseignants</strong> — ID, Nom, Prenom, Departement, Grade (Maitre de conf. / Professeur …)</li>
+            <li><strong>Affectations</strong> — ID, ID_enseignant, ID_cours, Semestre, Nb_heures</li>
+        </ul>
+        <p><strong>Objectifs du TD :</strong> créer, requêter, analyser et rafraîchir des vues matérialisées sur cette BD universitaire.</p>
+    </div>
+
+    <!-- Mode Détaillé -->
+    <div class="detailed-content">
+        <h3>Contexte</h3>
+        <p>
+            Une université gère ses données avec les cinq tables suivantes. L'objectif du TD est de
+            <strong>créer des vues matérialisées</strong> pour pré-calculer des agrégats coûteux, d'analyser
+            les gains de performance obtenus et de gérer leur rafraîchissement.
+        </p>
+
+        <div class="tip-box">
+            <strong>Rappel — Vue matérialisée :</strong> contrairement à une vue classique (exécutée à
+            chaque accès), une vue matérialisée <em>stocke physiquement</em> le résultat de la requête.
+            Elle se comporte comme une table ordinaire et doit être <strong>rafraîchie</strong> pour
+            refléter les mises à jour de la source.
+        </div>
+
+        <h3>Schéma de la base de données</h3>
+
+        <div class="tables-grid">
+            <!-- Etudiants -->
+            <div class="schema-table">
+                <div class="schema-table-header">Etudiants</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr></thead>
+                    <tbody>
+                        <tr><td>ID_etudiant</td><td>INT</td><td>PRIMARY KEY</td></tr>
+                        <tr><td>Nom</td><td>VARCHAR(100)</td><td></td></tr>
+                        <tr><td>Prenom</td><td>VARCHAR(100)</td><td></td></tr>
+                        <tr><td>Date_naissance</td><td>DATE</td><td></td></tr>
+                        <tr><td>Niveau</td><td>VARCHAR(30)</td><td><em>Licence, Master, Doctorat</em></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Cours -->
+            <div class="schema-table">
+                <div class="schema-table-header">Cours</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr></thead>
+                    <tbody>
+                        <tr><td>ID_cours</td><td>INT</td><td>PRIMARY KEY</td></tr>
+                        <tr><td>Nom_cours</td><td>VARCHAR(200)</td><td></td></tr>
+                        <tr><td>Code_cours</td><td>VARCHAR(20)</td><td></td></tr>
+                        <tr><td>Departement</td><td>VARCHAR(100)</td><td></td></tr>
+                        <tr><td>Credits</td><td>INT</td><td></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Inscriptions -->
+            <div class="schema-table">
+                <div class="schema-table-header">Inscriptions</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr></thead>
+                    <tbody>
+                        <tr><td>ID_inscription</td><td>INT</td><td>PRIMARY KEY</td></tr>
+                        <tr><td>ID_etudiant</td><td>INT</td><td>FK → Etudiants</td></tr>
+                        <tr><td>ID_cours</td><td>INT</td><td>FK → Cours</td></tr>
+                        <tr><td>Date_inscription</td><td>DATE</td><td></td></tr>
+                        <tr><td>Semestre</td><td>VARCHAR(20)</td><td><em>2025-S1, 2025-S2…</em></td></tr>
+                        <tr><td>Note</td><td>DECIMAL(4,2)</td><td><em>Note sur 20</em></td></tr>
+                        <tr><td>Statut</td><td>VARCHAR(20)</td><td><em>En cours, Validé, Echoué</em></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Enseignants -->
+            <div class="schema-table">
+                <div class="schema-table-header">Enseignants</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr></thead>
+                    <tbody>
+                        <tr><td>ID_enseignant</td><td>INT</td><td>PRIMARY KEY</td></tr>
+                        <tr><td>Nom</td><td>VARCHAR(100)</td><td></td></tr>
+                        <tr><td>Prenom</td><td>VARCHAR(100)</td><td></td></tr>
+                        <tr><td>Departement</td><td>VARCHAR(30)</td><td></td></tr>
+                        <tr><td>Grade</td><td>VARCHAR(30)</td><td><em>Maitre de conf., Professeur…</em></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Affectations -->
+            <div class="schema-table">
+                <div class="schema-table-header">Affectations</div>
+                <table>
+                    <thead><tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr></thead>
+                    <tbody>
+                        <tr><td>ID_affectation</td><td>INT</td><td>PRIMARY KEY</td></tr>
+                        <tr><td>ID_enseignant</td><td>INT</td><td>FK → Enseignants</td></tr>
+                        <tr><td>ID_cours</td><td>INT</td><td>FK → Cours</td></tr>
+                        <tr><td>Semestre</td><td>VARCHAR(20)</td><td></td></tr>
+                        <tr><td>Nb_heures</td><td>INT</td><td></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <h3>Diagramme de relations</h3>
+        <div class="schema-container">
+            <svg viewBox="0 0 720 280" class="schema-svg" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#f97316"/>
+                    </marker>
+                </defs>
+
+                <!-- Etudiants -->
+                <rect x="10" y="110" width="130" height="40" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="2"/>
+                <text x="75" y="135" text-anchor="middle" fill="#fff7ed" font-family="sans-serif" font-size="13" font-weight="bold">Etudiants</text>
+
+                <!-- Inscriptions (centre) -->
+                <rect x="290" y="110" width="140" height="40" rx="8" fill="#0f172a" stroke="#f97316" stroke-width="2.5"/>
+                <text x="360" y="135" text-anchor="middle" fill="#fb923c" font-family="sans-serif" font-size="13" font-weight="bold">Inscriptions</text>
+
+                <!-- Cours -->
+                <rect x="580" y="110" width="130" height="40" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="2"/>
+                <text x="645" y="135" text-anchor="middle" fill="#fff7ed" font-family="sans-serif" font-size="13" font-weight="bold">Cours</text>
+
+                <!-- Enseignants -->
+                <rect x="580" y="210" width="130" height="40" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+                <text x="645" y="235" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="13" font-weight="bold">Enseignants</text>
+
+                <!-- Affectations -->
+                <rect x="290" y="210" width="140" height="40" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+                <text x="360" y="235" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="13" font-weight="bold">Affectations</text>
+
+                <!-- Etudiants → Inscriptions -->
+                <line x1="140" y1="130" x2="288" y2="130" stroke="#f97316" stroke-width="2" marker-end="url(#arr)"/>
+                <text x="215" y="120" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="11">ID_etudiant</text>
+
+                <!-- Cours → Inscriptions -->
+                <line x1="580" y1="130" x2="432" y2="130" stroke="#f97316" stroke-width="2" marker-end="url(#arr)"/>
+                <text x="506" y="120" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="11">ID_cours</text>
+
+                <!-- Cours → Affectations -->
+                <line x1="645" y1="150" x2="645" y2="208" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+                <!-- Enseignants → Affectations -->
+                <line x1="580" y1="230" x2="432" y2="230" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+                <text x="506" y="222" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="11">ID_enseignant</text>
+
+                <!-- Affectations → Cours label -->
+                <text x="645" y="200" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="11">ID_cours</text>
+            </svg>
+        </div>
+
+        <h3>Objectifs du TD</h3>
+        <div class="two-col-cards">
+            <div>
+                <h4>Maîtriser les vues matérialisées</h4>
+                <ul>
+                    <li>Créer et utiliser des vues matérialisées</li>
+                    <li>Comprendre les stratégies de rafraîchissement</li>
+                    <li>Optimiser des requêtes complexes</li>
+                </ul>
+            </div>
+            <div>
+                <h4>Analyser les performances</h4>
+                <ul>
+                    <li>Mesurer les compromis stockage / temps d'exécution</li>
+                    <li>Sélectionner les vues matérialisées pertinentes</li>
+                    <li>Appliquer le rafraîchissement incrémental</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .tables-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.2rem;
+            margin: 1.5rem 0;
+        }
+        @media (max-width: 700px) { .tables-grid { grid-template-columns: 1fr; } }
+
+        .schema-table {
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(249,115,22,0.3);
+            background: rgba(15,23,42,0.6);
+            backdrop-filter: blur(10px);
+        }
+        .schema-table-header {
+            background: rgba(249,115,22,0.15);
+            color: #fb923c;
+            font-weight: 700;
+            font-size: 1rem;
+            padding: 0.55rem 1rem;
+            letter-spacing: 0.02em;
+            border-bottom: 1px solid rgba(249,115,22,0.25);
+        }
+        .schema-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        .schema-table thead tr { background: rgba(255,255,255,0.05); }
+        .schema-table th {
+            padding: 7px 12px;
+            text-align: left;
+            color: #94a3b8;
+            font-weight: 600;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .schema-table tbody tr:nth-child(odd)  { background: rgba(255,255,255,0.02); }
+        .schema-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.05); }
+        .schema-table tbody tr:hover { background: rgba(249,115,22,0.08); }
+        .schema-table td {
+            padding: 7px 12px;
+            color: #e2e8f0;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .schema-table td:first-child { color: #f8fafc; font-weight: 500; font-family: monospace; }
+        .schema-table td:nth-child(2) { color: #7dd3fc; font-family: monospace; font-size: 0.84rem; }
+        .schema-table td:nth-child(3) { color: #86efac; font-size: 0.82rem; }
+
+        .schema-container { margin: 1.2rem 0; padding: 0.8rem 1rem; overflow-x: auto; }
+        .schema-svg { min-width: 500px; max-width: 100%; height: auto; }
+
+        .tip-box {
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            font-size: 0.97rem;
+            color: #e2e8f0;
+        }
+        .tip-box strong { color: #fb923c; }
+
+        .two-col-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0 1.5rem; }
+        @media (max-width: 700px) { .two-col-cards { grid-template-columns: 1fr; } }
+        .two-col-cards > div {
+            border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.95rem;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .two-col-cards h4 { margin: 0 0 0.6rem; font-size: 1rem; color: #fb923c; }
+        .two-col-cards ul { margin: 0; padding-left: 1.2rem; color: #cbd5e1; }
+        .two-col-cards li { margin: 0.25rem 0; }
+    </style>
+</body>
+</html>

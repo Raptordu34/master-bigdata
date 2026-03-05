@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TD - Vues Matérialisées</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Tâches d'arrière-plan pour l'effet Glassmorphism -->
+    <div class="blob blob-1"></div>
+    <div class="cursor-halo" id="cursor-halo"></div>
+
+    <div class="app-container">
+        <!-- Barre de navigation latérale (Sidebar) -->
+        <nav class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <h1>Vues Matérialisées</h1>
+                <p>TD — Master Big Data 2025-2026</p>
+            </div>
+
+            <div class="nav-links">
+                <button class="nav-btn active" onclick="loadSection('section-schema.html', this)">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 13 15 13 15 21"/></svg></span> Schéma de la BD
+                </button>
+                <button class="nav-btn" onclick="loadSection('section-q11-q13.html', this)">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></span> Q1.1 – Q1.3 : VM Performances
+                </button>
+                <button class="nav-btn" onclick="loadSection('section-q14-q15.html', this)">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span> Q1.4 – Q1.5 : VM Agrégées
+                </button>
+                <button class="nav-btn" onclick="loadSection('section-q16-q17.html', this)">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span> Q1.6 – Q1.7 : Charge & Refresh
+                </button>
+            </div>
+        </nav>
+
+        <!-- Zone de contenu principal -->
+        <main class="main-content">
+            <div class="glass-panel content-wrapper">
+                <button id="toggle-view-btn" class="floating-toggle-btn" onclick="toggleMode()">
+                    <span>📄</span> Passer en Mode Résumé
+                </button>
+                <iframe id="content-frame" src="section-schema.html" frameborder="0"></iframe>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Halo orange qui suit le curseur
+        const halo = document.getElementById('cursor-halo');
+
+        function moveHalo(x, y) {
+            halo.style.left = x + 'px';
+            halo.style.top = y + 'px';
+        }
+
+        document.addEventListener('mousemove', (e) => moveHalo(e.clientX, e.clientY));
+
+        function attachIframeHalo(frame) {
+            try {
+                frame.contentWindow.document.addEventListener('mousemove', (e) => {
+                    const rect = frame.getBoundingClientRect();
+                    moveHalo(rect.left + e.clientX, rect.top + e.clientY);
+                });
+            } catch (err) { /* cross-origin, ignoré */ }
+        }
+
+        let isCompactMode = localStorage.getItem('isCompactMode') === 'true';
+
+        // Initialisation au chargement de la page principale
+        window.onload = () => {
+            const savedSection = localStorage.getItem('currentSection') || 'section-schema.html';
+            const frame = document.getElementById('content-frame');
+            frame.src = savedSection;
+
+            // Mettre à jour le bouton actif correspondant
+            const buttons = document.getElementsByClassName('nav-btn');
+            for (let btn of buttons) {
+                if (btn.getAttribute('onclick').includes(savedSection)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            }
+
+            // Mettre à jour l'apparence du bouton de mode
+            updateToggleButtonUI();
+
+            // S'assurer que le mode est bien appliqué une fois l'iframe chargé
+            frame.onload = () => {
+                frame.style.opacity = 1;
+                applyModeToFrame();
+                attachIframeHalo(frame);
+
+                // Restaurer la position de défilement
+                const scrollPos = localStorage.getItem('scrollPos_' + savedSection);
+                if (scrollPos) {
+                    frame.contentWindow.scrollTo(0, parseInt(scrollPos));
+                }
+
+                // Écouter le défilement pour le sauvegarder
+                frame.contentWindow.addEventListener('scroll', () => {
+                    localStorage.setItem('scrollPos_' + frame.src.split('/').pop(), frame.contentWindow.scrollY);
+                });
+            };
+        };
+
+        function loadSection(url, button) {
+            const frame = document.getElementById('content-frame');
+            // Transition de fondu
+            frame.style.opacity = 0;
+            
+            // Sauvegarder la section courante
+            localStorage.setItem('currentSection', url);
+
+            setTimeout(() => {
+                frame.src = url;
+                frame.onload = () => {
+                    frame.style.opacity = 1;
+                    applyModeToFrame(); // Appliquer le mode à la nouvelle page chargée
+                    attachIframeHalo(frame);
+
+                    // Restaurer la position de défilement pour cette nouvelle page
+                    const scrollPos = localStorage.getItem('scrollPos_' + url);
+                    if (scrollPos) {
+                        frame.contentWindow.scrollTo(0, parseInt(scrollPos));
+                    }
+                    
+                    // Écouter le défilement
+                    frame.contentWindow.addEventListener('scroll', () => {
+                        localStorage.setItem('scrollPos_' + url, frame.contentWindow.scrollY);
+                    });
+                };
+            }, 300);
+
+            // Mettre à jour le bouton actif
+            var buttons = document.getElementsByClassName('nav-btn');
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove('active');
+            }
+            if (button) {
+                button.classList.add('active');
+            }
+        }
+
+        function toggleMode() {
+            isCompactMode = !isCompactMode;
+            localStorage.setItem('isCompactMode', isCompactMode);
+            updateToggleButtonUI();
+            applyModeToFrame();
+        }
+
+        function updateToggleButtonUI() {
+            const btn = document.getElementById('toggle-view-btn');
+            if (isCompactMode) {
+                btn.innerHTML = '<span>📖</span> Passer en Mode Détaillé';
+            } else {
+                btn.innerHTML = '<span>📄</span> Passer en Mode Résumé';
+            }
+        }
+
+        function applyModeToFrame() {
+            const frame = document.getElementById('content-frame');
+            try {
+                const body = frame.contentWindow.document.body;
+                if (isCompactMode) {
+                    body.classList.remove('mode-detailed');
+                    body.classList.add('mode-compact');
+                    // Rendre visible .compact-content si présent
+                    const statics = frame.contentWindow.document.querySelectorAll('.compact-content');
+                    statics.forEach(el => el.style.display = 'block');
+                } else {
+                    body.classList.remove('mode-compact');
+                    body.classList.add('mode-detailed');
+                    // Remettre .compact-content invisible
+                    const statics = frame.contentWindow.document.querySelectorAll('.compact-content');
+                    statics.forEach(el => el.style.display = 'none');
+                }
+            } catch (e) {
+                console.warn("Impossible d'accéder au contenu de l'iframe", e);
+            }
+        }
+    </script>
+</body>
+</html>

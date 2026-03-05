@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="content.css">
+</head>
+<body class="mode-detailed">
+    <h2>Q1.6 – Q1.7 : Charge &amp; Rafraîchissement</h2>
+
+    <!-- Mode Résumé -->
+    <div class="compact-content">
+        <h3 style="margin-top: 0;">Synthèse</h3>
+        <ul>
+            <li>
+                <strong>Q1.6 — VM_Charge_Enseignants :</strong>
+                JOIN Enseignants → Affectations → Inscriptions. Agrégation par enseignant :
+                nb cours, total heures, moyenne étudiants par cours.
+            </li>
+            <li>
+                <strong>Q1.7 — Rafraîchissement :</strong>
+                <code>REFRESH MATERIALIZED VIEW VM_Performance_Etudiants;</code>
+                Fréquence recommandée : <strong>quotidienne</strong> (chaque nuit, par exemple à 2h00),
+                justifiée par la fréquence de mise à jour des inscriptions/notes et les 100 consultations/jour.
+            </li>
+        </ul>
+    </div>
+
+    <!-- Mode Détaillé -->
+    <div class="detailed-content">
+
+        <!-- ===== Q1.6 ===== -->
+        <h3>Question 1.6 — Charge d'enseignement</h3>
+        <p>
+            Créer une vue matérialisée <strong>VM_Charge_Enseignants</strong> qui calcule, pour chaque enseignant :
+            son nom complet et son département, le nombre de cours enseignés,
+            le total d'heures d'enseignement et la moyenne du nombre d'étudiants par cours.
+        </p>
+
+        <div class="answer-label">Réponse</div>
+        <pre class="sql-block"><span class="kw">CREATE MATERIALIZED VIEW</span> VM_Charge_Enseignants <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    en.ID_enseignant,
+    en.Nom || <span class="str">' '</span> || en.Prenom              <span class="cmt">AS Nom_Complet,</span>
+    en.Departement,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> a.ID_cours)              <span class="cmt">AS Nb_Cours_Enseignes,</span>
+    <span class="fn">COALESCE</span>(<span class="fn">SUM</span>(a.Nb_heures), 0)           <span class="cmt">AS Total_Heures,</span>
+    <span class="fn">ROUND</span>(
+        <span class="fn">COUNT</span>(i.ID_inscription) * 1.0
+        / <span class="fn">NULLIF</span>(<span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> a.ID_cours), 0),
+    1)                                       <span class="cmt">AS Moy_Etudiants_Par_Cours</span>
+<span class="kw">FROM</span>   Enseignants en
+<span class="kw">LEFT JOIN</span> Affectations a  <span class="kw">ON</span> en.ID_enseignant = a.ID_enseignant
+<span class="kw">LEFT JOIN</span> Inscriptions  i  <span class="kw">ON</span> a.ID_cours       = i.ID_cours
+<span class="kw">GROUP BY</span>
+    en.ID_enseignant, en.Nom, en.Prenom, en.Departement;</pre>
+
+        <div class="tip-box">
+            <strong>Formule de Moy_Etudiants_Par_Cours :</strong><br>
+            On divise le nombre total d'inscriptions (toutes affectations confondues) par le nombre de cours distincts
+            enseignés. <code>NULLIF(..., 0)</code> évite une division par zéro pour les enseignants sans affectation.
+            <code>COALESCE(SUM(...), 0)</code> retourne 0 au lieu de NULL pour un enseignant sans affectation.
+        </div>
+
+        <h4>Exemple de résultat attendu</h4>
+        <div class="comparison-table-container">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Nom_Complet</th>
+                        <th>Departement</th>
+                        <th>Nb_Cours</th>
+                        <th>Total_Heures</th>
+                        <th>Moy_Etudiants</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Martin Sophie</td><td>Informatique</td><td>3</td><td>120</td><td>28.3</td></tr>
+                    <tr><td>Dubois Pierre</td><td>Mathématiques</td><td>2</td><td>80</td><td>22.5</td></tr>
+                    <tr><td>Leroy Anne</td><td>Informatique</td><td>4</td><td>160</td><td>31.0</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-mono">
+            <h4>Cas d'usage — suivi RH et planification</h4>
+            <p>
+                Cette vue permet à l'administration d'identifier les enseignants surchargés
+                (<code>Total_Heures</code> élevé) ou ceux avec un grand nombre d'étudiants par cours,
+                afin d'adapter les ressources pédagogiques et les tailles de groupes.
+            </p>
+        </div>
+
+        <!-- ===== Q1.7 ===== -->
+        <h3>Question 1.7 — Rafraîchissement de VM_Performance_Etudiants</h3>
+
+        <h4>1. Commandes SQL de rafraîchissement</h4>
+        <div class="two-col-cards">
+            <div>
+                <h4>Rafraîchissement complet</h4>
+                <pre class="sql-block-sm"><span class="cmt">-- Supprime et recrée toutes les lignes</span>
+<span class="kw">REFRESH MATERIALIZED VIEW</span>
+    VM_Performance_Etudiants;</pre>
+                <p style="color:#94a3b8; font-size:0.85rem; margin-top:0.6rem;">
+                    Simple, toujours disponible. Verrouille la vue pendant le recalcul — la vue est inaccessible
+                    pendant quelques secondes.
+                </p>
+            </div>
+            <div>
+                <h4>Rafraîchissement incrémental (PostgreSQL)</h4>
+                <pre class="sql-block-sm"><span class="cmt">-- Ne met à jour que les lignes modifiées</span>
+<span class="cmt">-- Nécessite un index UNIQUE sur la VM</span>
+<span class="kw">REFRESH MATERIALIZED VIEW CONCURRENTLY</span>
+    VM_Performance_Etudiants;</pre>
+                <p style="color:#86efac; font-size:0.85rem; margin-top:0.6rem;">
+                    La vue reste lisible pendant le rafraîchissement.
+                    Requiert <code>CREATE UNIQUE INDEX ON VM_Performance_Etudiants (ID_etudiant);</code>
+                </p>
+            </div>
+        </div>
+
+        <h4>2. Fréquence de rafraîchissement recommandée</h4>
+        <div class="card-mono">
+            <h4>Recommandation : rafraîchissement quotidien</h4>
+            <p>
+                Exécuter le rafraîchissement <strong>une fois par nuit</strong>, par exemple à <strong>02h00</strong>,
+                lorsque l'activité utilisateur est nulle.
+            </p>
+            <p>Exemple de planification (cron) :</p>
+        </div>
+        <pre class="sql-block"><span class="cmt">-- Exemple avec pg_cron (PostgreSQL)</span>
+<span class="kw">SELECT</span> cron.schedule(
+    <span class="str">'refresh-vm-perf-etudiants'</span>,
+    <span class="str">'0 2 * * *'</span>,                          <span class="cmt">-- chaque jour à 02h00</span>
+    <span class="str">$$REFRESH MATERIALIZED VIEW CONCURRENTLY VM_Performance_Etudiants;$$</span>
+);</pre>
+
+        <h4>3. Justification du choix</h4>
+        <div class="comparison-table-container">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Fréquence</th>
+                        <th>Avantages</th>
+                        <th>Inconvénients</th>
+                        <th>Adapté ici ?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Temps réel (trigger)</strong></td>
+                        <td>Données toujours fraîches</td>
+                        <td>Coût élevé à chaque INSERT/UPDATE sur Inscriptions — 500 000 lignes recalculées à la moindre modification</td>
+                        <td style="color:#f87171;">Non — disproportionné</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Horaire</strong></td>
+                        <td>Données fraîches à l'heure près</td>
+                        <td>Recalcul 24×/jour inutile si les notes ne changent pas souvent</td>
+                        <td style="color:#fbbf24;">Possible mais excessif</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Quotidienne (recommandée)</strong></td>
+                        <td>Données fraîches chaque matin — cohérent avec le rythme académique. Coût minimal (1 recalcul/jour vs 100 requêtes)</td>
+                        <td>Données potentiellement décalées de 24h max</td>
+                        <td style="color:#86efac;">Oui — optimal</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Hebdomadaire</strong></td>
+                        <td>Très faible charge</td>
+                        <td>Données périmées en milieu de semaine si des inscriptions ou notes ont été saisies</td>
+                        <td style="color:#f87171;">Non — trop long</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="tip-box">
+            <strong>Raisonnement final :</strong>
+            Les inscriptions et les notes évoluent quotidiennement (saisies par les enseignants en fin de journée).
+            Un rafraîchissement <strong>nocturne quotidien</strong> garantit que les 100 consultations de la journée
+            s'appuient sur des données à jour du matin, tout en limitant le coût de recalcul à <strong>une seule
+            agrégation par 24h</strong> sur les 500 000 lignes de la table Inscriptions.
+        </div>
+    </div>
+
+    <style>
+        .sql-block {
+            background: #0d1117;
+            border: 1px solid rgba(249,115,22,0.25);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1.2rem 1.4rem;
+            margin: 1rem 0 1.5rem;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.93rem;
+            line-height: 1.7;
+            color: #e2e8f0;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .sql-block-sm {
+            background: #0d1117;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 0.9rem 1rem;
+            margin: 0.6rem 0;
+            font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.82rem;
+            line-height: 1.65;
+            color: #e2e8f0;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .kw  { color: #7dd3fc; font-weight: 600; }
+        .fn  { color: #a5f3fc; }
+        .str { color: #86efac; }
+        .cmt { color: #64748b; }
+
+        .answer-label {
+            display: inline-block;
+            background: rgba(249,115,22,0.15);
+            border: 1px solid rgba(249,115,22,0.3);
+            color: #fb923c;
+            font-weight: 700;
+            font-size: 0.82rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0.25rem 0.8rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .tip-box {
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid #f97316;
+            border-radius: 0 10px 10px 0;
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            font-size: 0.97rem;
+            color: #e2e8f0;
+        }
+        .tip-box strong { color: #fb923c; }
+        .tip-box code {
+            background: rgba(255,255,255,0.08);
+            padding: 0.1em 0.4em;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .two-col-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0 1.5rem; }
+        @media (max-width: 700px) { .two-col-cards { grid-template-columns: 1fr; } }
+        .two-col-cards > div {
+            border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.92rem;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .two-col-cards h4 { margin: 0 0 0.5rem; font-size: 0.95rem; color: #fb923c; }
+
+        .card-mono {
+            border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.95rem;
+            background: rgba(249,115,22,0.07);
+            border: 1px solid rgba(249,115,22,0.25);
+            border-top-color: rgba(249,115,22,0.4);
+            backdrop-filter: blur(10px);
+            margin: 1rem 0;
+        }
+        .card-mono h4 { color: #fb923c; margin: 0 0 0.6rem; }
+        .card-mono p  { margin: 0.4rem 0; color: #cbd5e1; }
+
+        .comparison-table-container { margin: 1.5rem 0; overflow-x: auto; }
+        .comparison-table { width: 100%; border-collapse: collapse; font-size: 0.91rem; }
+        .comparison-table thead tr { background: rgba(17,24,39,0.92); }
+        .comparison-table th { padding: 12px 14px; text-align: left; font-weight: 600; color: #fff7ed; }
+        .comparison-table th:first-child { border-radius: 11px 0 0 0; }
+        .comparison-table th:last-child  { border-radius: 0 11px 0 0; }
+        .comparison-table tbody tr:nth-child(odd)  { background: rgba(255,255,255,0.03); }
+        .comparison-table tbody tr:nth-child(even) { background: rgba(249,115,22,0.06); }
+        .comparison-table tbody tr:hover { background: rgba(249,115,22,0.12); }
+        .comparison-table td { padding: 11px 14px; color: #cbd5e1; vertical-align: top; border-top: 1px solid rgba(255,255,255,0.06); }
+        .comparison-table td:first-child { color: #f1f5f9; font-weight: 500; }
+    </style>
+</body>
+</html>
