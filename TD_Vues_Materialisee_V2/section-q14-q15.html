@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Q1.4 – Q1.5 : VM Agrégées</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 2 questions</span>
+            <span class="exo-time">⏱ 20–25 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Créer une VM agrégée multi-tables avec COUNT DISTINCT</li>
+                <li>Créer une VM temporelle par semestre</li>
+                <li>Comparer les deux axes d'analyse</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Q1.1 – Q1.3 — VM_Performance_Etudiants</em></p>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.4                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.4</span>
+            <span class="question-pts">Vue agrégée par département</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Créer une vue matérialisée <strong>VM_Stats_Departement</strong> qui affiche, pour chaque département :
+            son nom, le nombre de cours proposés, le nombre d'enseignants et la moyenne des notes des étudiants.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Utiliser <code>COUNT(a.ID_enseignant)</code> sans <code>DISTINCT</code>.
+            Un même enseignant peut intervenir dans plusieurs cours du même département : sans DISTINCT,
+            on comptabiliserait les doublons.
+        </div>
+
+        <button class="hint-btn" data-hint="q14-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q14-h1">
+            Jointure nécessaire : <code>Cours c LEFT JOIN Affectations a ON c.ID_cours = a.ID_cours LEFT JOIN Inscriptions i ON c.ID_cours = i.ID_cours</code>.
+            Le <code>GROUP BY</code> porte uniquement sur <code>c.Departement</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q14-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q14-h2">
+            Utilisez <code>COUNT(DISTINCT c.ID_cours)</code> et <code>COUNT(DISTINCT a.ID_enseignant)</code>
+            pour compter les individus uniques et éviter les doublons dus aux jointures multiples.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre réponse…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.4</h4>
+
+            <pre><code>CREATE MATERIALIZED VIEW VM_Stats_Departement AS
+SELECT
+    c.Departement,
+    COUNT(DISTINCT c.ID_cours)          AS Nb_Cours,
+    COUNT(DISTINCT a.ID_enseignant)     AS Nb_Enseignants,
+    ROUND(AVG(i.Note), 2)               AS Moyenne_Etudiants
+FROM   Cours c
+LEFT JOIN Affectations a ON c.ID_cours = a.ID_cours
+LEFT JOIN Inscriptions  i ON c.ID_cours = i.ID_cours
+GROUP BY c.Departement;</code></pre>
+
+            <div class="callout-info">
+                <strong>Pourquoi COUNT DISTINCT ?</strong>
+                <ul>
+                    <li>Un même cours peut avoir <em>plusieurs affectations</em> (enseignants différents sur plusieurs semestres). Sans DISTINCT, <code>COUNT(a.ID_enseignant)</code> compterait les doublons.</li>
+                    <li>De même, un même enseignant peut intervenir dans plusieurs cours du même département : <code>COUNT(DISTINCT a.ID_enseignant)</code> donne le nombre d'<strong>individus uniques</strong>.</li>
+                </ul>
+            </div>
+
+            <p><strong>Exemple de résultat attendu :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Departement</th>
+                            <th>Nb_Cours</th>
+                            <th>Nb_Enseignants</th>
+                            <th>Moyenne_Etudiants</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Informatique</td><td>12</td><td>7</td><td>13.42</td></tr>
+                        <tr><td>Mathématiques</td><td>8</td><td>5</td><td>11.87</td></tr>
+                        <tr><td>Physique</td><td>6</td><td>4</td><td>12.10</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="highlight-box">
+                <strong>Attention à l'interprétation de la moyenne :</strong>
+                La valeur calculée est la moyenne de <em>toutes les notes de tous les cours du département</em>,
+                pondérée par le nombre d'inscriptions. Ce n'est pas la moyenne des moyennes par cours.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.5                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.5</span>
+            <span class="question-pts">Vue temporelle par semestre</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Créer une vue matérialisée <strong>VM_Inscriptions_Semestre</strong> qui affiche, pour chaque semestre :
+            le semestre, le nombre total d'inscriptions, le nombre d'étudiants distincts et la moyenne générale.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Confondre <code>COUNT(*)</code> et <code>COUNT(DISTINCT ID_etudiant)</code>.
+            Le premier compte les lignes d'inscription (un étudiant inscrit à 5 cours = 5 lignes) ;
+            le second compte les étudiants uniques.
+        </div>
+
+        <button class="hint-btn" data-hint="q15-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q15-h1">
+            Source unique : table <code>Inscriptions</code> uniquement. Groupez par <code>Semestre</code>.
+            Ajoutez un <code>ORDER BY Semestre</code> pour un affichage chronologique.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre réponse…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.5</h4>
+
+            <pre><code>CREATE MATERIALIZED VIEW VM_Inscriptions_Semestre AS
+SELECT
+    Semestre,
+    COUNT(*)                              AS Nb_Inscriptions,
+    COUNT(DISTINCT ID_etudiant)           AS Nb_Etudiants_Distincts,
+    ROUND(AVG(Note), 2)                   AS Moyenne_Generale
+FROM   Inscriptions
+GROUP BY Semestre
+ORDER BY Semestre;</code></pre>
+
+            <p><strong>Exemple de résultat attendu :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Semestre</th>
+                            <th>Nb_Inscriptions</th>
+                            <th>Nb_Etudiants_Distincts</th>
+                            <th>Moyenne_Generale</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>2024-S1</td><td>4 820</td><td>1 230</td><td>12.74</td></tr>
+                        <tr><td>2024-S2</td><td>5 113</td><td>1 275</td><td>13.01</td></tr>
+                        <tr><td>2025-S1</td><td>5 350</td><td>1 310</td><td>12.55</td></tr>
+                        <tr><td>2025-S2</td><td>4 990</td><td>1 298</td><td>13.18</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout-info">
+                <strong>Cas d'usage — tableau de bord de pilotage :</strong>
+                <code>VM_Inscriptions_Semestre</code> est idéale pour alimenter un dashboard de suivi :
+                évolution du nombre d'inscriptions d'un semestre à l'autre, tendance des résultats, etc.
+                Elle remplace une agrégation coûteuse sur 500 000 lignes par une lecture de quelques dizaines
+                de lignes pré-calculées.
+            </div>
+        </div>
+    </div>
+
+    <h3>Comparaison des deux vues</h3>
+
+    <div class="table-glass">
+        <table>
+            <thead>
+                <tr>
+                    <th>Critère</th>
+                    <th>VM_Stats_Departement</th>
+                    <th>VM_Inscriptions_Semestre</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Axe d'analyse</strong></td>
+                    <td>Organisation (département)</td>
+                    <td>Temporel (semestre)</td>
+                </tr>
+                <tr>
+                    <td><strong>Tables sources</strong></td>
+                    <td>Cours, Affectations, Inscriptions (3 tables)</td>
+                    <td>Inscriptions uniquement (1 table)</td>
+                </tr>
+                <tr>
+                    <td><strong>Complexité de la VM</strong></td>
+                    <td>Multi-JOIN + COUNT DISTINCT</td>
+                    <td>Simple GROUP BY</td>
+                </tr>
+                <tr>
+                    <td><strong>Nombre de lignes résultat</strong></td>
+                    <td>= nombre de départements (~10–50)</td>
+                    <td>= nombre de semestres (~4–10)</td>
+                </tr>
+                <tr>
+                    <td><strong>Fréquence de rafraîchissement conseillée</strong></td>
+                    <td>Hebdomadaire</td>
+                    <td>Quotidienne (fin de journée)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Comment indexer <code>VM_Stats_Departement</code> pour accélérer les requêtes filtrées sur <code>Departement</code> ?</li>
+            <li>Que se passe-t-il si on ajoute un nouveau département sans cours associés ? Apparaît-il dans la VM ?</li>
+            <li>Comparez <code>COUNT(*)</code> vs <code>COUNT(Note)</code> : que retourne chacun si certaines notes sont NULL ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>

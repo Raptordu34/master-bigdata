@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Q1.1 – Q1.3 : VM Performances Étudiants</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+            <span class="exo-points">◎ 3 questions</span>
+            <span class="exo-time">⏱ 20–30 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Créer une vue matérialisée avec GROUP BY et LEFT JOIN</li>
+                <li>Comparer l'exécution directe et via vue matérialisée</li>
+                <li>Analyser les avantages des VMs sur de grands volumes de données</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Schéma de la BD — section précédente</em></p>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.1                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.1</span>
+            <span class="question-pts">Vue des performances étudiantes</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Créer une vue matérialisée <strong>VM_Performance_Etudiants</strong> qui affiche, pour chaque étudiant :
+            son ID, son nom complet (Nom + Prénom), son niveau d'études, le nombre total de cours suivis
+            et sa moyenne générale.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Oublier les colonnes non agrégées dans le <code>GROUP BY</code>.
+            Toute colonne du <code>SELECT</code> qui n'est pas dans une fonction d'agrégation (<code>COUNT</code>, <code>AVG</code>…)
+            doit apparaître dans le <code>GROUP BY</code>.
+        </div>
+
+        <button class="hint-btn" data-hint="q11-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q11-h1">
+            Utilisez un <code>LEFT JOIN</code> (pas <code>INNER JOIN</code>) pour conserver les étudiants
+            sans aucune inscription (ils apparaîtront avec <code>Nb_Cours_Suivis = 0</code> et
+            <code>Moyenne_Generale = NULL</code>).
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q11-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q11-h2">
+            La concaténation en SQL standard : <code>e.Nom || ' ' || e.Prenom AS Nom_Complet</code>.
+            Groupez sur <code>e.ID_etudiant, e.Nom, e.Prenom, e.Niveau</code> pour rester portable sur tous les SGBD.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre réponse…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.1</h4>
+
+            <pre><code>CREATE MATERIALIZED VIEW VM_Performance_Etudiants AS
+SELECT
+    e.ID_etudiant,
+    e.Nom || ' ' || e.Prenom          AS Nom_Complet,
+    e.Niveau,
+    COUNT(i.ID_cours)                 AS Nb_Cours_Suivis,
+    ROUND(AVG(i.Note), 2)             AS Moyenne_Generale
+FROM   Etudiants e
+LEFT JOIN Inscriptions i ON e.ID_etudiant = i.ID_etudiant
+GROUP BY
+    e.ID_etudiant, e.Nom, e.Prenom, e.Niveau;</code></pre>
+
+            <div class="callout-info">
+                <strong>Pourquoi LEFT JOIN ?</strong> Un étudiant inscrit à zéro cours doit quand même apparaître
+                dans la vue (avec <code>Nb_Cours_Suivis = 0</code> et <code>Moyenne_Generale = NULL</code>).
+                Un INNER JOIN exclurait ces étudiants.
+            </div>
+        </div>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-groupby" data-label="Comprendre le GROUP BY" data-close-label="Masquer l'explication" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Comprendre le GROUP BY</span>
+    </button>
+    <div class="hint" id="rappel-groupby">
+        <p><strong>Sans GROUP BY :</strong> <code>SELECT AVG(Note) FROM Inscriptions</code> retourne <strong>une seule ligne</strong> — la moyenne de toutes les notes confondues.</p>
+        <p><strong>Avec GROUP BY e.ID_etudiant :</strong> retourne <strong>une ligne par étudiant</strong>, chacune avec sa propre moyenne.</p>
+        <div class="callout-info">
+            <strong>Règle fondamentale :</strong> toute colonne dans le <code>SELECT</code> qui
+            <em>n'est pas</em> une agrégation <strong>doit</strong> apparaître dans le <code>GROUP BY</code>.
+            C'est pourquoi on écrit <code>GROUP BY e.ID_etudiant, e.Nom, e.Prenom, e.Niveau</code>.
+            PostgreSQL l'accepte avec seulement <code>ID_etudiant</code> (car c'est une PK), mais écrire
+            toutes les colonnes reste la pratique <strong>portable et explicite</strong>.
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.2                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.2</span>
+            <span class="question-pts">Requête directe vs vue matérialisée</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Un responsable pédagogique veut les performances de tous les étudiants de niveau <em>Master</em>.
+            Écrire les deux versions de la requête : directe (sans VM) et via la vue matérialisée.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Penser que les deux requêtes ont le même coût d'exécution.
+            La requête directe refait à chaque fois le JOIN et le GROUP BY sur toutes les tables sources ;
+            la requête via VM lit directement des données pré-calculées.
+        </div>
+
+        <button class="hint-btn" data-hint="q12-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q12-h1">
+            La requête via VM est un simple <code>SELECT * FROM VM_Performance_Etudiants WHERE Niveau = 'Master'</code>.
+            Le SGBD lit directement les lignes stockées — aucun JOIN ni GROUP BY à l'exécution.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Écrivez les deux requêtes…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.2</h4>
+
+            <p><strong>1. Requête directe (sans VM)</strong></p>
+            <pre><code>-- Accès direct aux tables de base
+SELECT
+    e.ID_etudiant,
+    e.Nom || ' ' || e.Prenom  AS Nom_Complet,
+    e.Niveau,
+    COUNT(i.ID_cours)         AS Nb_Cours_Suivis,
+    ROUND(AVG(i.Note), 2)     AS Moyenne_Generale
+FROM   Etudiants e
+LEFT JOIN Inscriptions i
+    ON e.ID_etudiant = i.ID_etudiant
+WHERE  e.Niveau = 'Master'
+GROUP BY
+    e.ID_etudiant,
+    e.Nom, e.Prenom,
+    e.Niveau;</code></pre>
+
+            <p><strong>2. Requête réécrite (avec VM)</strong></p>
+            <pre><code>-- Lecture directe de la vue pré-calculée
+SELECT *
+FROM   VM_Performance_Etudiants
+WHERE  Niveau = 'Master';</code></pre>
+
+            <div class="callout-info">
+                Le SGBD lit directement les lignes stockées dans la VM — aucun JOIN ni GROUP BY à l'exécution.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.3                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.3</span>
+            <span class="question-pts">Analyse des avantages</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Analyser les avantages de la vue matérialisée dans le contexte suivant :
+            <strong>50 000 étudiants · 500 000 inscriptions · requête exécutée 100 fois par jour</strong>.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Ne pas mentionner la fraîcheur des données comme inconvénient.
+            La VM stocke un instantané — les données peuvent être décalées d'un cycle de rafraîchissement.
+        </div>
+
+        <button class="hint-btn" data-hint="q13-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q13-h1">
+            Comparez le coût pour 100 exécutions :
+            mode direct = 100 × (JOIN 550 000 lignes + GROUP BY) ;
+            mode VM = 1 rafraîchissement nocturne + 100 lectures légères.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q13-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q13-h2">
+            Pensez aux 5 critères : opérations par exécution, coût CPU/I/O, coût total journée, temps de réponse utilisateur,
+            fraîcheur des données, et coût de stockage supplémentaire.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Analysez les avantages et inconvénients…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.3</h4>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Critère</th>
+                            <th>Requête directe</th>
+                            <th>Via VM_Performance_Etudiants</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Opérations à chaque exécution</strong></td>
+                            <td>Scan Etudiants (50 000 lignes) + Scan Inscriptions (500 000) + JOIN + GROUP BY + AVG</td>
+                            <td>Scan de la VM (~50 000 lignes précalculées) + filtre WHERE simple</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Coût CPU / I/O par exécution</strong></td>
+                            <td>Élevé — plusieurs centaines de milliers de lectures disque</td>
+                            <td>Très faible — lecture séquentielle d'une seule table</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Coût total sur la journée (×100)</strong></td>
+                            <td>100 × (coût JOIN + agrégation) → charge CPU constante</td>
+                            <td>1 rafraîchissement nocturne + 100 lectures légères</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Temps de réponse utilisateur</strong></td>
+                            <td>Plusieurs secondes (à l'échelle millions de lignes)</td>
+                            <td>Millisecondes</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fraîcheur des données</strong></td>
+                            <td>Toujours à jour</td>
+                            <td>Données du dernier rafraîchissement</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Coût de stockage</strong></td>
+                            <td>Aucun surcoût</td>
+                            <td>~50 000 lignes supplémentaires stockées</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="highlight-box">
+                <p><strong>Conclusion :</strong> Avec 100 exécutions quotidiennes, le coût d'un <strong>JOIN de 550 000 lignes</strong>
+                est payé 100 fois par jour en mode direct, contre <strong>une seule fois</strong>
+                (lors du rafraîchissement) en mode VM. Pour un usage en lecture intensive
+                (tableau de bord, reporting), la vue matérialisée est le choix optimal.</p>
+                <p>La légère perte de fraîcheur (données décalées d'un cycle de rafraîchissement)
+                est généralement acceptable dans un contexte académique où les notes et inscriptions
+                ne changent pas à la minute.</p>
+            </div>
+
+            <div class="callout-info">
+                <strong>Réécriture automatique (Query Rewriting) :</strong> des SGBD comme Oracle ou PostgreSQL
+                peuvent réécrire <em>automatiquement</em> la requête directe pour utiliser la VM lorsque le
+                planificateur détecte qu'elle est équivalente et plus efficace — sans modifier le code applicatif.
+            </div>
+        </div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Que se passe-t-il si un étudiant s'inscrit à un nouveau cours entre deux rafraîchissements ?
+                Comment peut-on garantir la cohérence pour les cas critiques ?</li>
+            <li>Explorez la fonctionnalité de <em>Query Rewriting</em> de PostgreSQL ou Oracle :
+                dans quelles conditions le SGBD utilise-t-il automatiquement la VM ?</li>
+            <li>Comparez la syntaxe <code>CREATE MATERIALIZED VIEW … WITH DATA</code> vs <code>WITH NO DATA</code> :
+                quelle est la différence pratique ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>
