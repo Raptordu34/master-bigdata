@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 2 — Partitionnement horizontal dérivé</h2>
+
+    <!-- ── EN-TÊTE ── -->
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-points">◎ 14 pts</span>
+            <span class="exo-time">⏱ 35–50 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Concevoir une fragmentation horizontale dérivée pour optimiser une requête multi-tables</li>
+                <li>Identifier les fragments pertinents et calculer le nombre de tuples accédés</li>
+                <li>Comparer la fragmentation aux index de jointure binaire (similarité conceptuelle)</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Exercice 1 — Index de jointure binaire · Cours — Fragmentation horizontale dérivée</em></p>
+    </div>
+
+    <!-- ── CONTEXTE ── -->
+    <div class="context-block">
+        <h3 style="margin-top:0;">Contexte — Même base Scolarité, approche différente</h3>
+        <p>
+            On reprend le même schéma que l'exercice 1 : tables <strong>Student</strong>, <strong>Course</strong> et <strong>Grades</strong> (27 tuples).
+            L'objectif est cette fois d'optimiser la même requête par <strong>fragmentation horizontale dérivée</strong>
+            plutôt que par des index de jointure binaire.
+        </p>
+        <p>Requête cible :</p>
+        <pre><code>SELECT Count(*)
+FROM Student, Grades, Course
+WHERE Level = 'HCSC'
+  AND Dept  = 'Stat'
+  AND Student.StudId = Grades.StudId
+  AND Course.CourId  = Grades.CourId;</code></pre>
+        <p class="inline-note">Les tables et leurs populations sont identiques à celles de l'exercice 1.</p>
+    </div>
+
+    <!-- ── RAPPEL DE COURS ── -->
+    <button class="hint-btn" data-hint="rappel-frag" data-label="Rappel de cours — Fragmentation horizontale dérivée" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Fragmentation horizontale dérivée</span>
+    </button>
+    <div class="hint" id="rappel-frag">
+        <p><strong>Fragmentation horizontale primaire :</strong> on partitionne une table selon des prédicats sur ses propres attributs.</p>
+        <pre><code>R_i = σ(prédicat_i)(R)</code></pre>
+        <p><strong>Fragmentation horizontale dérivée :</strong> on partitionne une table de faits en fonction des fragments d'une table de dimension (via la clé de jointure).</p>
+        <pre><code>F_i = Faits ⋉ D_i   (semi-jointure derivée)</code></pre>
+        <ul>
+            <li>D est fragmenté en D<sub>1</sub>, D<sub>2</sub>, … selon un prédicat sur un attribut de dimension.</li>
+            <li>F est ensuite fragmenté de façon dérivée : F<sub>i</sub> contient les tuples de F qui se jointurent avec D<sub>i</sub>.</li>
+            <li>Pour deux dimensions, on croise les fragments : F<sub>ij</sub> = F ⋉ D<sub>i</sub> ∩ F ⋉ E<sub>j</sub>.</li>
+        </ul>
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Repère</span></p>
+            <p>L'optimiseur peut alors <strong>ignorer les fragments qui ne peuvent contribuer au résultat</strong> : si la requête filtre sur Level='HCSC' et Dept='Stat', seul le fragment F<sub>HCSC,Stat</sub> est accédé.</p>
+        </div>
+    </div>
+
+    <!-- ── SCAFFOLDING ── -->
+    <div class="two-col">
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Exemple</span></p>
+            <p>Fragmenter Student par Level donne 3 fragments : S_HCSC, S_MCSC, S_MSC. La fragmentation dérivée de Grades par Student donne G_HCSC, G_MCSC, G_MSC — chaque fragment contient exactement les inscriptions des étudiants du groupe correspondant.</p>
+        </div>
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie</span></p>
+            <p><strong>Intuition :</strong> c'est comme partitionner un entrepôt en rayons thématiques. Au lieu de chercher un produit dans tout l'entrepôt, on sait directement dans quel rayon aller — et si la requête ne concerne que ce rayon, on ignore tous les autres.</p>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 1 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">5 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Proposer une <strong>fragmentation</strong> de la base de données afin d'optimiser la requête cible.
+            Définir les fragments de Student, Course et Grades, en listant les tuples (RIDs) de chaque fragment.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Fragmenter uniquement Grades directement, sans passer par les tables de dimension. La fragmentation de Grades doit être <em>dérivée</em> de celles de Student et Course — c'est ce qui garantit l'élimination de partitions à l'exécution.
+        </div>
+
+        <button class="hint-btn" data-hint="q1f-h1" data-label="Indice 1/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/3</span>
+        </button>
+        <div class="hint" id="q1f-h1">
+            Commencez par fragmenter Student par <code>Level</code> : quels tuples (et RIDs Student) appartiennent à chaque fragment ?
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1f-h2" data-label="Indice 2/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/3</span>
+        </button>
+        <div class="hint" id="q1f-h2">
+            Fragmentez ensuite Course par <code>Dept</code>. Puis, pour chaque combinaison (fragment Student, fragment Course), dérivez le fragment de Grades : ce sont les tuples de Grades dont le StudId est dans le fragment Student ET le CourId est dans le fragment Course.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1f-h3" data-label="Indice 3/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 3/3</span>
+        </button>
+        <div class="hint" id="q1f-h3">
+            Pour la requête, seul le fragment G<sub>HCSC,Stat</sub> est pertinent. Identifiez les StudIds HCSC = {101, 303, 606} et les CourIds Stat = {S402, S466}. Quels RIDs de Grades ont à la fois StudId ∈ {101,303,606} ET CourId ∈ {S402,S466} ?
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Définissez les fragments de Student, Course et Grades…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1 : Fragmentation proposée</h4>
+
+            <p><strong>Étape 1 — Fragmentation horizontale primaire de Student (par Level) :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Fragment</th><th>Prédicat</th><th>Tuples (RID Student)</th><th>StudIds</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>S_HCSC</strong></td><td>Level = 'HCSC'</td><td>{1, 3, 6}</td><td>{101, 303, 606}</td></tr>
+                        <tr><td><strong>S_MCSC</strong></td><td>Level = 'MCSC'</td><td>{2, 4}</td><td>{202, 404}</td></tr>
+                        <tr><td><strong>S_MSC</strong></td><td>Level = 'MSC'</td><td>{5}</td><td>{505}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p style="margin-top:1.2rem;"><strong>Étape 2 — Fragmentation horizontale primaire de Course (par Dept) :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Fragment</th><th>Prédicat</th><th>Tuples (RID Course)</th><th>CourIds</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>C_Stat</strong></td><td>Dept = 'Stat'</td><td>{5, 7}</td><td>{S402, S466}</td></tr>
+                        <tr><td><strong>C_Comp</strong></td><td>Dept = 'Comp'</td><td>{1, 2, 4}</td><td>{C306, C422, C442}</td></tr>
+                        <tr><td><strong>C_Math</strong></td><td>Dept = 'Math'</td><td>{3, 6}</td><td>{M301, M444}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p style="margin-top:1.2rem;"><strong>Étape 3 — Fragmentation dérivée de Grades (par Student × Course) :</strong></p>
+            <p>Pour la requête qui filtre sur Level='HCSC' et Dept='Stat', le seul fragment utile est :</p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Fragment</th><th>Condition</th><th>RIDs Grades</th><th>Taille</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>G_HCSC_Stat</strong></td>
+                            <td>StudId ∈ {101,303,606} <br>ET CourId ∈ {S402,S466}</td>
+                            <td><strong>{9, 16, 24, 27}</strong></td>
+                            <td>4 tuples</td>
+                        </tr>
+                        <tr>
+                            <td>G_HCSC_Comp</td><td>StudId ∈ {101,303,606} ET CourId ∈ {C306,C422,C442}</td><td>{1,3,6,7,8,14,15,26}</td><td>8 tuples</td>
+                        </tr>
+                        <tr>
+                            <td>G_HCSC_Math</td><td>StudId ∈ {101,303,606} ET CourId ∈ {M301,M444}</td><td>{25}</td><td>1 tuple</td>
+                        </tr>
+                        <tr>
+                            <td>G_MCSC_Stat</td><td>StudId ∈ {202,404} ET CourId ∈ {S402,S466}</td><td>{17,18}</td><td>2 tuples</td>
+                        </tr>
+                        <tr>
+                            <td>G_MCSC_Comp</td><td>StudId ∈ {202,404} ET CourId ∈ {C306,C422,C442}</td><td>{2,4,10,13,19}</td><td>5 tuples</td>
+                        </tr>
+                        <tr>
+                            <td>G_MCSC_Math</td><td>StudId ∈ {202,404} ET CourId ∈ {M301,M444}</td><td>{11,12,20}</td><td>3 tuples</td>
+                        </tr>
+                        <tr>
+                            <td>G_MSC_Stat</td><td>StudId ∈ {505} ET CourId ∈ {S402,S466}</td><td>{23}</td><td>1 tuple</td>
+                        </tr>
+                        <tr>
+                            <td>G_MSC_Comp</td><td>StudId ∈ {505} ET CourId ∈ {C306,C422,C442}</td><td>{5,21,22}</td><td>3 tuples</td>
+                        </tr>
+                        <tr>
+                            <td>G_MSC_Math</td><td>StudId ∈ {505} ET CourId ∈ {M301,M444}</td><td>∅</td><td>0 tuple</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="inline-note">Total : 4+8+1+2+5+3+1+3+0 = 27 tuples — la fragmentation est complète et disjointe.</p>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 2 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Quel est le résultat retourné par la requête ?</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Recalculer depuis zéro au lieu d'utiliser directement le fragment G_HCSC_Stat identifié en Q1.
+        </div>
+
+        <button class="hint-btn" data-hint="q2f-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q2f-h1">
+            L'optimiseur route la requête directement vers G_HCSC_Stat. Combien de tuples contient ce fragment ?
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Résultat de la requête…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2 : Résultat</h4>
+            <p>Le fragment G_HCSC_Stat contient les RIDs {9, 16, 24, 27} :</p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>RID</th><th>CourId</th><th>StudId</th><th>Grade</th><th>Étudiant (Level)</th><th>Cours (Dept)</th></tr></thead>
+                    <tbody>
+                        <tr><td>9</td><td>S402</td><td>101</td><td>B+</td><td>Ali (HCSC)</td><td>BioS (Stat)</td></tr>
+                        <tr><td>16</td><td>S402</td><td>303</td><td>B</td><td>Daniel (HCSC)</td><td>BioS (Stat)</td></tr>
+                        <tr><td>24</td><td>S466</td><td>606</td><td>B-</td><td>Nicolas (HCSC)</td><td>Stat (Stat)</td></tr>
+                        <tr><td>27</td><td>S402</td><td>606</td><td>B</td><td>Nicolas (HCSC)</td><td>BioS (Stat)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="margin-top:0.8rem;"><strong>Résultat : <code>Count(*) = 4</code></strong></p>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 3 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Quel est le <strong>nombre de tuples de la table des faits (Grades)</strong> que l'optimiseur doit scanner ?</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Additionner tous les fragments accédés. La fragmentation permet justement d'isoler un seul fragment cible — l'optimiseur ne consulte pas les autres.
+        </div>
+
+        <button class="hint-btn" data-hint="q3f-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q3f-h1">
+            Avec la fragmentation, l'optimiseur sait qu'aucun tuple satisfaisant les deux prédicats ne peut se trouver en dehors du fragment G_HCSC_Stat. Il n'a donc besoin de lire que ce fragment.
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Nombre de tuples Grades scannés…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3 : Tuples scannés</h4>
+            <p>L'optimiseur effectue un scan complet du seul fragment <strong>G_HCSC_Stat</strong>, soit <strong>4 tuples</strong> sur 27.</p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Approche</th><th>Tuples Grades lus</th><th>Ratio</th></tr></thead>
+                    <tbody>
+                        <tr><td>Sans fragmentation (scan complet)</td><td>27</td><td>100 %</td></tr>
+                        <tr><td>Avec fragmentation dérivée</td><td>4 (fragment G_HCSC_Stat)</td><td>≈ 15 %</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 4 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Comparer cette solution (fragmentation) avec celle des index de jointure binaire (exercice 1). Quelles sont les différences pratiques ?</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Conclure que l'une est "meilleure" que l'autre de façon absolue. Les deux approches ont des avantages différents selon le contexte (charge de mise à jour, requêtes ad hoc, volume…).
+        </div>
+
+        <button class="hint-btn" data-hint="q4f-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q4f-h1">
+            Comparez selon plusieurs critères : stockage (structures auxiliaires vs physique), maintenabilité (coût à l'insert/update), flexibilité (requêtes non prévues), et transparence pour l'optimiseur.
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Comparaison des deux approches…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4 : Comparaison BJI vs Fragmentation</h4>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Critère</th><th>Index de jointure binaire (Ex. 1)</th><th>Fragmentation dérivée (Ex. 2)</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Résultat</strong></td>
+                            <td>Count(*) = 4</td>
+                            <td>Count(*) = 4</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Mécanisme</strong></td>
+                            <td>Intersection de listes de RIDs (ou bitmaps) en mémoire</td>
+                            <td>Routage physique vers le fragment approprié</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Stockage</strong></td>
+                            <td>Structures auxiliaires supplémentaires (index)</td>
+                            <td>Les données sont directement réorganisées physiquement</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Mises à jour</strong></td>
+                            <td>Index à maintenir à chaque INSERT/UPDATE/DELETE</td>
+                            <td>Fragmentation à réorganiser — coût élevé si fréquent</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Requêtes non prévues</strong></td>
+                            <td>BJI spécifique à l'attribut indexé ; flexible si on a plusieurs BJI</td>
+                            <td>Moins flexible : les fragments sont figés selon les prédicats choisis</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Transparence</strong></td>
+                            <td>Transparent pour l'application ; l'optimiseur décide d'utiliser ou non</td>
+                            <td>Visible dans le schéma physique ; l'application peut en tenir compte</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 5 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q5</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Y a-t-il une <strong>similarité</strong> entre les index de jointure binaire et le partitionnement horizontal dérivé ?
+            Si oui, commenter votre réponse.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Se limiter à "les deux donnent le même résultat". La similarité est plus profonde : elle touche à la structure logique de la sélectivité pré-calculée, pas seulement au résultat final.
+        </div>
+
+        <button class="hint-btn" data-hint="q5f-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q5f-h1">
+            Comparez ce que contient un fragment G_HCSC_Stat avec ce que représente l'intersection L<sub>1</sub> ∩ L<sub>2</sub> dans les BJI. Que décrivent-ils tous les deux ?
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q5f-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q5f-h2">
+            Les deux techniques pré-calculent la <em>jointure</em> entre la table de faits et les dimensions, mais l'une le fait de façon logique (RIDs) et l'autre de façon physique (données réorganisées). Peut-on dire que l'une est la version physique de l'autre ?
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Analysez la similarité entre les deux techniques…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q5 : Similarité entre BJI et fragmentation</h4>
+
+            <p><strong>Oui, il existe une similarité profonde.</strong> Les deux techniques reposent sur le même principe : <em>pré-calculer la sélectivité de la jointure</em> pour éviter les scans inutiles à l'exécution.</p>
+
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Dimension d'analyse</th><th>BJI (Ex. 1)</th><th>Fragmentation (Ex. 2)</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Ce qui est pré-calculé</strong></td>
+                            <td>Pour chaque valeur de dimension, la liste des RIDs de Grades qui satisfont la jointure</td>
+                            <td>Pour chaque combinaison de valeurs de dimensions, le sous-ensemble physique de Grades qui satisfait la jointure</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Forme logique</strong></td>
+                            <td>Structure auxiliaire : listes de RIDs (ou bitmaps)</td>
+                            <td>Structure physique : données réorganisées en partitions</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Équivalence</strong></td>
+                            <td colspan="2">L'intersection L<sub>1</sub>(HCSC) ∩ L<sub>2</sub>(Stat) = {9,16,24,27} est exactement l'ensemble des RIDs du fragment G_HCSC_Stat</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout-info" style="margin-top:1rem;">
+                <p><span class="badge badge-blue">Conclusion</span></p>
+                <p>
+                    La <strong>fragmentation horizontale dérivée</strong> peut être vue comme la <em>matérialisation physique</em> de ce que les index de jointure binaire représentent de façon logique.
+                    Le BJI dit « pour cette valeur, les tuples qualifiants ont ces RIDs » ;
+                    la fragmentation dit « pour cette valeur, ces tuples qualifiants sont dans ce fragment sur disque ».
+                </p>
+                <p>
+                    Les deux techniques éliminent les mêmes accès inutiles, mais par des mécanismes différents :
+                    le BJI fonctionne par <strong>intersection logique de RIDs</strong>, la fragmentation par <strong>routage physique</strong> vers une partition.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── POUR ALLER PLUS LOIN ── -->
+    <div class="pour-aller-plus-loin">
+        <h4>Pour aller plus loin</h4>
+        <ul>
+            <li>Dans un entrepôt de données réel (ex: schéma en étoile), comment la fragmentation dérivée se combine-t-elle avec le partitionnement par plages (RANGE) ou par hachage (HASH) ?</li>
+            <li>Les systèmes OLAP comme Apache Hive ou BigQuery utilisent-ils des principes similaires à la fragmentation dérivée ? Sous quel nom ?</li>
+            <li>Si on ajoute une 3<sup>e</sup> dimension (ex: semestre), combien de fragments de Grades obtient-on ? Comment évolue la granularité de l'élimination de partitions ?</li>
+            <li>La similarité entre BJI et fragmentation est-elle exploitée dans les optimiseurs de bases de données actuelles ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>

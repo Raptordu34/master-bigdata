@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+    <style>
+        .table-glass td, .table-glass th { text-align: center; }
+    </style>
+</head>
+<body>
+
+    <h2>Exercice 1 — Index de jointure binaire</h2>
+
+    <!-- ── EN-TÊTE ── -->
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 12 pts</span>
+            <span class="exo-time">⏱ 30–40 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Construire un index de jointure binaire (Binary Join Index) à partir de tables relationnelles</li>
+                <li>Comprendre comment l'optimiseur exploite les RIDs pour éviter les scans inutiles</li>
+                <li>Calculer manuellement le résultat d'une requête multi-tables via intersection de RIDs</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Cours — Index et accès aux données, notion de RID</em></p>
+    </div>
+
+    <!-- ── CONTEXTE ── -->
+    <div class="context-block">
+        <h3 style="margin-top:0;">Contexte — Base de données Scolarité</h3>
+        <p>
+            On dispose d'une base de données composée de trois tables : <strong>Student</strong>, <strong>Course</strong> et <strong>Grades</strong>.
+            Chaque tuple est identifié par un <strong>RID</strong> (Row IDentifier), utilisé directement par l'index de jointure binaire.
+        </p>
+
+        <div class="two-col">
+            <div>
+                <div class="table-glass">
+                    <table>
+                        <thead>
+                            <tr><th>RID</th><th>StudId</th><th>Name</th><th>Level</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>1</td><td>101</td><td>Ali</td><td>HCSC</td></tr>
+                            <tr><td>2</td><td>202</td><td>Craig</td><td>MCSC</td></tr>
+                            <tr><td>3</td><td>303</td><td>Daniel</td><td>HCSC</td></tr>
+                            <tr><td>4</td><td>404</td><td>Ankit</td><td>MCSC</td></tr>
+                            <tr><td>5</td><td>505</td><td>Philip</td><td>MSC</td></tr>
+                            <tr><td>6</td><td>606</td><td>Nicolas</td><td>HCSC</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="inline-note" style="text-align:center;">Table <strong>Student</strong></p>
+            </div>
+            <div>
+                <div class="table-glass">
+                    <table>
+                        <thead>
+                            <tr><th>RID</th><th>CourId</th><th>Name</th><th>Dept</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>1</td><td>C306</td><td>Comm</td><td>Comp</td></tr>
+                            <tr><td>2</td><td>C422</td><td>AI</td><td>Comp</td></tr>
+                            <tr><td>3</td><td>M301</td><td>Calc</td><td>Math</td></tr>
+                            <tr><td>4</td><td>C442</td><td>IDBI</td><td>Comp</td></tr>
+                            <tr><td>5</td><td>S402</td><td>BioS</td><td>Stat</td></tr>
+                            <tr><td>6</td><td>M444</td><td>Algeb</td><td>Math</td></tr>
+                            <tr><td>7</td><td>S466</td><td>Stat</td><td>Stat</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="inline-note" style="text-align:center;">Table <strong>Course</strong></p>
+            </div>
+        </div>
+
+        <div class="table-glass" style="margin-top:1rem;">
+            <table>
+                <thead>
+                    <tr><th>RID</th><th>CourId</th><th>StudId</th><th>Grade</th>
+                        <th>RID</th><th>CourId</th><th>StudId</th><th>Grade</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1</td><td>C306</td><td>101</td><td>A+</td>  <td>15</td><td>C442</td><td>303</td><td>A+</td></tr>
+                    <tr><td>2</td><td>C306</td><td>202</td><td>A+</td>  <td>16</td><td>S402</td><td>303</td><td>B</td></tr>
+                    <tr><td>3</td><td>C306</td><td>303</td><td>A</td>   <td>17</td><td>S402</td><td>404</td><td>A</td></tr>
+                    <tr><td>4</td><td>C306</td><td>404</td><td>B+</td>  <td>18</td><td>S466</td><td>404</td><td>B+</td></tr>
+                    <tr><td>5</td><td>C306</td><td>505</td><td>A+</td>  <td>19</td><td>C442</td><td>404</td><td>B+</td></tr>
+                    <tr><td>6</td><td>C306</td><td>606</td><td>A-</td>  <td>20</td><td>M444</td><td>404</td><td>B</td></tr>
+                    <tr><td>7</td><td>C422</td><td>101</td><td>A+</td>  <td>21</td><td>C442</td><td>505</td><td>A+</td></tr>
+                    <tr><td>8</td><td>C442</td><td>101</td><td>A+</td>  <td>22</td><td>C442</td><td>505</td><td>A+</td></tr>
+                    <tr><td>9</td><td>S402</td><td>101</td><td>B+</td>  <td>23</td><td>S466</td><td>505</td><td>A</td></tr>
+                    <tr><td>10</td><td>C422</td><td>202</td><td>A-</td> <td>24</td><td>S466</td><td>606</td><td>B-</td></tr>
+                    <tr><td>11</td><td>M444</td><td>202</td><td>B-</td> <td>25</td><td>M444</td><td>606</td><td>A+</td></tr>
+                    <tr><td>12</td><td>M301</td><td>202</td><td>B</td>  <td>26</td><td>C442</td><td>606</td><td>A+</td></tr>
+                    <tr><td>13</td><td>C442</td><td>202</td><td>A+</td> <td>27</td><td>S402</td><td>606</td><td>B</td></tr>
+                    <tr><td>14</td><td>M301</td><td>303</td><td>A-</td> <td></td><td></td><td></td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="inline-note" style="text-align:center;">Table <strong>Grades</strong> (27 tuples)</p>
+    </div>
+
+    <!-- ── RAPPEL DE COURS ── -->
+    <button class="hint-btn" data-hint="rappel-bji" data-label="Rappel de cours — Index de jointure binaire" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Index de jointure binaire</span>
+    </button>
+    <div class="hint" id="rappel-bji">
+        <p><strong>Principe :</strong> un index de jointure binaire (BJI) entre deux tables R et S sur un prédicat de jointure mémorise, pour chaque valeur d'un attribut de dimension, la liste des RIDs de la table de faits correspondants.</p>
+        <p>Il évite de lire les tuples des tables de dimension à l'exécution : l'intersection de plusieurs listes de RIDs identifie directement les tuples qualifiants dans la table de faits.</p>
+        <ul>
+            <li><strong>JI(R, S) sur A :</strong> pour chaque valeur de A dans R, stocke les RIDs des tuples de S qui se jointuraient avec R sur cet attribut.</li>
+            <li><strong>Utilisation :</strong> les conditions sur les dimensions (ex: <code>Level='HCSC'</code>) sélectionnent une liste de RIDs dans Grades ; l'intersection de plusieurs listes donne les tuples qualifiants.</li>
+        </ul>
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Repère</span></p>
+            <p>Si on a k conditions sur k dimensions, on intersecte k listes de RIDs de la table de faits — sans jamais lire les tables de dimension au moment de la requête.</p>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 1 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">4 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Construire un <strong>index de jointure binaire JI<sub>1</sub></strong> entre <em>Student</em> et <em>Grades</em>
+            en utilisant l'attribut <code>Level</code>, et un <strong>index JI<sub>2</sub></strong> entre <em>Course</em>
+            et <em>Grades</em> en utilisant l'attribut <code>Dept</code>.
+        </p>
+        <p>Écrire les requêtes SQL de création de ces index.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Stocker les paires (Student.RID, Grades.RID) sans les indexer par valeur d'attribut rend l'index inutilisable. L'index doit être organisé <em>par valeur de dimension</em> (ex: HCSC → liste de RIDs Grades).
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Pour JI<sub>1</sub> : parcourir la table Grades, et pour chaque tuple, retrouver le <code>Level</code> de l'étudiant correspondant dans Student. Regrouper les RIDs de Grades par valeur de Level.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q1-h2">
+            Exemple pour JI<sub>2</sub>, valeur Stat : S402 (Stat) est dans Grades aux RIDs {9,16,17,27} et S466 (Stat) aux RIDs {18,23,24}. Donc Dept=Stat → RIDs Grades = {9,16,17,18,23,24,27}.
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Construisez les deux index de jointure binaire…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1 : Construction des index de jointure binaire</h4>
+
+            <p><strong>Requêtes SQL de création :</strong></p>
+            <pre><code>-- JI1 : Index de jointure binaire Student ⋈ Grades sur Level
+CREATE BITMAP INDEX JI1_Level
+ON Grades (Student.Level)
+FROM Student, Grades
+WHERE Student.StudId = Grades.StudId;</code></pre>
+            <pre><code>-- JI2 : Index de jointure binaire Course ⋈ Grades sur Dept
+CREATE BITMAP INDEX JI2_Dept
+ON Grades (Course.Dept)
+FROM Course, Grades
+WHERE Course.CourId = Grades.CourId;</code></pre>
+
+            <p style="margin-top:1.2rem;"><strong>JI<sub>1</sub> — Index de jointure binaire Student ⋈ Grades (attribut : Level)</strong></p>
+            <p class="inline-note">Une entrée par paire (Student.RID, Grades.RID), indexée par valeur de Level.</p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Level</th><th>Student.RID</th><th>Grades.RID</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td rowspan="13"><strong>HCSC</strong></td><td rowspan="4">1</td><td>1</td></tr>
+                        <tr><td>7</td></tr>
+                        <tr><td>8</td></tr>
+                        <tr><td>9</td></tr>
+                        <tr><td rowspan="4">3</td><td>3</td></tr>
+                        <tr><td>14</td></tr>
+                        <tr><td>15</td></tr>
+                        <tr><td>16</td></tr>
+                        <tr><td rowspan="5">6</td><td>6</td></tr>
+                        <tr><td>24</td></tr>
+                        <tr><td>25</td></tr>
+                        <tr><td>26</td></tr>
+                        <tr><td>27</td></tr>
+                        <tr><td rowspan="10"><strong>MCSC</strong></td><td rowspan="5">2</td><td>2</td></tr>
+                        <tr><td>10</td></tr>
+                        <tr><td>11</td></tr>
+                        <tr><td>12</td></tr>
+                        <tr><td>13</td></tr>
+                        <tr><td rowspan="5">4</td><td>4</td></tr>
+                        <tr><td>17</td></tr>
+                        <tr><td>18</td></tr>
+                        <tr><td>19</td></tr>
+                        <tr><td>20</td></tr>
+                        <tr><td rowspan="4"><strong>MSC</strong></td><td rowspan="4">5</td><td>5</td></tr>
+                        <tr><td>21</td></tr>
+                        <tr><td>22</td></tr>
+                        <tr><td>23</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p style="margin-top:1.8rem;"><strong>JI<sub>2</sub> — Index de jointure binaire Course ⋈ Grades (attribut : Dept)</strong></p>
+            <p class="inline-note">Une entrée par paire (Course.RID, Grades.RID), indexée par valeur de Dept.</p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Dept</th><th>Course.RID</th><th>Grades.RID</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td rowspan="15"><strong>Comp</strong></td><td rowspan="6">1</td><td>1</td></tr>
+                        <tr><td>2</td></tr>
+                        <tr><td>3</td></tr>
+                        <tr><td>4</td></tr>
+                        <tr><td>5</td></tr>
+                        <tr><td>6</td></tr>
+                        <tr><td rowspan="2">2</td><td>7</td></tr>
+                        <tr><td>10</td></tr>
+                        <tr><td rowspan="7">4</td><td>8</td></tr>
+                        <tr><td>13</td></tr>
+                        <tr><td>15</td></tr>
+                        <tr><td>19</td></tr>
+                        <tr><td>21</td></tr>
+                        <tr><td>22</td></tr>
+                        <tr><td>26</td></tr>
+                        <tr><td rowspan="5"><strong>Math</strong></td><td rowspan="2">3</td><td>12</td></tr>
+                        <tr><td>14</td></tr>
+                        <tr><td rowspan="3">6</td><td>11</td></tr>
+                        <tr><td>20</td></tr>
+                        <tr><td>25</td></tr>
+                        <tr><td rowspan="7"><strong>Stat</strong></td><td rowspan="4">5</td><td>9</td></tr>
+                        <tr><td>16</td></tr>
+                        <tr><td>17</td></tr>
+                        <tr><td>27</td></tr>
+                        <tr><td rowspan="3">7</td><td>18</td></tr>
+                        <tr><td>23</td></tr>
+                        <tr><td>24</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 2 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Montrer comment l'optimiseur de requêtes utilise les index JI<sub>1</sub> et JI<sub>2</sub>
+            pour éviter les accès non nécessaires aux tables lors de l'exécution de la requête suivante :
+        </p>
+        <pre><code>SELECT Count(*)
+FROM Student, Grades, Course
+WHERE Level = 'HCSC'
+  AND Dept  = 'Stat'
+  AND Student.StudId = Grades.StudId
+  AND Course.CourId  = Grades.CourId;</code></pre>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Penser que l'optimiseur doit quand même lire Student et Course pour vérifier les conditions. Avec les BJI, ces vérifications ont déjà été pré-calculées — les RIDs dans l'index sont directement les tuples qualifiants.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Cherchez dans JI<sub>1</sub> la liste des RIDs de Grades correspondant à Level='HCSC', puis dans JI<sub>2</sub> la liste correspondant à Dept='Stat'. Que fait-on ensuite avec ces deux listes ?
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q2-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q2-h2">
+            L'intersection des deux listes de RIDs donne exactement les tuples de Grades qui satisfont <em>à la fois</em> les deux conditions de jointure. Aucun accès à Student ou Course n'est nécessaire à ce stade.
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Décrivez le plan d'exécution avec les index de jointure…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2 : Utilisation des BJI par l'optimiseur</h4>
+
+            <p><strong>Plan d'exécution avec les index de jointure :</strong></p>
+            <ul class="steps">
+                <li>Chercher dans <strong>JI<sub>1</sub></strong> l'entrée <code>Level = 'HCSC'</code> → obtenir la liste L<sub>1</sub> = {1, 3, 6, 7, 8, 9, 14, 15, 16, 24, 25, 26, 27} (RIDs dans Grades)</li>
+                <li>Chercher dans <strong>JI<sub>2</sub></strong> l'entrée <code>Dept = 'Stat'</code> → obtenir la liste L<sub>2</sub> = {9, 16, 17, 18, 23, 24, 27} (RIDs dans Grades)</li>
+                <li>Calculer l'<strong>intersection</strong> L<sub>1</sub> ∩ L<sub>2</sub> = {9, 16, 24, 27}</li>
+                <li>Accéder directement aux 4 tuples de Grades ayant ces RIDs</li>
+            </ul>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Avantage clé</span></p>
+                <p>L'optimiseur <strong>n'accède jamais</strong> aux tables Student et Course durant l'exécution : les conditions sur Level et Dept ont déjà été matérialisées dans les index. Seuls les tuples utiles de Grades sont lus.</p>
+            </div>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Étape</th><th>Table lue</th><th>Tuples accédés</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Sans BJI</td><td>Student + Course + Grades</td><td>6 + 7 + 27 = 40 tuples</td></tr>
+                        <tr><td>Avec BJI</td><td>Grades uniquement</td><td>4 tuples (intersection des RIDs)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 3 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Quel est le résultat retourné par cette requête ?</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Compter le nombre d'étudiants HCSC (3) ou le nombre de cours Stat (2) au lieu de compter les inscriptions qui satisfont les deux conditions simultanément.
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            L'intersection calculée en Q2 donne directement les tuples de Grades qualifiants. Il suffit de les compter.
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Résultat de la requête…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3 : Résultat de la requête</h4>
+            <p>L'intersection L<sub>1</sub> ∩ L<sub>2</sub> = {9, 16, 24, 27} contient <strong>4 tuples</strong>.</p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>RID</th><th>CourId</th><th>StudId</th><th>Grade</th><th>Étudiant</th><th>Level</th><th>Cours</th><th>Dept</th></tr></thead>
+                    <tbody>
+                        <tr><td>9</td><td>S402</td><td>101</td><td>B+</td><td>Ali</td><td>HCSC</td><td>BioS</td><td>Stat</td></tr>
+                        <tr><td>16</td><td>S402</td><td>303</td><td>B</td><td>Daniel</td><td>HCSC</td><td>BioS</td><td>Stat</td></tr>
+                        <tr><td>24</td><td>S466</td><td>606</td><td>B-</td><td>Nicolas</td><td>HCSC</td><td>Stat</td><td>Stat</td></tr>
+                        <tr><td>27</td><td>S402</td><td>606</td><td>B</td><td>Nicolas</td><td>HCSC</td><td>BioS</td><td>Stat</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="margin-top:0.8rem;"><strong>Résultat : <code>Count(*) = 4</code></strong></p>
+        </div>
+    </div>
+
+    <!-- ── QUESTION 4 ── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Quel est le <strong>nombre de tuples de la table Grades</strong> que l'optimiseur doit scanner
+            lors de l'exécution avec les index de jointure binaire ?
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Confondre "lire tous les Grades pour vérifier les conditions" (scan complet = 27 tuples) avec "accéder uniquement aux Grades qualifiants identifiés par les BJI" (accès ciblé).
+        </div>
+
+        <button class="hint-btn" data-hint="q4-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            Après l'intersection des RIDs, l'optimiseur connaît exactement quels tuples de Grades accéder. Combien y en a-t-il dans le résultat de l'intersection ?
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Nombre de tuples Grades accédés…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4 : Tuples Grades accédés</h4>
+            <p>
+                Grâce aux index de jointure binaire, l'optimiseur calcule l'intersection des RIDs <strong>sans lire Grades</strong>.
+                Il accède ensuite uniquement aux <strong>4 tuples</strong> identifiés (RIDs 9, 16, 24, 27), au lieu de scanner les 27 tuples de la table.
+            </p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Approche</th><th>Tuples Grades lus</th><th>Ratio</th></tr></thead>
+                    <tbody>
+                        <tr><td>Sans index (scan séquentiel)</td><td>27</td><td>100 %</td></tr>
+                        <tr><td>Avec BJI (intersection RIDs)</td><td>4</td><td>≈ 15 %</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="inline-note">
+                En pratique, les BJI opèrent sur des <em>bitmaps</em> : l'intersection est une opération AND bit-à-bit, très rapide en mémoire.
+                Les tables de dimension (Student, Course) ne sont pas du tout accédées.
+            </p>
+        </div>
+    </div>
+
+    <!-- ── POUR ALLER PLUS LOIN ── -->
+    <div class="pour-aller-plus-loin">
+        <h4>Pour aller plus loin</h4>
+        <ul>
+            <li>Que se passe-t-il si une troisième condition de dimension est ajoutée ? Comment évolue la stratégie d'intersection ?</li>
+            <li>Les index de jointure binaire utilisent souvent des <em>bitmaps</em> plutôt que des listes de RIDs : quels avantages en termes de stockage et de performance ?</li>
+            <li>Dans quels cas un BJI est-il moins efficace qu'un index classique B-tree ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>
