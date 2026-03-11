@@ -1,5 +1,5 @@
 /* learning-kit/templates/presentation/components.css */
-@import url('../../design/base.css');
+@import url('./design/base.css');
 
 /* ── Reset body pour le layout slides ───────────────────────────── */
 /* base.css (importé ci-dessus) applique background:transparent et padding:60px 80px
@@ -55,9 +55,10 @@ body {
 
 /* Badge catégorie au-dessus du titre */
 .slide-section-label {
-    display: block;
+    position: absolute !important;
+    top: 1.2rem;
+    right: 1.5rem;
     width: fit-content;
-    margin: 0 auto 1.5rem;
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -402,6 +403,9 @@ pre code {
 .copy-btn--bar.copied { background: rgba(40,200,64,0.2); border-color: rgba(40,200,64,0.4); color: #86efac; }
 
 /* ── ÉTAPES NUMÉROTÉES ────────────────────────────────────────────── */
+.steps li strong,
+ul.key-points li strong { font-size: 1.4rem; }
+
 .steps {
     counter-reset: step-counter;
     list-style: none;
@@ -419,6 +423,9 @@ pre code {
     border: 1px solid rgba(255,255,255,0.07);
     border-radius: 12px;
     font-size: 1.05rem;
+    hyphens: none;
+    word-break: keep-all;
+    overflow-wrap: normal;
 }
 .steps li::before {
     content: counter(step-counter);
