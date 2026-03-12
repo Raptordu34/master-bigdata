@@ -128,6 +128,18 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 16px rgba(0,0,0,0.2);
 }
 
+/* Enlever la barre au dessus des titres dans ces blocs */
+.context-block h3, 
+.question h3, 
+.callout-info h3,
+.sim-tree-panel h3,
+.sim-step-panel h3,
+.sim-editor h3 {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+}
+
 /* ═══════════════════════════════════════════════════
    QUESTION BLOCK
    ═══════════════════════════════════════════════════ */
@@ -765,3 +777,35 @@ pre code {
     margin-top: 0.5rem;
     font-style: italic;
 }
+
+/* Boutons d'action unifiés pour simulateur / visualisation */
+.sim-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary, #f5f3f0);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+.sim-btn:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.22);
+}
+.sim-btn:active {
+    background: rgba(255,255,255,0.04);
+    transform: scale(0.98);
+}
+.sim-btn.active {
+    background: rgba(214,117,86,0.15);
+    border-color: rgba(214,117,86,0.4);
+    color: #d67556;
+}
+

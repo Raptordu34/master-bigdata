@@ -1482,5 +1482,20 @@ WHERE Level = 'HCSC'
     </ul>
 </div>
 
+<!-- ── WIDGET SIMULATION BJI ── -->
+<div class="context-block" style="margin-top:1.5rem" data-sim-mode="bji">
+    <button class="sim-trigger" style="
+        display:flex; align-items:center; gap:0.5rem;
+        width:100%; padding:0.75rem 1rem; text-align:left;
+        background:rgba(214,117,86,0.1); border:1px solid rgba(214,117,86,0.3);
+        border-radius:10px; color:#d67556; font-size:0.88rem; font-weight:600;
+        cursor:pointer; font-family:inherit; transition:all 0.2s;">
+        ▶ Simulation — voir le BJI en action (animation interactive)
+    </button>
+    <div class="sim-panel" style="display:none"></div>
+</div>
+<script src="./sim-data.js" defer></script>
+<script src="./sim-viz.js" defer></script>
+
 </body>
 </html>

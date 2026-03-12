@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+    <script src="./sim-data.js"></script>
+    <script src="./sim-engine.js"></script>
+    <script src="./sim-viz.js"></script>
+    <style>
+        /* ── Simulateur — styles inline (tokens CSS réutilisés) ── */
+        .sim-editor textarea {
+            width: 100%;
+            box-sizing: border-box;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px;
+            color: var(--text-primary, #f5f3f0);
+            font-family: 'Courier New', monospace;
+            font-size: 0.88rem;
+            padding: 0.75rem 1rem;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .sim-editor textarea:focus {
+            border-color: rgba(214,117,86,0.5);
+        }
+        .sim-editor select {
+            background: #1e1c18;
+            color: #f5f3f0;
+            color-scheme: dark;
+            border: 1px solid rgba(214,117,86,0.3);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 0.6rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .sim-editor select:focus {
+            border-color: rgba(214,117,86,0.6);
+        }
+        .sim-editor select option {
+            background: #1e1c18;
+            color: #f5f3f0;
+        }
+        .sim-layout {
+            display: grid;
+            grid-template-columns: 38% 62%;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .sim-tree-panel, .sim-step-panel {
+            min-height: 380px;
+        }
+        .sim-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .sim-tab.active {
+            background: rgba(214,117,86,0.2);
+            border-color: #d67556;
+            color: #d67556;
+        }
+        .sim-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .sim-badge-ok   { background: rgba(110,231,183,0.15); border: 1px solid rgba(110,231,183,0.4); color: #6ee7b7; }
+        .sim-badge-warn { background: rgba(250,204,21,0.15);  border: 1px solid rgba(250,204,21,0.4);  color: #fbbf24; }
+        .sim-tab-content { display: none; }
+        
+        /* Boutons d'action unifiés */
+        .sim-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-primary, #f5f3f0);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .sim-btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.22);
+        }
+        .sim-btn:active {
+            background: rgba(255,255,255,0.04);
+            transform: scale(0.98);
+        }
+        .sim-btn.active {
+            background: rgba(214,117,86,0.15);
+            border-color: rgba(214,117,86,0.4);
+            color: #d67556;
+        }
+        
+        @keyframes pulse-action {
+            0% { box-shadow: 0 0 0 0 rgba(214, 117, 86, 0.6); }
+            70% { box-shadow: 0 0 0 8px rgba(214, 117, 86, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(214, 117, 86, 0); }
+        }
+        .pulse-highlight {
+            animation: pulse-action 1.5s infinite;
+            border-color: rgba(214,117,86,0.8) !important;
+            background: rgba(214,117,86,0.2) !important;
+        }
+        
+        #sim-error { display: none; margin-top: 0.6rem; }
+        @media (max-width: 700px) {
+            .sim-layout { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<h2>Simulateur — Exécution de requêtes SQL</h2>
+<p style="color:var(--text-secondary,#9e9a94);margin-top:0;margin-bottom:1.5rem;font-size:0.9rem">
+    Visualisez l'arbre de requête, l'exécution pas-à-pas, et le fonctionnement du BJI / partitionnement sur les données réelles du TD4.
+</p>
+
+<!-- ── Éditeur SQL ── -->
+<div class="context-block sim-editor">
+    <h3 style="margin-top:0">Requête SQL</h3>
+    <select id="sim-preset">
+        <option value="full">Requête complète TD4 (σ+σ+⋈+⋈+COUNT)</option>
+        <option value="join-only">Jointure simple Student-Grades</option>
+        <option value="one-filter">Un filtre uniquement (Level='HCSC')</option>
+        <option value="cross-join">Produit cartésien (Student × Course)</option>
+        <option value="select-all-stat">Liste des cours de Stat (SELECT *)</option>
+        <option value="custom">— Saisie libre —</option>
+    </select>
+    <textarea id="sim-sql" rows="4" spellcheck="false">SELECT Count(*) FROM Student, Grades, Course
+WHERE Level = 'HCSC' AND Dept = 'Stat'
+  AND Student.StudId = Grades.StudId
+  AND Course.CourId = Grades.CourId</textarea>
+
+    <div style="display:flex;gap:0.5rem;margin-top:0.6rem;flex-wrap:wrap;align-items:center">
+        <button id="sim-run" class="solution-btn pulse-highlight" style="padding:8px 18px">▶ Exécuter</button>
+        <button id="sim-validate" class="sim-btn">✓ Valider avec SQLite</button>
+        <span id="sim-sqlite-badge" style="display:none"></span>
+    </div>
+    <div id="sim-error" class="callout-info"></div>
+</div>
+
+<!-- ── Layout principal : arbre + lecteur ── -->
+<div class="sim-layout">
+    <div class="sim-tree-panel context-block">
+        <h3 style="margin-top:0">Arbre de requête</h3>
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:wrap">
+            <button id="tree-naive" class="sim-btn sim-tab active">Naïf</button>
+            <button id="tree-opt"   class="sim-btn sim-tab">Optimisé</button>
+        </div>
+        <div id="sim-tree-svg" style="min-height:200px">
+            <p style="color:#9e9a94;font-size:0.85rem">Cliquez "Exécuter" pour afficher l'arbre.</p>
+        </div>
+        <!-- Tooltip nœud -->
+        <div id="node-tooltip" style="display:none;margin-top:0.75rem;padding:0.75rem;
+            background:rgba(214,117,86,0.08);border:1px solid rgba(214,117,86,0.3);border-radius:8px;font-size:0.82rem">
+        </div>
+    </div>
+
+    <div class="sim-step-panel context-block">
+        <h3 style="margin-top:0">Exécution step-by-step</h3>
+        <div id="sim-player-controls" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:0.5rem;background:rgba(0,0,0,0.2);padding:4px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06)">
+                <button id="step-prev" class="sim-btn" style="padding:4px 10px">◀</button>
+                <span id="step-counter" style="font-size:0.88rem;color:#f5f3f0;min-width:80px;text-align:center;font-variant-numeric:tabular-nums;font-weight:600">Étape 0/0</span>
+                <button id="step-next" class="sim-btn" style="padding:4px 10px">▶</button>
+            </div>
+            <button id="step-auto" class="sim-btn">▷ Auto</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.8rem">
+            <span style="font-size:0.75rem;color:#9e9a94">Vitesse</span>
+            <input type="range" id="step-speed" min="200" max="2000" value="1200" step="100"
+                style="width:100px;accent-color:#d67556">
+            <span id="step-speed-label" style="font-size:0.75rem;color:#9e9a94">1.2s</span>
+        </div>
+        <p id="step-label" style="color:var(--text-secondary,#9e9a94);font-size:0.9rem;
+            margin:1rem 0 0.5rem;min-height:1.2em;font-family:'Courier New',monospace"></p>
+        <div id="step-tuples"></div>
+    </div>
+</div>
+
+<!-- ── Onglets BJI / Partitionnement ── -->
+<div class="context-block" style="margin-top:1rem; position:relative;">
+    <h3 style="margin-top:0">Visualisation avancée de l'architecture</h3>
+    
+    <div id="adv-viz-warning" style="display:none; background:rgba(250,204,21,0.1); border:1px solid rgba(250,204,21,0.3); border-radius:8px; padding:0.75rem; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+        <span style="font-size:1.2rem;">💡</span>
+        <div style="flex:1; font-size:0.85rem; color:#f5f3f0;">
+            <strong>Note :</strong> L'arbre et l'exécution pas-à-pas sont dynamiques, mais les visualisations matérielles ci-dessous (BJI, Partitionnement) illustrent spécifiquement la requête complète du TD. 
+            <a href="#" id="adv-viz-restore" style="color:#fbbf24; font-weight:bold; text-decoration:underline;">Restaurer la requête du TD pour revoir le lien.</a>
+        </div>
+    </div>
+
+    <div class="sim-tabs">
+        <button class="sim-btn sim-tab active" data-tab="bji">Binary Join Index</button>
+        <button class="sim-btn sim-tab" data-tab="partition">Partitionnement</button>
+        <button class="sim-btn sim-tab" data-tab="schema">Schéma des tables</button>
+    </div>
+    <div id="tab-bji" class="sim-tab-content"></div>
+    <div id="tab-partition" class="sim-tab-content" style="display:none"></div>
+    <div id="tab-schema" class="sim-tab-content" style="display:none"></div>
+</div>
+
+<script>
+// ── Presets SQL ──────────────────────────────────────────────────
+const PRESETS = {
+    'full': `SELECT Count(*) FROM Student, Grades, Course\nWHERE Level = 'HCSC' AND Dept = 'Stat'\n  AND Student.StudId = Grades.StudId\n  AND Course.CourId = Grades.CourId`,
+    'join-only': `SELECT * FROM Student, Grades\nWHERE Student.StudId = Grades.StudId`,
+    'one-filter': `SELECT Count(*) FROM Student, Grades, Course\nWHERE Level = 'HCSC'\n  AND Student.StudId = Grades.StudId\n  AND Course.CourId = Grades.CourId`,
+    'cross-join': `SELECT Count(*) FROM Student, Course`,
+    'select-all-stat': `SELECT * FROM Course\nWHERE Dept = 'Stat'`,
+    'custom': '',
+};
+
+const sqlEl    = document.getElementById('sim-sql');
+const presetEl = document.getElementById('sim-preset');
+const runBtn   = document.getElementById('sim-run');
+const errEl    = document.getElementById('sim-error');
+
+// ── Restaurer état localStorage ──────────────────────────────────
+let savedPreset = localStorage.getItem('sim_last_preset') || 'full';
+presetEl.value = savedPreset;
+if (PRESETS[savedPreset]) sqlEl.value = PRESETS[savedPreset];
+
+// Si l'utilisateur avait déjà exécuté par le passé, on peut retirer l'animation
+if (localStorage.getItem('sim_has_run')) {
+    runBtn.classList.remove('pulse-highlight');
+}
+
+let currentTreeMode = localStorage.getItem('sim_tree_mode') || 'naive';
+let currentPlans    = null;
+let autoPlayTimer   = null;
+
+presetEl.addEventListener('change', () => {
+    const v = presetEl.value;
+    localStorage.setItem('sim_last_preset', v);
+    if (PRESETS[v] !== undefined) sqlEl.value = PRESETS[v];
+});
+
+// ── Exécuter ──────────────────────────────────────────────────────
+runBtn.addEventListener('click', runQuery);
+
+document.getElementById('adv-viz-restore').addEventListener('click', (e) => {
+    e.preventDefault();
+    presetEl.value = 'full';
+    sqlEl.value = PRESETS['full'];
+    runQuery();
+});
+
+function runQuery() {
+    runBtn.classList.remove('pulse-highlight');
+    localStorage.setItem('sim_has_run', 'true');
+    const sql = sqlEl.value.trim();
+    if (!sql) return;
+    errEl.style.display = 'none';
+
+    // Gestion du warning pour la visualisation avancée
+    const isFullQuery = sql.includes('HCSC') && sql.includes('Stat');
+    document.getElementById('adv-viz-warning').style.display = isFullQuery ? 'none' : 'flex';
+
+    const ast = SimParser.parse(sql);
+    if (ast.error) {
+        showError(ast.error);
+        return;
+    }
+
+    const plans = SimPlanner.plan(ast);
+    if (plans.error) {
+        showError(plans.error);
+        return;
+    }
+    currentPlans = plans;
+    localStorage.setItem('sim_tree_mode', currentTreeMode);
+
+    // Afficher l'arbre
+    renderTree();
+
+    // Exécuter et initialiser le StepPlayer
+    const exec = SimExecutor.execute(ast);
+    if (exec.error) {
+        showError(exec.error);
+        return;
+    }
+
+    const treeRoot = currentTreeMode === 'optimized' ? plans.optimized : plans.naive;
+    SimViz.StepPlayer.init(
+        exec.snapshots,
+        document.getElementById('sim-tree-svg'),
+        treeRoot,
+        document.getElementById('step-counter'),
+        document.getElementById('step-label'),
+        document.getElementById('step-tuples'),
+        document.getElementById('step-prev'),
+        document.getElementById('step-next'),
+        document.getElementById('step-auto'),
+    );
+}
+
+function renderTree() {
+    if (!currentPlans) return;
+    const root = currentTreeMode === 'optimized' ? currentPlans.optimized : currentPlans.naive;
+    SimViz.renderQueryTree(
+        document.getElementById('sim-tree-svg'),
+        root,
+        (node) => {
+            const tip = document.getElementById('node-tooltip');
+            tip.style.display = 'block';
+            tip.innerHTML = `<strong style="color:#d67556">${node.label}</strong><br>
+                <code style="font-size:0.78rem">${node.formalDef || ''}</code><br>
+                <span style="color:#9e9a94">Cardinalité estimée : <strong style="color:#dedad5">${node.estimatedCard}</strong> tuple${node.estimatedCard > 1 ? 's' : ''}</span>`;
+        }
+    );
+}
+
+// ── Toggle naïf / optimisé ────────────────────────────────────────
+document.getElementById('tree-naive').addEventListener('click', () => {
+    currentTreeMode = 'naive';
+    localStorage.setItem('sim_tree_mode', 'naive');
+    document.getElementById('tree-naive').classList.add('active');
+    document.getElementById('tree-opt').classList.remove('active');
+    renderTree();
+});
+document.getElementById('tree-opt').addEventListener('click', () => {
+    currentTreeMode = 'optimized';
+    localStorage.setItem('sim_tree_mode', 'optimized');
+    document.getElementById('tree-opt').classList.add('active');
+    document.getElementById('tree-naive').classList.remove('active');
+    renderTree();
+});
+
+// ── SQLite validation (lazy) ──────────────────────────────────────
+document.getElementById('sim-validate').addEventListener('click', async () => {
+    const badgeEl = document.getElementById('sim-sqlite-badge');
+    badgeEl.className = 'sim-badge sim-badge-off';
+    badgeEl.textContent = '○ chargement…';
+    badgeEl.style.display = 'inline-flex';
+
+    try {
+        // Tenter de charger sql.js (CDN) via balise script
+        const initSqlJs = await new Promise((resolve, reject) => {
+            if (window.initSqlJs) return resolve(window.initSqlJs);
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-asm.js';
+            s.onload = () => resolve(window.initSqlJs);
+            s.onerror = () => reject(new Error('unavailable'));
+            document.head.appendChild(s);
+        });
+        if (!initSqlJs) throw new Error('unavailable');
+
+        const SQL = await initSqlJs();
+        const db = new SQL.Database();
+
+        // Créer les tables et insérer les données
+        db.run(`CREATE TABLE Student (RID INT, StudId INT, Name TEXT, Level TEXT);`);
+        db.run(`CREATE TABLE Course  (RID INT, CourId TEXT, Name TEXT, Dept TEXT);`);
+        db.run(`CREATE TABLE Grades  (RID INT, CourId TEXT, StudId INT, Grade TEXT);`);
+
+        for (const r of SimDB.Student) db.run(`INSERT INTO Student VALUES (${r.RID}, ${r.StudId}, '${r.Name}', '${r.Level}');`);
+        for (const r of SimDB.Course)  db.run(`INSERT INTO Course  VALUES (${r.RID}, '${r.CourId}', '${r.Name}', '${r.Dept}');`);
+        for (const r of SimDB.Grades)  db.run(`INSERT INTO Grades  VALUES (${r.RID}, '${r.CourId}', ${r.StudId}, '${r.Grade}');`);
+
+        const sql = sqlEl.value.trim();
+        const results = db.exec(sql);
+        const sqliteResult = results[0]?.values?.[0]?.[0] ?? 'N/A';
+
+        // Comparer avec résultat JS
+        const ast = SimParser.parse(sql);
+        const exec = SimExecutor.execute(ast);
+        const jsResult = exec.finalResult?.[0]?.['Count(*)'] ?? exec.finalResult?.length ?? '?';
+
+        if (String(sqliteResult) === String(jsResult)) {
+            badgeEl.className = 'sim-badge sim-badge-ok';
+            badgeEl.textContent = `✓ ${jsResult} (validé)`;
+        } else {
+            badgeEl.className = 'sim-badge sim-badge-warn';
+            badgeEl.textContent = `⚠ JS:${jsResult} / SQLite:${sqliteResult}`;
+        }
+        db.close();
+    } catch (e) {
+        badgeEl.className = 'sim-badge sim-badge-off';
+        badgeEl.textContent = '○ SQLite non disponible';
+    }
+});
+
+// ── Onglets BJI / Partition ───────────────────────────────────────
+document.querySelectorAll('.sim-tab[data-tab]').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const targetTab = tab.dataset.tab;
+        localStorage.setItem('sim_last_tab', targetTab);
+
+        document.querySelectorAll('.sim-tab[data-tab]').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        document.getElementById('tab-bji').style.display       = targetTab === 'bji'       ? 'block' : 'none';
+        document.getElementById('tab-partition').style.display  = targetTab === 'partition' ? 'block' : 'none';
+        document.getElementById('tab-schema').style.display     = targetTab === 'schema'    ? 'block' : 'none';
+
+        if (targetTab === 'bji' && !document.getElementById('tab-bji').hasChildNodes()) {
+            SimViz.renderBJI(document.getElementById('tab-bji'));
+        }
+        if (targetTab === 'partition' && !document.getElementById('tab-partition').hasChildNodes()) {
+            SimViz.renderPartition(document.getElementById('tab-partition'));
+        }
+        if (targetTab === 'schema' && !document.getElementById('tab-schema').hasChildNodes()) {
+            SimViz.renderERD(document.getElementById('tab-schema'));
+        }
+    });
+});
+
+// ── Afficher l'onglet BJI par défaut ─────────────────────────────
+(function () {
+    const savedTab = localStorage.getItem('sim_last_tab') || 'bji';
+    // Activer le bon onglet
+    document.querySelectorAll('.sim-tab[data-tab]').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === savedTab);
+    });
+    document.getElementById('tab-bji').style.display       = savedTab === 'bji'       ? 'block' : 'none';
+    document.getElementById('tab-partition').style.display  = savedTab === 'partition' ? 'block' : 'none';
+    document.getElementById('tab-schema').style.display     = savedTab === 'schema'    ? 'block' : 'none';
+
+    if (savedTab === 'bji') SimViz.renderBJI(document.getElementById('tab-bji'));
+    else if (savedTab === 'partition') SimViz.renderPartition(document.getElementById('tab-partition'));
+    else if (savedTab === 'schema') SimViz.renderERD(document.getElementById('tab-schema'));
+    else SimViz.renderBJI(document.getElementById('tab-bji'));
+
+    // Restaurer mode arbre
+    if (currentTreeMode === 'optimized') {
+        document.getElementById('tree-opt').classList.add('active');
+        document.getElementById('tree-naive').classList.remove('active');
+    }
+})();
+
+// ── Utilitaires ───────────────────────────────────────────────────
+function showError(msg) {
+    errEl.textContent = '⚠ ' + msg;
+    errEl.style.display = 'block';
+}
+
+// ── Speed slider ──────────────────────────────────────────────────
+const speedEl = document.getElementById('step-speed');
+const speedLabelEl = document.getElementById('step-speed-label');
+if (speedEl) {
+    speedEl.addEventListener('input', () => {
+        const ms = parseInt(speedEl.value, 10);
+        speedLabelEl.textContent = (ms / 1000).toFixed(1) + 's';
+        // Restart auto if currently playing
+        if (SimViz.StepPlayer._autoTimer) {
+            SimViz.StepPlayer.start();
+        }
+    });
+}
+
+// ── Cleanup (teardown iframe lifecycle) ──────────────────────────
+window.addEventListener('beforeunload', () => {
+    SimViz.StepPlayer.stop();
+});
+
+// Messages depuis le parent (section-utils.js protocol)
+window.addEventListener('message', (e) => {
+    // no-op silencieux pour les commandes de section-utils
+    if (['show-all-solutions','hide-all-solutions','clear-answers','export-answers'].includes(e.data)) return;
+});
+</script>
+
+</body>
+</html>
