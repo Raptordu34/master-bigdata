@@ -4,452 +4,939 @@
     <meta charset="UTF-8">
     <link rel="stylesheet" href="./components.css">
     <script src="./section-utils.js" defer></script>
+    <style>
+        .table-glass td, .table-glass th { text-align: center; }
+        .table-glass td.left { text-align: left; }
+
+        /* Couleurs par fragment */
+        .frag-hcsc-stat { background: rgba(214,117,86,0.18); color: #d67556; font-weight: 700; }
+        .frag-hcsc      { background: rgba(91,166,160,0.08); color: #5ba6a0; }
+        .frag-mcsc      { background: rgba(158,154,148,0.08); color: #9e9a94; }
+        .frag-msc       { background: rgba(167,139,250,0.08); color: #a78bfa; }
+
+        /* Trace table */
+        .trace-hcsc-stat-bg { background: rgba(214,117,86,0.12); }
+        .trace-hcsc-bg      { background: rgba(91,166,160,0.06); }
+        .trace-mcsc-bg      { background: rgba(158,154,148,0.05); }
+        .trace-msc-bg       { background: rgba(167,139,250,0.06); }
+        .trace-hcsc-stat    { color: #d67556; font-weight: 700; }
+        .trace-hcsc         { color: #5ba6a0; }
+        .trace-mcsc         { color: #9e9a94; }
+        .trace-msc          { color: #a78bfa; }
+    </style>
 </head>
 <body>
 
-    <h2>Exercice 2 — Partitionnement horizontal dérivé</h2>
+<h2>Exercice 2 — Partitionnement horizontal dérivé</h2>
 
-    <!-- ── EN-TÊTE ── -->
-    <div class="exo-header">
-        <div class="exo-meta">
-            <span class="diff-badge diff-avance">Avancé</span>
-            <span class="exo-points">◎ 14 pts</span>
-            <span class="exo-time">⏱ 35–50 min</span>
-        </div>
-        <div class="objectifs">
-            <strong>Objectifs</strong>
-            <ul>
-                <li>Concevoir une fragmentation horizontale dérivée pour optimiser une requête multi-tables</li>
-                <li>Identifier les fragments pertinents et calculer le nombre de tuples accédés</li>
-                <li>Comparer la fragmentation aux index de jointure binaire (similarité conceptuelle)</li>
-            </ul>
-        </div>
-        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Exercice 1 — Index de jointure binaire · Cours — Fragmentation horizontale dérivée</em></p>
+<!-- ── EN-TÊTE ── -->
+<div class="exo-header">
+    <div class="exo-meta">
+        <span class="diff-badge diff-avance">Avancé</span>
+        <span class="exo-points">◎ 14 pts</span>
+        <span class="exo-time">⏱ 35–50 min</span>
     </div>
+    <div class="objectifs">
+        <strong>Objectifs</strong>
+        <ul>
+            <li>Concevoir une fragmentation horizontale dérivée pour optimiser une requête multi-tables</li>
+            <li>Identifier les fragments pertinents et calculer le nombre de tuples accédés</li>
+            <li>Comparer la fragmentation aux index de jointure binaire (similarité conceptuelle)</li>
+        </ul>
+    </div>
+    <p class="exo-prereq"><strong>Prérequis :</strong> <em>Exercice 1 — Index de jointure binaire · Cours — Fragmentation horizontale dérivée</em></p>
+</div>
 
-    <!-- ── CONTEXTE ── -->
-    <div class="context-block">
-        <h3 style="margin-top:0;">Contexte — Même base Scolarité, approche différente</h3>
-        <p>
-            On reprend le même schéma que l'exercice 1 : tables <strong>Student</strong>, <strong>Course</strong> et <strong>Grades</strong> (27 tuples).
-            L'objectif est cette fois d'optimiser la même requête par <strong>fragmentation horizontale dérivée</strong>
-            plutôt que par des index de jointure binaire.
-        </p>
-        <p>Requête cible :</p>
-        <pre><code>SELECT Count(*)
+<!-- ── CONTEXTE ── -->
+<div class="context-block">
+    <h3 style="margin-top:0;">Contexte — Même base Scolarité, approche différente</h3>
+    <p>
+        On reprend le même schéma que l'exercice 1 : tables <strong>Student</strong>, <strong>Course</strong> et <strong>Grades</strong> (27 tuples).
+        L'objectif est cette fois d'optimiser la même requête par <strong>fragmentation horizontale dérivée</strong>
+        plutôt que par des index de jointure binaire.
+    </p>
+    <p>Requête cible :</p>
+    <pre><code>SELECT Count(*)
 FROM Student, Grades, Course
 WHERE Level = 'HCSC'
   AND Dept  = 'Stat'
   AND Student.StudId = Grades.StudId
   AND Course.CourId  = Grades.CourId;</code></pre>
-        <p class="inline-note">Les tables et leurs populations sont identiques à celles de l'exercice 1.</p>
-    </div>
+    <p class="inline-note">Les tables et leurs populations sont identiques à celles de l'exercice 1.</p>
+</div>
 
-    <!-- ── RAPPEL DE COURS ── -->
-    <button class="hint-btn" data-hint="rappel-frag" data-label="Rappel de cours — Fragmentation horizontale dérivée" data-close-label="Masquer le rappel" aria-expanded="false">
-        <span class="btn-arrow">▶</span>
-        <span class="btn-label">Rappel de cours — Fragmentation horizontale dérivée</span>
-    </button>
-    <div class="hint" id="rappel-frag">
-        <p><strong>Fragmentation horizontale primaire :</strong> on partitionne une table selon des prédicats sur ses propres attributs.</p>
-        <pre><code>R_i = σ(prédicat_i)(R)</code></pre>
-        <p><strong>Fragmentation horizontale dérivée :</strong> on partitionne une table de faits en fonction des fragments d'une table de dimension (via la clé de jointure).</p>
-        <pre><code>F_i = Faits ⋉ D_i   (semi-jointure derivée)</code></pre>
+<!-- ── RAPPEL DE COURS ENRICHI ── -->
+<button class="hint-btn" data-hint="rappel-frag" data-label="Rappel de cours — Fragmentation horizontale dérivée" data-close-label="Masquer le rappel" aria-expanded="false">
+    <span class="btn-arrow">▶</span>
+    <span class="btn-label">Rappel de cours — Fragmentation horizontale dérivée</span>
+</button>
+<div class="hint" id="rappel-frag">
+
+    <p><strong>Fragmentation horizontale primaire :</strong> on partitionne une table selon des prédicats sur ses propres attributs.</p>
+    <pre><code>R_i = σ(prédicat_i)(R)     -- sélection directe sur R</code></pre>
+
+    <p style="margin-top:0.8rem;"><strong>Fragmentation horizontale dérivée :</strong> on partitionne une table de faits <em>F</em> en fonction des fragments d'une table de dimension <em>D</em>, via la clé de jointure.</p>
+    <pre><code>F_i = F ⋉ D_i              -- semi-jointure : tuples de F qui "matchent" D_i</code></pre>
+
+    <div class="callout-info">
+        <p><span class="badge badge-blue">Analogie</span></p>
+        <p><strong>Image mentale :</strong> imaginez un entrepôt logistique. Les produits (Grades) sont rangés dans des rayons organisés <em>d'abord par type de client</em> (Level) <em>puis par catégorie</em> (Dept). Pour une commande « client HCSC, catégorie Stat », le préparateur va <em>directement</em> au bon rayon — il ne parcourt pas tout l'entrepôt.</p>
         <ul>
-            <li>D est fragmenté en D<sub>1</sub>, D<sub>2</sub>, … selon un prédicat sur un attribut de dimension.</li>
-            <li>F est ensuite fragmenté de façon dérivée : F<sub>i</sub> contient les tuples de F qui se jointurent avec D<sub>i</sub>.</li>
-            <li>Pour deux dimensions, on croise les fragments : F<sub>ij</sub> = F ⋉ D<sub>i</sub> ∩ F ⋉ E<sub>j</sub>.</li>
+            <li><strong>Sans fragmentation :</strong> scan de toutes les inscriptions (27 tuples)</li>
+            <li><strong>Avec fragmentation :</strong> accès direct au rayon G_HCSC_Stat (4 tuples)</li>
         </ul>
-        <div class="highlight-box">
-            <p><span class="badge badge-orange">Repère</span></p>
-            <p>L'optimiseur peut alors <strong>ignorer les fragments qui ne peuvent contribuer au résultat</strong> : si la requête filtre sur Level='HCSC' et Dept='Stat', seul le fragment F<sub>HCSC,Stat</sub> est accédé.</p>
-        </div>
     </div>
 
-    <!-- ── SCAFFOLDING ── -->
-    <div class="two-col">
-        <div class="highlight-box">
-            <p><span class="badge badge-green">Exemple</span></p>
-            <p>Fragmenter Student par Level donne 3 fragments : S_HCSC, S_MCSC, S_MSC. La fragmentation dérivée de Grades par Student donne G_HCSC, G_MCSC, G_MSC — chaque fragment contient exactement les inscriptions des étudiants du groupe correspondant.</p>
-        </div>
-        <div class="callout-info">
-            <p><span class="badge badge-blue">Analogie</span></p>
-            <p><strong>Intuition :</strong> c'est comme partitionner un entrepôt en rayons thématiques. Au lieu de chercher un produit dans tout l'entrepôt, on sait directement dans quel rayon aller — et si la requête ne concerne que ce rayon, on ignore tous les autres.</p>
-        </div>
+    <p style="margin-top:1rem;"><strong>Architecture de la fragmentation à deux dimensions :</strong></p>
+
+    <!-- SVG ARCHITECTURE : Student × Course → Grades (9 fragments) -->
+    <svg viewBox="0 0 680 210" fill="none" xmlns="http://www.w3.org/2000/svg"
+         style="width:100%;max-width:680px;display:block;margin:1rem auto;font-family:'Inter',system-ui,sans-serif;">
+
+        <!-- ── Labels de phase ── -->
+        <text x="230" y="11" text-anchor="middle" font-size="8" fill="#9e9a94" letter-spacing="0.8">PHASE 1 — FRAGMENTATION PRIMAIRE</text>
+        <text x="530" y="11" text-anchor="middle" font-size="8" fill="#9e9a94" letter-spacing="0.8">PHASE 2 — FRAGMENTATION DÉRIVÉE</text>
+        <line x1="420" y1="6" x2="420" y2="206" stroke="#9e9a94" stroke-width="0.5" stroke-dasharray="4 4" stroke-opacity="0.3"/>
+
+        <!-- ── STUDENT (teal, top-left) ── -->
+        <rect x="8" y="18" width="110" height="32" rx="7"
+            fill="rgba(91,166,160,0.1)" stroke="#5ba6a0" stroke-width="1.5"/>
+        <text x="63" y="38" text-anchor="middle" font-size="11" font-weight="700" fill="#5ba6a0">Student</text>
+
+        <!-- Arrow Student → fragments -->
+        <path d="M 63 50 L 63 64 L 30 64 M 63 64 L 63 64 M 63 64 L 96 64"
+            stroke="#5ba6a0" stroke-width="1" stroke-linecap="round" fill="none" stroke-dasharray="4 3"/>
+        <line x1="63" y1="64" x2="63" y2="64" stroke="#5ba6a0" stroke-width="1"/>
+
+        <!-- S_HCSC -->
+        <rect x="8" y="70" width="110" height="24" rx="5"
+            fill="rgba(91,166,160,0.1)" stroke="#5ba6a0" stroke-width="1.2"/>
+        <text x="63" y="86" text-anchor="middle" font-size="10" font-weight="600" fill="#5ba6a0">S_HCSC (3)</text>
+
+        <!-- S_MCSC -->
+        <rect x="8" y="102" width="110" height="24" rx="5"
+            fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.2"/>
+        <text x="63" y="118" text-anchor="middle" font-size="10" fill="#9e9a94">S_MCSC (2)</text>
+
+        <!-- S_MSC -->
+        <rect x="8" y="134" width="110" height="24" rx="5"
+            fill="rgba(167,139,250,0.07)" stroke="#a78bfa" stroke-width="1.2"/>
+        <text x="63" y="150" text-anchor="middle" font-size="10" fill="#a78bfa">S_MSC (1)</text>
+
+        <!-- Vertical line connecting Student to fragments -->
+        <line x1="63" y1="50" x2="63" y2="68" stroke="#5ba6a0" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 3"/>
+
+        <!-- ── COURSE (terracotta, bottom-left) ── -->
+        <rect x="8" y="172" width="110" height="32" rx="7"
+            fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+        <text x="63" y="192" text-anchor="middle" font-size="11" font-weight="700" fill="#d67556">Course</text>
+
+        <!-- C fragments shown horizontally below a label -->
+        <!-- Actually put Course on right bottom and its fragments beside it -->
+        <!-- Better: just show the 3 C fragments in a row below the Student section -->
+
+        <!-- Label "par Level" -->
+        <text x="63" y="163" text-anchor="middle" font-size="8" fill="#9e9a94" font-style="italic">3 fragments par Level</text>
+
+        <!-- ── COURSE fragments ── (below, to show Dept axis) -->
+        <!-- C_Comp -->
+        <rect x="136" y="172" width="82" height="26" rx="5"
+            fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.2"/>
+        <text x="177" y="189" text-anchor="middle" font-size="9" fill="#9e9a94">C_Comp (3)</text>
+
+        <!-- C_Math -->
+        <rect x="226" y="172" width="82" height="26" rx="5"
+            fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.2"/>
+        <text x="267" y="189" text-anchor="middle" font-size="9" fill="#9e9a94">C_Math (2)</text>
+
+        <!-- C_Stat -->
+        <rect x="316" y="172" width="82" height="26" rx="5"
+            fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.2"/>
+        <text x="357" y="189" text-anchor="middle" font-size="9" fill="#d67556">C_Stat (2)</text>
+
+        <!-- Arrow from Course → C fragments -->
+        <path d="M 118 186 L 134 186" stroke="#d67556" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 3" fill="none"/>
+        <path d="M 136 186 L 129 182 Q 132 186 129 190 Z" fill="#d67556"/>
+        <text x="267" y="166" text-anchor="middle" font-size="8" fill="#9e9a94" font-style="italic">3 fragments par Dept</text>
+
+        <!-- ── GRADES GRID (right side, 3×3) ── -->
+        <!-- Grid area: x=436 to x=672, y=18 to y=160 -->
+        <!-- 3 cols × 3 rows, cell 78×46 -->
+
+        <!-- Grid outline label -->
+        <text x="554" y="185" text-anchor="middle" font-size="9" fill="#d67556" font-weight="600">9 fragments dérivés de Grades</text>
+
+        <!-- Column headers -->
+        <text x="475" y="30" text-anchor="middle" font-size="9" fill="#9e9a94">Comp</text>
+        <text x="553" y="30" text-anchor="middle" font-size="9" fill="#9e9a94">Math</text>
+        <text x="631" y="30" text-anchor="middle" font-size="10" font-weight="700" fill="#d67556">Stat ★</text>
+
+        <!-- Row headers -->
+        <text x="432" y="68" text-anchor="end" font-size="9" fill="#5ba6a0" font-weight="600">HCSC</text>
+        <text x="432" y="114" text-anchor="end" font-size="9" fill="#9e9a94">MCSC</text>
+        <text x="432" y="150" text-anchor="end" font-size="9" fill="#a78bfa">MSC</text>
+
+        <!-- Row 0: HCSC -->
+        <rect x="436" y="38" width="78" height="46" rx="4" fill="rgba(91,166,160,0.06)" stroke="rgba(91,166,160,0.3)" stroke-width="1"/>
+        <text x="475" y="61" text-anchor="middle" font-size="9" fill="#5ba6a0">G_HCSC</text>
+        <text x="475" y="76" text-anchor="middle" font-size="9" fill="#9e9a94">Comp (7)</text>
+
+        <rect x="514" y="38" width="78" height="46" rx="4" fill="rgba(91,166,160,0.06)" stroke="rgba(91,166,160,0.3)" stroke-width="1"/>
+        <text x="553" y="61" text-anchor="middle" font-size="9" fill="#5ba6a0">G_HCSC</text>
+        <text x="553" y="76" text-anchor="middle" font-size="9" fill="#9e9a94">Math (2)</text>
+
+        <!-- G_HCSC_Stat — HIGHLIGHTED -->
+        <rect x="592" y="38" width="78" height="46" rx="4" fill="rgba(214,117,86,0.15)" stroke="#d67556" stroke-width="2"/>
+        <text x="631" y="58" text-anchor="middle" font-size="9" font-weight="700" fill="#d67556">G_HCSC</text>
+        <text x="631" y="73" text-anchor="middle" font-size="9" font-weight="700" fill="#d67556">Stat (4) ★</text>
+
+        <!-- Row 1: MCSC -->
+        <rect x="436" y="84" width="78" height="38" rx="4" fill="rgba(158,154,148,0.05)" stroke="rgba(158,154,148,0.2)" stroke-width="1"/>
+        <text x="475" y="107" text-anchor="middle" font-size="9" fill="#9e9a94">G_MCSC_Comp (5)</text>
+        <rect x="514" y="84" width="78" height="38" rx="4" fill="rgba(158,154,148,0.05)" stroke="rgba(158,154,148,0.2)" stroke-width="1"/>
+        <text x="553" y="107" text-anchor="middle" font-size="9" fill="#9e9a94">G_MCSC_Math (3)</text>
+        <rect x="592" y="84" width="78" height="38" rx="4" fill="rgba(158,154,148,0.05)" stroke="rgba(158,154,148,0.2)" stroke-width="1"/>
+        <text x="631" y="107" text-anchor="middle" font-size="9" fill="#9e9a94">G_MCSC_Stat (2)</text>
+
+        <!-- Row 2: MSC -->
+        <rect x="436" y="122" width="78" height="38" rx="4" fill="rgba(167,139,250,0.05)" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
+        <text x="475" y="145" text-anchor="middle" font-size="9" fill="#a78bfa">G_MSC_Comp (3)</text>
+        <rect x="514" y="122" width="78" height="38" rx="4" fill="rgba(167,139,250,0.05)" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
+        <text x="553" y="145" text-anchor="middle" font-size="9" fill="#a78bfa">G_MSC_Math (0)</text>
+        <rect x="592" y="122" width="78" height="38" rx="4" fill="rgba(167,139,250,0.05)" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
+        <text x="631" y="145" text-anchor="middle" font-size="9" fill="#a78bfa">G_MSC_Stat (1)</text>
+
+        <!-- Cross × symbol -->
+        <text x="400" y="96" text-anchor="middle" font-size="20" font-weight="800" fill="#9e9a94" opacity="0.4">×</text>
+    </svg>
+
+    <ul>
+        <li><strong>Fragmentation primaire de Student (par Level)</strong> → 3 fragments : S_HCSC, S_MCSC, S_MSC</li>
+        <li><strong>Fragmentation primaire de Course (par Dept)</strong> → 3 fragments : C_Comp, C_Math, C_Stat</li>
+        <li><strong>Fragmentation dérivée de Grades</strong> → 3 × 3 = <strong>9 fragments G_ij</strong>, chacun contenant les inscriptions dont l'étudiant est dans S_i et le cours dans C_j</li>
+    </ul>
+
+    <div class="highlight-box">
+        <p><span class="badge badge-orange">Repère clé</span></p>
+        <p>Pour une requête <code>WHERE Level='HCSC' AND Dept='Stat'</code>, l'optimiseur peut ignorer 8 fragments sur 9 et accéder uniquement à <strong>G_HCSC_Stat</strong>. C'est l'<em>élimination de partitions</em> (partition pruning).</p>
     </div>
+</div>
 
-    <!-- ── QUESTION 1 ── -->
-    <div class="question">
-        <div class="question-header">
-            <span class="question-num">Q1</span>
-            <span class="question-pts">5 pts</span>
-            <span class="diff-badge diff-moyen">Intermédiaire</span>
+<!-- ── GUIDE CONSTRUCTION ÉTAPE PAR ÉTAPE ── -->
+<button class="hint-btn" data-hint="guide-fragmentation" data-label="Guide visuel — Construire une fragmentation dérivée, étape par étape" data-close-label="Masquer le guide" aria-expanded="false">
+    <span class="btn-arrow">▶</span>
+    <span class="btn-label">Guide visuel — Construire une fragmentation dérivée, étape par étape</span>
+</button>
+<div class="hint" id="guide-fragmentation">
+
+    <h4 style="margin-top:0;">Algorithme de construction</h4>
+    <p>Pour construire les 9 fragments dérivés de Grades à partir de Student (par Level) et Course (par Dept) :</p>
+
+    <div class="two-col" style="align-items:flex-start;">
+        <!-- Flowchart -->
+        <div>
+            <svg viewBox="0 0 320 462" fill="none" xmlns="http://www.w3.org/2000/svg"
+                 style="width:100%;max-width:320px;display:block;font-family:'Inter',system-ui,sans-serif;">
+
+                <!-- START -->
+                <rect x="100" y="8" width="120" height="30" rx="15"
+                    fill="rgba(214,117,86,0.12)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="160" y="28" text-anchor="middle" font-size="11" fill="#d67556">Début</text>
+
+                <line x1="160" y1="38" x2="160" y2="52" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 58 L 154 52 Q 160 54 166 52 Z" fill="#9e9a94"/>
+
+                <!-- STEP 1 (setup) -->
+                <rect x="18" y="60" width="284" height="40" rx="7"
+                    fill="rgba(91,166,160,0.07)" stroke="#5ba6a0" stroke-width="1.5"/>
+                <text x="160" y="76" text-anchor="middle" font-size="10" fill="#dedad5">① Fragmenter Student par Level</text>
+                <text x="160" y="92" text-anchor="middle" font-size="9" fill="#5ba6a0">→ S_HCSC · S_MCSC · S_MSC</text>
+
+                <line x1="160" y1="100" x2="160" y2="114" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 120 L 154 114 Q 160 116 166 114 Z" fill="#9e9a94"/>
+
+                <!-- STEP 2 (setup) -->
+                <rect x="18" y="122" width="284" height="40" rx="7"
+                    fill="rgba(214,117,86,0.07)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="160" y="138" text-anchor="middle" font-size="10" fill="#dedad5">② Fragmenter Course par Dept</text>
+                <text x="160" y="154" text-anchor="middle" font-size="9" fill="#d67556">→ C_Comp · C_Math · C_Stat</text>
+
+                <line x1="160" y1="162" x2="160" y2="176" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 182 L 154 176 Q 160 178 166 176 Z" fill="#9e9a94"/>
+
+                <!-- STEP 3 (loop start) -->
+                <rect x="18" y="184" width="284" height="34" rx="7"
+                    fill="rgba(214,117,86,0.07)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="160" y="198" text-anchor="middle" font-size="10" fill="#dedad5">③ Prendre le prochain tuple t</text>
+                <text x="160" y="212" text-anchor="middle" font-size="9" fill="#9e9a94">de la table Grades</text>
+
+                <line x1="160" y1="218" x2="160" y2="232" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 238 L 154 232 Q 160 234 166 232 Z" fill="#9e9a94"/>
+
+                <!-- STEP 4 -->
+                <rect x="18" y="240" width="284" height="34" rx="7"
+                    fill="rgba(91,166,160,0.07)" stroke="#5ba6a0" stroke-width="1.5"/>
+                <text x="160" y="254" text-anchor="middle" font-size="10" fill="#dedad5">④ level ← Student[t.StudId].Level</text>
+                <text x="160" y="270" text-anchor="middle" font-size="9" fill="#9e9a94">lookup dans Student</text>
+
+                <line x1="160" y1="274" x2="160" y2="288" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 294 L 154 288 Q 160 290 166 288 Z" fill="#9e9a94"/>
+
+                <!-- STEP 5 -->
+                <rect x="18" y="296" width="284" height="34" rx="7"
+                    fill="rgba(91,166,160,0.07)" stroke="#5ba6a0" stroke-width="1.5"/>
+                <text x="160" y="310" text-anchor="middle" font-size="10" fill="#dedad5">⑤ dept ← Course[t.CourId].Dept</text>
+                <text x="160" y="326" text-anchor="middle" font-size="9" fill="#9e9a94">lookup dans Course</text>
+
+                <line x1="160" y1="330" x2="160" y2="344" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 350 L 154 344 Q 160 346 166 344 Z" fill="#9e9a94"/>
+
+                <!-- STEP 6 -->
+                <rect x="18" y="352" width="284" height="34" rx="7"
+                    fill="rgba(214,117,86,0.07)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="160" y="366" text-anchor="middle" font-size="10" fill="#dedad5">⑥ G_{level}_{dept}.append(t)</text>
+                <text x="160" y="382" text-anchor="middle" font-size="9" fill="#9e9a94">ajouter t au bon fragment</text>
+
+                <line x1="160" y1="386" x2="160" y2="396" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 402 L 154 396 Q 160 398 166 396 Z" fill="#9e9a94"/>
+
+                <!-- DECISION -->
+                <polygon points="160,404 298,420 160,436 22,420"
+                    fill="rgba(214,117,86,0.07)" stroke="#d67556" stroke-width="1.5" stroke-linejoin="round"/>
+                <text x="160" y="424" text-anchor="middle" font-size="10" fill="#dedad5">Autres tuples ?</text>
+
+                <!-- YES loop back -->
+                <text x="8" y="412" font-size="9" fill="#9e9a94">Oui</text>
+                <path d="M 22 420 L 4 420 L 4 201 L 16 201"
+                    stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5 3" fill="none"/>
+                <path d="M 22 201 L 15 196 Q 18 201 15 206 Z" fill="#9e9a94"/>
+
+                <!-- NO -->
+                <text x="305" y="444" font-size="9" fill="#9e9a94">Non</text>
+                <line x1="160" y1="436" x2="160" y2="448" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 160 454 L 154 448 Q 160 450 166 448 Z" fill="#d67556"/>
+                <rect x="100" y="456" width="120" height="0" rx="15" fill="none"/>
+            </svg>
+            <!-- END terminal below SVG separately -->
+            <svg viewBox="0 0 320 36" fill="none" xmlns="http://www.w3.org/2000/svg"
+                 style="width:100%;max-width:320px;display:block;margin-top:-4px;font-family:'Inter',system-ui,sans-serif;">
+                <rect x="100" y="2" width="120" height="30" rx="15"
+                    fill="rgba(214,117,86,0.12)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="160" y="22" text-anchor="middle" font-size="11" fill="#d67556">9 fragments ✓</text>
+            </svg>
         </div>
-        <p>
-            Proposer une <strong>fragmentation</strong> de la base de données afin d'optimiser la requête cible.
-            Définir les fragments de Student, Course et Grades, en listant les tuples (RIDs) de chaque fragment.
-        </p>
 
-        <div class="erreur-freq">
-            <strong>Piège courant :</strong> Fragmenter uniquement Grades directement, sans passer par les tables de dimension. La fragmentation de Grades doit être <em>dérivée</em> de celles de Student et Course — c'est ce qui garantit l'élimination de partitions à l'exécution.
-        </div>
+        <!-- Pseudo-code + notes -->
+        <div>
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Pseudo-code</span></p>
+                <pre><code>-- Étape 1
+S_HCSC = σ(Level='HCSC')(Student)
+S_MCSC = σ(Level='MCSC')(Student)
+S_MSC  = σ(Level='MSC') (Student)
 
-        <button class="hint-btn" data-hint="q1f-h1" data-label="Indice 1/3" aria-expanded="false">
-            <span class="btn-arrow">▶</span>
-            <span class="btn-label">Indice 1/3</span>
-        </button>
-        <div class="hint" id="q1f-h1">
-            Commencez par fragmenter Student par <code>Level</code> : quels tuples (et RIDs Student) appartiennent à chaque fragment ?
-        </div>
+-- Étape 2
+C_Comp = σ(Dept='Comp')(Course)
+C_Math = σ(Dept='Math')(Course)
+C_Stat = σ(Dept='Stat')(Course)
 
-        <button class="hint-btn hint-locked" data-hint="q1f-h2" data-label="Indice 2/3" aria-expanded="false">
-            <span class="btn-arrow">▶</span>
-            <span class="btn-label">Indice 2/3</span>
-        </button>
-        <div class="hint" id="q1f-h2">
-            Fragmentez ensuite Course par <code>Dept</code>. Puis, pour chaque combinaison (fragment Student, fragment Course), dérivez le fragment de Grades : ce sont les tuples de Grades dont le StudId est dans le fragment Student ET le CourId est dans le fragment Course.
-        </div>
-
-        <button class="hint-btn hint-locked" data-hint="q1f-h3" data-label="Indice 3/3" aria-expanded="false">
-            <span class="btn-arrow">▶</span>
-            <span class="btn-label">Indice 3/3</span>
-        </button>
-        <div class="hint" id="q1f-h3">
-            Pour la requête, seul le fragment G<sub>HCSC,Stat</sub> est pertinent. Identifiez les StudIds HCSC = {101, 303, 606} et les CourIds Stat = {S402, S466}. Quels RIDs de Grades ont à la fois StudId ∈ {101,303,606} ET CourId ∈ {S402,S466} ?
-        </div>
-    </div>
-
-    <div class="reponse-zone" data-placeholder="Définissez les fragments de Student, Course et Grades…"></div>
-
-    <button class="solution-btn" aria-expanded="false">
-        <span class="btn-arrow">▶</span>
-        <span class="btn-label">Voir la solution</span>
-    </button>
-    <div class="solution">
-        <div class="solution-inner">
-            <h4 style="margin-top:0;">Solution — Q1 : Fragmentation proposée</h4>
-
-            <p><strong>Étape 1 — Fragmentation horizontale primaire de Student (par Level) :</strong></p>
-            <div class="table-glass">
-                <table>
-                    <thead><tr><th>Fragment</th><th>Prédicat</th><th>Tuples (RID Student)</th><th>StudIds</th></tr></thead>
-                    <tbody>
-                        <tr><td><strong>S_HCSC</strong></td><td>Level = 'HCSC'</td><td>{1, 3, 6}</td><td>{101, 303, 606}</td></tr>
-                        <tr><td><strong>S_MCSC</strong></td><td>Level = 'MCSC'</td><td>{2, 4}</td><td>{202, 404}</td></tr>
-                        <tr><td><strong>S_MSC</strong></td><td>Level = 'MSC'</td><td>{5}</td><td>{505}</td></tr>
-                    </tbody>
-                </table>
+-- Étape 3 : fragmentation dérivée
+POUR CHAQUE tuple t DE Grades :
+  level = Student[t.StudId].Level
+  dept  = Course[t.CourId].Dept
+  G_[level]_[dept].append(t)</code></pre>
             </div>
 
-            <p style="margin-top:1.2rem;"><strong>Étape 2 — Fragmentation horizontale primaire de Course (par Dept) :</strong></p>
-            <div class="table-glass">
-                <table>
-                    <thead><tr><th>Fragment</th><th>Prédicat</th><th>Tuples (RID Course)</th><th>CourIds</th></tr></thead>
-                    <tbody>
-                        <tr><td><strong>C_Stat</strong></td><td>Dept = 'Stat'</td><td>{5, 7}</td><td>{S402, S466}</td></tr>
-                        <tr><td><strong>C_Comp</strong></td><td>Dept = 'Comp'</td><td>{1, 2, 4}</td><td>{C306, C422, C442}</td></tr>
-                        <tr><td><strong>C_Math</strong></td><td>Dept = 'Math'</td><td>{3, 6}</td><td>{M301, M444}</td></tr>
-                    </tbody>
-                </table>
+            <div class="callout-info" style="margin-top:0.8rem;">
+                <p><span class="badge badge-blue">Points clés</span></p>
+                <ul>
+                    <li>Les étapes 1 et 2 se font <strong>une fois pour toutes</strong> à la création du schéma</li>
+                    <li>Chaque tuple de Grades va dans <strong>exactement un</strong> des 9 fragments</li>
+                    <li>La fragmentation est <strong>complète et disjointe</strong> : union = Grades, intersection = ∅</li>
+                    <li>Au moment d'une requête, l'optimiseur <strong>élimine les partitions</strong> inutiles</li>
+                </ul>
             </div>
 
-            <p style="margin-top:1.2rem;"><strong>Étape 3 — Fragmentation dérivée de Grades (par Student × Course) :</strong></p>
-            <p>Pour la requête qui filtre sur Level='HCSC' et Dept='Stat', le seul fragment utile est :</p>
-            <div class="table-glass">
-                <table>
-                    <thead><tr><th>Fragment</th><th>Condition</th><th>RIDs Grades</th><th>Taille</th></tr></thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>G_HCSC_Stat</strong></td>
-                            <td>StudId ∈ {101,303,606} <br>ET CourId ∈ {S402,S466}</td>
-                            <td><strong>{9, 16, 24, 27}</strong></td>
-                            <td>4 tuples</td>
-                        </tr>
-                        <tr>
-                            <td>G_HCSC_Comp</td><td>StudId ∈ {101,303,606} ET CourId ∈ {C306,C422,C442}</td><td>{1,3,6,7,8,14,15,26}</td><td>8 tuples</td>
-                        </tr>
-                        <tr>
-                            <td>G_HCSC_Math</td><td>StudId ∈ {101,303,606} ET CourId ∈ {M301,M444}</td><td>{25}</td><td>1 tuple</td>
-                        </tr>
-                        <tr>
-                            <td>G_MCSC_Stat</td><td>StudId ∈ {202,404} ET CourId ∈ {S402,S466}</td><td>{17,18}</td><td>2 tuples</td>
-                        </tr>
-                        <tr>
-                            <td>G_MCSC_Comp</td><td>StudId ∈ {202,404} ET CourId ∈ {C306,C422,C442}</td><td>{2,4,10,13,19}</td><td>5 tuples</td>
-                        </tr>
-                        <tr>
-                            <td>G_MCSC_Math</td><td>StudId ∈ {202,404} ET CourId ∈ {M301,M444}</td><td>{11,12,20}</td><td>3 tuples</td>
-                        </tr>
-                        <tr>
-                            <td>G_MSC_Stat</td><td>StudId ∈ {505} ET CourId ∈ {S402,S466}</td><td>{23}</td><td>1 tuple</td>
-                        </tr>
-                        <tr>
-                            <td>G_MSC_Comp</td><td>StudId ∈ {505} ET CourId ∈ {C306,C422,C442}</td><td>{5,21,22}</td><td>3 tuples</td>
-                        </tr>
-                        <tr>
-                            <td>G_MSC_Math</td><td>StudId ∈ {505} ET CourId ∈ {M301,M444}</td><td>∅</td><td>0 tuple</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <p class="inline-note">Total : 4+8+1+2+5+3+1+3+0 = 27 tuples — la fragmentation est complète et disjointe.</p>
-        </div>
-    </div>
-
-    <!-- ── QUESTION 2 ── -->
-    <div class="question">
-        <div class="question-header">
-            <span class="question-num">Q2</span>
-            <span class="question-pts">2 pts</span>
-            <span class="diff-badge diff-fondamental">Fondamental</span>
-        </div>
-        <p>Quel est le résultat retourné par la requête ?</p>
-
-        <div class="erreur-freq">
-            <strong>Piège courant :</strong> Recalculer depuis zéro au lieu d'utiliser directement le fragment G_HCSC_Stat identifié en Q1.
-        </div>
-
-        <button class="hint-btn" data-hint="q2f-h1" data-label="Indice" aria-expanded="false">
-            <span class="btn-arrow">▶</span>
-            <span class="btn-label">Indice</span>
-        </button>
-        <div class="hint" id="q2f-h1">
-            L'optimiseur route la requête directement vers G_HCSC_Stat. Combien de tuples contient ce fragment ?
-        </div>
-    </div>
-
-    <div class="reponse-zone" data-placeholder="Résultat de la requête…"></div>
-
-    <button class="solution-btn" aria-expanded="false">
-        <span class="btn-arrow">▶</span>
-        <span class="btn-label">Voir la solution</span>
-    </button>
-    <div class="solution">
-        <div class="solution-inner">
-            <h4 style="margin-top:0;">Solution — Q2 : Résultat</h4>
-            <p>Le fragment G_HCSC_Stat contient les RIDs {9, 16, 24, 27} :</p>
-            <div class="table-glass">
-                <table>
-                    <thead><tr><th>RID</th><th>CourId</th><th>StudId</th><th>Grade</th><th>Étudiant (Level)</th><th>Cours (Dept)</th></tr></thead>
-                    <tbody>
-                        <tr><td>9</td><td>S402</td><td>101</td><td>B+</td><td>Ali (HCSC)</td><td>BioS (Stat)</td></tr>
-                        <tr><td>16</td><td>S402</td><td>303</td><td>B</td><td>Daniel (HCSC)</td><td>BioS (Stat)</td></tr>
-                        <tr><td>24</td><td>S466</td><td>606</td><td>B-</td><td>Nicolas (HCSC)</td><td>Stat (Stat)</td></tr>
-                        <tr><td>27</td><td>S402</td><td>606</td><td>B</td><td>Nicolas (HCSC)</td><td>BioS (Stat)</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <p style="margin-top:0.8rem;"><strong>Résultat : <code>Count(*) = 4</code></strong></p>
-        </div>
-    </div>
-
-    <!-- ── QUESTION 3 ── -->
-    <div class="question">
-        <div class="question-header">
-            <span class="question-num">Q3</span>
-            <span class="question-pts">2 pts</span>
-            <span class="diff-badge diff-fondamental">Fondamental</span>
-        </div>
-        <p>Quel est le <strong>nombre de tuples de la table des faits (Grades)</strong> que l'optimiseur doit scanner ?</p>
-
-        <div class="erreur-freq">
-            <strong>Piège courant :</strong> Additionner tous les fragments accédés. La fragmentation permet justement d'isoler un seul fragment cible — l'optimiseur ne consulte pas les autres.
-        </div>
-
-        <button class="hint-btn" data-hint="q3f-h1" data-label="Indice" aria-expanded="false">
-            <span class="btn-arrow">▶</span>
-            <span class="btn-label">Indice</span>
-        </button>
-        <div class="hint" id="q3f-h1">
-            Avec la fragmentation, l'optimiseur sait qu'aucun tuple satisfaisant les deux prédicats ne peut se trouver en dehors du fragment G_HCSC_Stat. Il n'a donc besoin de lire que ce fragment.
-        </div>
-    </div>
-
-    <div class="reponse-zone" data-placeholder="Nombre de tuples Grades scannés…"></div>
-
-    <button class="solution-btn" aria-expanded="false">
-        <span class="btn-arrow">▶</span>
-        <span class="btn-label">Voir la solution</span>
-    </button>
-    <div class="solution">
-        <div class="solution-inner">
-            <h4 style="margin-top:0;">Solution — Q3 : Tuples scannés</h4>
-            <p>L'optimiseur effectue un scan complet du seul fragment <strong>G_HCSC_Stat</strong>, soit <strong>4 tuples</strong> sur 27.</p>
-            <div class="table-glass">
-                <table>
-                    <thead><tr><th>Approche</th><th>Tuples Grades lus</th><th>Ratio</th></tr></thead>
-                    <tbody>
-                        <tr><td>Sans fragmentation (scan complet)</td><td>27</td><td>100 %</td></tr>
-                        <tr><td>Avec fragmentation dérivée</td><td>4 (fragment G_HCSC_Stat)</td><td>≈ 15 %</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- ── QUESTION 4 ── -->
-    <div class="question">
-        <div class="question-header">
-            <span class="question-num">Q4</span>
-            <span class="question-pts">2 pts</span>
-            <span class="diff-badge diff-moyen">Intermédiaire</span>
-        </div>
-        <p>Comparer cette solution (fragmentation) avec celle des index de jointure binaire (exercice 1). Quelles sont les différences pratiques ?</p>
-
-        <div class="erreur-freq">
-            <strong>Piège courant :</strong> Conclure que l'une est "meilleure" que l'autre de façon absolue. Les deux approches ont des avantages différents selon le contexte (charge de mise à jour, requêtes ad hoc, volume…).
-        </div>
-
-        <button class="hint-btn" data-hint="q4f-h1" data-label="Indice" aria-expanded="false">
-            <span class="btn-arrow">▶</span>
-            <span class="btn-label">Indice</span>
-        </button>
-        <div class="hint" id="q4f-h1">
-            Comparez selon plusieurs critères : stockage (structures auxiliaires vs physique), maintenabilité (coût à l'insert/update), flexibilité (requêtes non prévues), et transparence pour l'optimiseur.
-        </div>
-    </div>
-
-    <div class="reponse-zone" data-placeholder="Comparaison des deux approches…"></div>
-
-    <button class="solution-btn" aria-expanded="false">
-        <span class="btn-arrow">▶</span>
-        <span class="btn-label">Voir la solution</span>
-    </button>
-    <div class="solution">
-        <div class="solution-inner">
-            <h4 style="margin-top:0;">Solution — Q4 : Comparaison BJI vs Fragmentation</h4>
-            <div class="table-glass">
-                <table>
-                    <thead><tr><th>Critère</th><th>Index de jointure binaire (Ex. 1)</th><th>Fragmentation dérivée (Ex. 2)</th></tr></thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Résultat</strong></td>
-                            <td>Count(*) = 4</td>
-                            <td>Count(*) = 4</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Mécanisme</strong></td>
-                            <td>Intersection de listes de RIDs (ou bitmaps) en mémoire</td>
-                            <td>Routage physique vers le fragment approprié</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Stockage</strong></td>
-                            <td>Structures auxiliaires supplémentaires (index)</td>
-                            <td>Les données sont directement réorganisées physiquement</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Mises à jour</strong></td>
-                            <td>Index à maintenir à chaque INSERT/UPDATE/DELETE</td>
-                            <td>Fragmentation à réorganiser — coût élevé si fréquent</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Requêtes non prévues</strong></td>
-                            <td>BJI spécifique à l'attribut indexé ; flexible si on a plusieurs BJI</td>
-                            <td>Moins flexible : les fragments sont figés selon les prédicats choisis</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Transparence</strong></td>
-                            <td>Transparent pour l'application ; l'optimiseur décide d'utiliser ou non</td>
-                            <td>Visible dans le schéma physique ; l'application peut en tenir compte</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- ── QUESTION 5 ── -->
-    <div class="question">
-        <div class="question-header">
-            <span class="question-num">Q5</span>
-            <span class="question-pts">3 pts</span>
-            <span class="diff-badge diff-avance">Avancé</span>
-        </div>
-        <p>
-            Y a-t-il une <strong>similarité</strong> entre les index de jointure binaire et le partitionnement horizontal dérivé ?
-            Si oui, commenter votre réponse.
-        </p>
-
-        <div class="erreur-freq">
-            <strong>Piège courant :</strong> Se limiter à "les deux donnent le même résultat". La similarité est plus profonde : elle touche à la structure logique de la sélectivité pré-calculée, pas seulement au résultat final.
-        </div>
-
-        <button class="hint-btn" data-hint="q5f-h1" data-label="Indice 1/2" aria-expanded="false">
-            <span class="btn-arrow">▶</span>
-            <span class="btn-label">Indice 1/2</span>
-        </button>
-        <div class="hint" id="q5f-h1">
-            Comparez ce que contient un fragment G_HCSC_Stat avec ce que représente l'intersection L<sub>1</sub> ∩ L<sub>2</sub> dans les BJI. Que décrivent-ils tous les deux ?
-        </div>
-
-        <button class="hint-btn hint-locked" data-hint="q5f-h2" data-label="Indice 2/2" aria-expanded="false">
-            <span class="btn-arrow">▶</span>
-            <span class="btn-label">Indice 2/2</span>
-        </button>
-        <div class="hint" id="q5f-h2">
-            Les deux techniques pré-calculent la <em>jointure</em> entre la table de faits et les dimensions, mais l'une le fait de façon logique (RIDs) et l'autre de façon physique (données réorganisées). Peut-on dire que l'une est la version physique de l'autre ?
-        </div>
-    </div>
-
-    <div class="reponse-zone" data-placeholder="Analysez la similarité entre les deux techniques…"></div>
-
-    <button class="solution-btn" aria-expanded="false">
-        <span class="btn-arrow">▶</span>
-        <span class="btn-label">Voir la solution</span>
-    </button>
-    <div class="solution">
-        <div class="solution-inner">
-            <h4 style="margin-top:0;">Solution — Q5 : Similarité entre BJI et fragmentation</h4>
-
-            <p><strong>Oui, il existe une similarité profonde.</strong> Les deux techniques reposent sur le même principe : <em>pré-calculer la sélectivité de la jointure</em> pour éviter les scans inutiles à l'exécution.</p>
-
-            <div class="table-glass">
-                <table>
-                    <thead><tr><th>Dimension d'analyse</th><th>BJI (Ex. 1)</th><th>Fragmentation (Ex. 2)</th></tr></thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Ce qui est pré-calculé</strong></td>
-                            <td>Pour chaque valeur de dimension, la liste des RIDs de Grades qui satisfont la jointure</td>
-                            <td>Pour chaque combinaison de valeurs de dimensions, le sous-ensemble physique de Grades qui satisfait la jointure</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Forme logique</strong></td>
-                            <td>Structure auxiliaire : listes de RIDs (ou bitmaps)</td>
-                            <td>Structure physique : données réorganisées en partitions</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Équivalence</strong></td>
-                            <td colspan="2">L'intersection L<sub>1</sub>(HCSC) ∩ L<sub>2</sub>(Stat) = {9,16,24,27} est exactement l'ensemble des RIDs du fragment G_HCSC_Stat</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="callout-info" style="margin-top:1rem;">
-                <p><span class="badge badge-blue">Conclusion</span></p>
-                <p>
-                    La <strong>fragmentation horizontale dérivée</strong> peut être vue comme la <em>matérialisation physique</em> de ce que les index de jointure binaire représentent de façon logique.
-                    Le BJI dit « pour cette valeur, les tuples qualifiants ont ces RIDs » ;
-                    la fragmentation dit « pour cette valeur, ces tuples qualifiants sont dans ce fragment sur disque ».
-                </p>
-                <p>
-                    Les deux techniques éliminent les mêmes accès inutiles, mais par des mécanismes différents :
-                    le BJI fonctionne par <strong>intersection logique de RIDs</strong>, la fragmentation par <strong>routage physique</strong> vers une partition.
+            <div class="highlight-box" style="margin-top:0.8rem;">
+                <p><span class="badge badge-green">Vérification</span></p>
+                <p>La somme des tailles de tous les fragments doit égaler 27 (nombre total de tuples Grades).</p>
+                <p style="font-size:0.85rem; color:#dedad5; margin-top:0.4rem;">
+                    HCSC : (7+2+4) = 13<br>
+                    MCSC : (5+3+2) = 10<br>
+                    MSC  : (3+0+1) = 4<br>
+                    <strong>Total : 13+10+4 = 27 ✓</strong>
                 </p>
             </div>
         </div>
     </div>
 
-    <!-- ── POUR ALLER PLUS LOIN ── -->
-    <div class="pour-aller-plus-loin">
-        <h4>Pour aller plus loin</h4>
-        <ul>
-            <li>Dans un entrepôt de données réel (ex: schéma en étoile), comment la fragmentation dérivée se combine-t-elle avec le partitionnement par plages (RANGE) ou par hachage (HASH) ?</li>
-            <li>Les systèmes OLAP comme Apache Hive ou BigQuery utilisent-ils des principes similaires à la fragmentation dérivée ? Sous quel nom ?</li>
-            <li>Si on ajoute une 3<sup>e</sup> dimension (ex: semestre), combien de fragments de Grades obtient-on ? Comment évolue la granularité de l'élimination de partitions ?</li>
-            <li>La similarité entre BJI et fragmentation est-elle exploitée dans les optimiseurs de bases de données actuelles ?</li>
-        </ul>
+    <!-- ── TRACE COMPLÈTE ── -->
+    <h4 style="margin-top:1.4rem;">Trace complète d'affectation des 27 tuples Grades</h4>
+    <p class="inline-note">Les lignes <span style="color:#d67556;font-weight:700;">orange</span> correspondent au fragment G_HCSC_Stat — le seul accédé par la requête cible.</p>
+
+    <div class="table-glass">
+        <table>
+            <thead>
+                <tr>
+                    <th>G.RID</th>
+                    <th>StudId</th>
+                    <th>→ Level (Student)</th>
+                    <th>CourId</th>
+                    <th>→ Dept (Course)</th>
+                    <th>Fragment Grades</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="trace-hcsc-bg"><td>1</td><td>101</td><td class="left trace-hcsc">Ali → HCSC</td><td>C306</td><td class="left">Comm → Comp</td><td class="left trace-hcsc">G_HCSC_Comp</td></tr>
+                <tr class="trace-mcsc-bg"><td>2</td><td>202</td><td class="left trace-mcsc">Craig → MCSC</td><td>C306</td><td class="left">Comm → Comp</td><td class="left trace-mcsc">G_MCSC_Comp</td></tr>
+                <tr class="trace-hcsc-bg"><td>3</td><td>303</td><td class="left trace-hcsc">Daniel → HCSC</td><td>C306</td><td class="left">Comm → Comp</td><td class="left trace-hcsc">G_HCSC_Comp</td></tr>
+                <tr class="trace-mcsc-bg"><td>4</td><td>404</td><td class="left trace-mcsc">Ankit → MCSC</td><td>C306</td><td class="left">Comm → Comp</td><td class="left trace-mcsc">G_MCSC_Comp</td></tr>
+                <tr class="trace-msc-bg"><td>5</td><td>505</td><td class="left trace-msc">Philip → MSC</td><td>C306</td><td class="left">Comm → Comp</td><td class="left trace-msc">G_MSC_Comp</td></tr>
+                <tr class="trace-hcsc-bg"><td>6</td><td>606</td><td class="left trace-hcsc">Nicolas → HCSC</td><td>C306</td><td class="left">Comm → Comp</td><td class="left trace-hcsc">G_HCSC_Comp</td></tr>
+                <tr class="trace-hcsc-bg"><td>7</td><td>101</td><td class="left trace-hcsc">Ali → HCSC</td><td>C422</td><td class="left">AI → Comp</td><td class="left trace-hcsc">G_HCSC_Comp</td></tr>
+                <tr class="trace-hcsc-bg"><td>8</td><td>101</td><td class="left trace-hcsc">Ali → HCSC</td><td>C442</td><td class="left">IDBI → Comp</td><td class="left trace-hcsc">G_HCSC_Comp</td></tr>
+                <tr class="trace-hcsc-stat-bg"><td>9</td><td>101</td><td class="left trace-hcsc-stat">Ali → HCSC</td><td>S402</td><td class="left trace-hcsc-stat">BioS → Stat ★</td><td class="left trace-hcsc-stat">G_HCSC_Stat ★</td></tr>
+                <tr class="trace-mcsc-bg"><td>10</td><td>202</td><td class="left trace-mcsc">Craig → MCSC</td><td>C422</td><td class="left">AI → Comp</td><td class="left trace-mcsc">G_MCSC_Comp</td></tr>
+                <tr class="trace-mcsc-bg"><td>11</td><td>202</td><td class="left trace-mcsc">Craig → MCSC</td><td>M444</td><td class="left">Algeb → Math</td><td class="left trace-mcsc">G_MCSC_Math</td></tr>
+                <tr class="trace-mcsc-bg"><td>12</td><td>202</td><td class="left trace-mcsc">Craig → MCSC</td><td>M301</td><td class="left">Calc → Math</td><td class="left trace-mcsc">G_MCSC_Math</td></tr>
+                <tr class="trace-mcsc-bg"><td>13</td><td>202</td><td class="left trace-mcsc">Craig → MCSC</td><td>C442</td><td class="left">IDBI → Comp</td><td class="left trace-mcsc">G_MCSC_Comp</td></tr>
+                <tr class="trace-hcsc-bg"><td>14</td><td>303</td><td class="left trace-hcsc">Daniel → HCSC</td><td>M301</td><td class="left">Calc → Math</td><td class="left trace-hcsc">G_HCSC_Math</td></tr>
+                <tr class="trace-hcsc-bg"><td>15</td><td>303</td><td class="left trace-hcsc">Daniel → HCSC</td><td>C442</td><td class="left">IDBI → Comp</td><td class="left trace-hcsc">G_HCSC_Comp</td></tr>
+                <tr class="trace-hcsc-stat-bg"><td>16</td><td>303</td><td class="left trace-hcsc-stat">Daniel → HCSC</td><td>S402</td><td class="left trace-hcsc-stat">BioS → Stat ★</td><td class="left trace-hcsc-stat">G_HCSC_Stat ★</td></tr>
+                <tr class="trace-mcsc-bg"><td>17</td><td>404</td><td class="left trace-mcsc">Ankit → MCSC</td><td>S402</td><td class="left">BioS → Stat</td><td class="left trace-mcsc">G_MCSC_Stat</td></tr>
+                <tr class="trace-mcsc-bg"><td>18</td><td>404</td><td class="left trace-mcsc">Ankit → MCSC</td><td>S466</td><td class="left">Stat → Stat</td><td class="left trace-mcsc">G_MCSC_Stat</td></tr>
+                <tr class="trace-mcsc-bg"><td>19</td><td>404</td><td class="left trace-mcsc">Ankit → MCSC</td><td>C442</td><td class="left">IDBI → Comp</td><td class="left trace-mcsc">G_MCSC_Comp</td></tr>
+                <tr class="trace-mcsc-bg"><td>20</td><td>404</td><td class="left trace-mcsc">Ankit → MCSC</td><td>M444</td><td class="left">Algeb → Math</td><td class="left trace-mcsc">G_MCSC_Math</td></tr>
+                <tr class="trace-msc-bg"><td>21</td><td>505</td><td class="left trace-msc">Philip → MSC</td><td>C442</td><td class="left">IDBI → Comp</td><td class="left trace-msc">G_MSC_Comp</td></tr>
+                <tr class="trace-msc-bg"><td>22</td><td>505</td><td class="left trace-msc">Philip → MSC</td><td>C442</td><td class="left">IDBI → Comp</td><td class="left trace-msc">G_MSC_Comp</td></tr>
+                <tr class="trace-msc-bg"><td>23</td><td>505</td><td class="left trace-msc">Philip → MSC</td><td>S466</td><td class="left">Stat → Stat</td><td class="left trace-msc">G_MSC_Stat</td></tr>
+                <tr class="trace-hcsc-stat-bg"><td>24</td><td>606</td><td class="left trace-hcsc-stat">Nicolas → HCSC</td><td>S466</td><td class="left trace-hcsc-stat">Stat → Stat ★</td><td class="left trace-hcsc-stat">G_HCSC_Stat ★</td></tr>
+                <tr class="trace-hcsc-bg"><td>25</td><td>606</td><td class="left trace-hcsc">Nicolas → HCSC</td><td>M444</td><td class="left">Algeb → Math</td><td class="left trace-hcsc">G_HCSC_Math</td></tr>
+                <tr class="trace-hcsc-bg"><td>26</td><td>606</td><td class="left trace-hcsc">Nicolas → HCSC</td><td>C442</td><td class="left">IDBI → Comp</td><td class="left trace-hcsc">G_HCSC_Comp</td></tr>
+                <tr class="trace-hcsc-stat-bg"><td>27</td><td>606</td><td class="left trace-hcsc-stat">Nicolas → HCSC</td><td>S402</td><td class="left trace-hcsc-stat">BioS → Stat ★</td><td class="left trace-hcsc-stat">G_HCSC_Stat ★</td></tr>
+            </tbody>
+        </table>
     </div>
+    <p class="inline-note">Les 4 tuples marqués ★ (RIDs 9, 16, 24, 27) forment le fragment G_HCSC_Stat — identique à l'intersection L₁ ∩ L₂ de l'exercice 1.</p>
+
+    <!-- ── GRILLE 3×3 COMPLÈTE ── -->
+    <h4 style="margin-top:1.4rem;">Grille complète des 9 fragments de Grades</h4>
+
+    <svg viewBox="0 0 540 196" fill="none" xmlns="http://www.w3.org/2000/svg"
+         style="width:100%;max-width:540px;display:block;margin:0.8rem auto;font-family:'Inter',system-ui,sans-serif;">
+
+        <!-- Grid border -->
+        <rect x="80" y="36" width="452" height="152" rx="6" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+
+        <!-- Column headers -->
+        <text x="230" y="18" text-anchor="middle" font-size="10" fill="#9e9a94">Comp</text>
+        <text x="380" y="18" text-anchor="middle" font-size="10" fill="#9e9a94">Math</text>
+        <text x="456" y="10" text-anchor="middle" font-size="10" font-weight="700" fill="#d67556">Stat</text>
+        <text x="456" y="24" text-anchor="middle" font-size="8" fill="#d67556">← requête</text>
+
+        <!-- Row headers -->
+        <text x="72" y="68" text-anchor="end" font-size="10" font-weight="700" fill="#5ba6a0">HCSC</text>
+        <text x="68" y="60" text-anchor="end" font-size="7" fill="#5ba6a0">↑ requête</text>
+        <text x="72" y="118" text-anchor="end" font-size="10" fill="#9e9a94">MCSC</text>
+        <text x="72" y="164" text-anchor="end" font-size="10" fill="#a78bfa">MSC</text>
+
+        <!-- Row 0: HCSC -->
+        <rect x="80" y="36" width="150" height="50" rx="0" fill="rgba(91,166,160,0.06)" stroke="rgba(91,166,160,0.15)" stroke-width="1"/>
+        <text x="155" y="59" text-anchor="middle" font-size="10" fill="#5ba6a0">G_HCSC_Comp</text>
+        <text x="155" y="76" text-anchor="middle" font-size="11" font-weight="600" fill="#dedad5">{1,3,6,7,8,15,26}</text>
+
+        <rect x="230" y="36" width="150" height="50" rx="0" fill="rgba(91,166,160,0.06)" stroke="rgba(91,166,160,0.15)" stroke-width="1"/>
+        <text x="305" y="59" text-anchor="middle" font-size="10" fill="#5ba6a0">G_HCSC_Math</text>
+        <text x="305" y="76" text-anchor="middle" font-size="11" font-weight="600" fill="#dedad5">{14, 25}</text>
+
+        <!-- G_HCSC_Stat — star cell -->
+        <rect x="380" y="36" width="152" height="50" rx="0" fill="rgba(214,117,86,0.15)" stroke="#d67556" stroke-width="2"/>
+        <text x="456" y="55" text-anchor="middle" font-size="10" font-weight="700" fill="#d67556">G_HCSC_Stat ★</text>
+        <text x="456" y="72" text-anchor="middle" font-size="12" font-weight="700" fill="#d67556">{9, 16, 24, 27}</text>
+
+        <!-- Row 1: MCSC -->
+        <rect x="80" y="86" width="150" height="48" rx="0" fill="rgba(158,154,148,0.04)" stroke="rgba(158,154,148,0.15)" stroke-width="1"/>
+        <text x="155" y="108" text-anchor="middle" font-size="9" fill="#9e9a94">G_MCSC_Comp</text>
+        <text x="155" y="124" text-anchor="middle" font-size="10" fill="#9e9a94">{2,4,10,13,19}</text>
+
+        <rect x="230" y="86" width="150" height="48" rx="0" fill="rgba(158,154,148,0.04)" stroke="rgba(158,154,148,0.15)" stroke-width="1"/>
+        <text x="305" y="108" text-anchor="middle" font-size="9" fill="#9e9a94">G_MCSC_Math</text>
+        <text x="305" y="124" text-anchor="middle" font-size="10" fill="#9e9a94">{11,12,20}</text>
+
+        <rect x="380" y="86" width="152" height="48" rx="0" fill="rgba(158,154,148,0.04)" stroke="rgba(158,154,148,0.15)" stroke-width="1"/>
+        <text x="456" y="108" text-anchor="middle" font-size="9" fill="#9e9a94">G_MCSC_Stat</text>
+        <text x="456" y="124" text-anchor="middle" font-size="10" fill="#9e9a94">{17,18}</text>
+
+        <!-- Row 2: MSC -->
+        <rect x="80" y="134" width="150" height="54" rx="0" fill="rgba(167,139,250,0.04)" stroke="rgba(167,139,250,0.15)" stroke-width="1"/>
+        <text x="155" y="156" text-anchor="middle" font-size="9" fill="#a78bfa">G_MSC_Comp</text>
+        <text x="155" y="174" text-anchor="middle" font-size="10" fill="#a78bfa">{5,21,22}</text>
+
+        <rect x="230" y="134" width="150" height="54" rx="0" fill="rgba(167,139,250,0.04)" stroke="rgba(167,139,250,0.15)" stroke-width="1"/>
+        <text x="305" y="156" text-anchor="middle" font-size="9" fill="#a78bfa">G_MSC_Math</text>
+        <text x="305" y="174" text-anchor="middle" font-size="10" fill="#a78bfa">∅</text>
+
+        <rect x="380" y="134" width="152" height="54" rx="0" fill="rgba(167,139,250,0.04)" stroke="rgba(167,139,250,0.15)" stroke-width="1"/>
+        <text x="456" y="156" text-anchor="middle" font-size="9" fill="#a78bfa">G_MSC_Stat</text>
+        <text x="456" y="174" text-anchor="middle" font-size="10" fill="#a78bfa">{23}</text>
+    </svg>
+
+    <p class="inline-note">Vérification : 7+2+4 + 5+3+2 + 3+0+1 = 13+10+4 = <strong>27 ✓</strong></p>
+</div>
+
+<!-- ── SCAFFOLDING ── -->
+<div class="two-col">
+    <div class="highlight-box">
+        <p><span class="badge badge-green">Exemple</span></p>
+        <p>Fragmenter Student par Level donne 3 fragments : S_HCSC {Ali,Daniel,Nicolas}, S_MCSC {Craig,Ankit}, S_MSC {Philip}. La fragmentation dérivée de Grades par Student donne G_HCSC, G_MCSC, G_MSC — chaque fragment contient exactement les inscriptions des étudiants du groupe correspondant.</p>
+    </div>
+    <div class="callout-info">
+        <p><span class="badge badge-blue">Analogie</span></p>
+        <p><strong>Intuition :</strong> c'est comme partitionner un entrepôt en rayons thématiques. Au lieu de chercher un produit dans tout l'entrepôt, on sait directement dans quel rayon aller — et si la requête ne concerne que ce rayon, on ignore tous les autres.</p>
+    </div>
+</div>
+
+<!-- ── QUESTION 1 ── -->
+<div class="question">
+    <div class="question-header">
+        <span class="question-num">Q1</span>
+        <span class="question-pts">5 pts</span>
+        <span class="diff-badge diff-moyen">Intermédiaire</span>
+    </div>
+    <p>
+        Proposer une <strong>fragmentation</strong> de la base de données afin d'optimiser la requête cible.
+        Définir les fragments de Student, Course et Grades, en listant les tuples (RIDs) de chaque fragment.
+    </p>
+
+    <div class="erreur-freq">
+        <strong>Piège courant :</strong> Fragmenter uniquement Grades directement, sans passer par les tables de dimension. La fragmentation de Grades doit être <em>dérivée</em> de celles de Student et Course — c'est ce qui garantit l'élimination de partitions à l'exécution.
+    </div>
+
+    <button class="hint-btn" data-hint="q1f-h1" data-label="Indice 1/3" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Indice 1/3</span>
+    </button>
+    <div class="hint" id="q1f-h1">
+        Commencez par fragmenter Student par <code>Level</code> : quels tuples (et RIDs Student) appartiennent à chaque fragment ?<br>
+        <em>S_HCSC = σ(Level='HCSC')(Student) = {Ali(RID1), Daniel(RID3), Nicolas(RID6)}</em>
+    </div>
+
+    <button class="hint-btn hint-locked" data-hint="q1f-h2" data-label="Indice 2/3" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Indice 2/3</span>
+    </button>
+    <div class="hint" id="q1f-h2">
+        Fragmentez ensuite Course par <code>Dept</code>. Puis, pour chaque combinaison (fragment Student, fragment Course), dérivez le fragment de Grades : ce sont les tuples de Grades dont le StudId est dans le fragment Student <strong>ET</strong> le CourId est dans le fragment Course.
+    </div>
+
+    <button class="hint-btn hint-locked" data-hint="q1f-h3" data-label="Indice 3/3" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Indice 3/3</span>
+    </button>
+    <div class="hint" id="q1f-h3">
+        Pour la requête, seul le fragment G_HCSC_Stat est pertinent. Identifiez les StudIds HCSC = {101, 303, 606} et les CourIds Stat = {S402, S466}. Quels RIDs de Grades ont à la fois StudId ∈ {101,303,606} <strong>ET</strong> CourId ∈ {S402,S466} ?<br>
+        <em>Astuce : regardez la trace de construction dans le guide ci-dessus, lignes marquées ★.</em>
+    </div>
+</div>
+
+<div class="reponse-zone" data-placeholder="Définissez les fragments de Student, Course et Grades…"></div>
+
+<button class="solution-btn" aria-expanded="false">
+    <span class="btn-arrow">▶</span>
+    <span class="btn-label">Voir la solution</span>
+</button>
+<div class="solution">
+    <div class="solution-inner">
+        <h4 style="margin-top:0;">Solution — Q1 : Fragmentation proposée</h4>
+
+        <p><strong>Étape 1 — Fragmentation horizontale primaire de Student (par Level) :</strong></p>
+        <div class="table-glass">
+            <table>
+                <thead><tr><th>Fragment</th><th>Prédicat SQL</th><th>RIDs Student</th><th>StudIds</th><th>Nb tuples</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>S_HCSC</strong></td><td class="left"><code>Level = 'HCSC'</code></td><td>{1, 3, 6}</td><td>{101, 303, 606}</td><td>3</td></tr>
+                    <tr><td><strong>S_MCSC</strong></td><td class="left"><code>Level = 'MCSC'</code></td><td>{2, 4}</td><td>{202, 404}</td><td>2</td></tr>
+                    <tr><td><strong>S_MSC</strong></td><td class="left"><code>Level = 'MSC'</code></td><td>{5}</td><td>{505}</td><td>1</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p style="margin-top:1.2rem;"><strong>Étape 2 — Fragmentation horizontale primaire de Course (par Dept) :</strong></p>
+        <div class="table-glass">
+            <table>
+                <thead><tr><th>Fragment</th><th>Prédicat SQL</th><th>RIDs Course</th><th>CourIds</th><th>Nb tuples</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>C_Comp</strong></td><td class="left"><code>Dept = 'Comp'</code></td><td>{1, 2, 4}</td><td>{C306, C422, C442}</td><td>3</td></tr>
+                    <tr><td><strong>C_Math</strong></td><td class="left"><code>Dept = 'Math'</code></td><td>{3, 6}</td><td>{M301, M444}</td><td>2</td></tr>
+                    <tr><td><strong>C_Stat</strong></td><td class="left"><code>Dept = 'Stat'</code></td><td>{5, 7}</td><td>{S402, S466}</td><td>2</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p style="margin-top:1.2rem;"><strong>Étape 3 — Fragmentation dérivée de Grades (9 fragments = 3 × 3) :</strong></p>
+        <div class="table-glass">
+            <table>
+                <thead><tr><th>Fragment</th><th>StudId ∈</th><th>CourId ∈</th><th>RIDs Grades</th><th>Taille</th></tr></thead>
+                <tbody>
+                    <tr class="frag-hcsc-stat"><td><strong>G_HCSC_Stat ★</strong></td><td>{101,303,606}</td><td>{S402,S466}</td><td><strong>{9, 16, 24, 27}</strong></td><td><strong>4</strong></td></tr>
+                    <tr class="frag-hcsc"><td>G_HCSC_Comp</td><td>{101,303,606}</td><td>{C306,C422,C442}</td><td>{1,3,6,7,8,15,26}</td><td>7</td></tr>
+                    <tr class="frag-hcsc"><td>G_HCSC_Math</td><td>{101,303,606}</td><td>{M301,M444}</td><td>{14, 25}</td><td>2</td></tr>
+                    <tr class="frag-mcsc"><td>G_MCSC_Comp</td><td>{202,404}</td><td>{C306,C422,C442}</td><td>{2,4,10,13,19}</td><td>5</td></tr>
+                    <tr class="frag-mcsc"><td>G_MCSC_Math</td><td>{202,404}</td><td>{M301,M444}</td><td>{11,12,20}</td><td>3</td></tr>
+                    <tr class="frag-mcsc"><td>G_MCSC_Stat</td><td>{202,404}</td><td>{S402,S466}</td><td>{17,18}</td><td>2</td></tr>
+                    <tr class="frag-msc"><td>G_MSC_Comp</td><td>{505}</td><td>{C306,C422,C442}</td><td>{5,21,22}</td><td>3</td></tr>
+                    <tr class="frag-msc"><td>G_MSC_Math</td><td>{505}</td><td>{M301,M444}</td><td>∅</td><td>0</td></tr>
+                    <tr class="frag-msc"><td>G_MSC_Stat</td><td>{505}</td><td>{S402,S466}</td><td>{23}</td><td>1</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="inline-note">Total : 4+7+2+5+3+2+3+0+1 = <strong>27 tuples</strong> — la fragmentation est complète et disjointe. ✓</p>
+    </div>
+</div>
+
+<!-- ── QUESTION 2 ── -->
+<div class="question">
+    <div class="question-header">
+        <span class="question-num">Q2</span>
+        <span class="question-pts">2 pts</span>
+        <span class="diff-badge diff-fondamental">Fondamental</span>
+    </div>
+    <p>Quel est le résultat retourné par la requête ?</p>
+
+    <div class="erreur-freq">
+        <strong>Piège courant :</strong> Recalculer depuis zéro au lieu d'utiliser directement le fragment G_HCSC_Stat identifié en Q1.
+    </div>
+
+    <button class="hint-btn" data-hint="q2f-h1" data-label="Indice" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Indice</span>
+    </button>
+    <div class="hint" id="q2f-h1">
+        L'optimiseur route la requête directement vers G_HCSC_Stat. Combien de tuples contient ce fragment ?
+    </div>
+</div>
+
+<div class="reponse-zone" data-placeholder="Résultat de la requête…"></div>
+
+<button class="solution-btn" aria-expanded="false">
+    <span class="btn-arrow">▶</span>
+    <span class="btn-label">Voir la solution</span>
+</button>
+<div class="solution">
+    <div class="solution-inner">
+        <h4 style="margin-top:0;">Solution — Q2 : Résultat</h4>
+        <p>Le fragment G_HCSC_Stat contient les RIDs {9, 16, 24, 27} :</p>
+        <div class="table-glass">
+            <table>
+                <thead><tr><th>RID</th><th>CourId</th><th>StudId</th><th>Grade</th><th>Étudiant (Level)</th><th>Cours (Dept)</th></tr></thead>
+                <tbody>
+                    <tr><td>9</td><td>S402</td><td>101</td><td>B+</td><td>Ali (HCSC)</td><td>BioS (Stat)</td></tr>
+                    <tr><td>16</td><td>S402</td><td>303</td><td>B</td><td>Daniel (HCSC)</td><td>BioS (Stat)</td></tr>
+                    <tr><td>24</td><td>S466</td><td>606</td><td>B-</td><td>Nicolas (HCSC)</td><td>Stat (Stat)</td></tr>
+                    <tr><td>27</td><td>S402</td><td>606</td><td>B</td><td>Nicolas (HCSC)</td><td>BioS (Stat)</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="margin-top:0.8rem;"><strong>Résultat : <code>Count(*) = 4</code></strong></p>
+    </div>
+</div>
+
+<!-- ── QUESTION 3 ── -->
+<div class="question">
+    <div class="question-header">
+        <span class="question-num">Q3</span>
+        <span class="question-pts">2 pts</span>
+        <span class="diff-badge diff-fondamental">Fondamental</span>
+    </div>
+    <p>Quel est le <strong>nombre de tuples de la table des faits (Grades)</strong> que l'optimiseur doit scanner ?</p>
+
+    <div class="erreur-freq">
+        <strong>Piège courant :</strong> Additionner tous les fragments accédés. La fragmentation permet justement d'isoler un seul fragment cible — l'optimiseur ne consulte pas les autres.
+    </div>
+
+    <button class="hint-btn" data-hint="q3f-h1" data-label="Indice" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Indice</span>
+    </button>
+    <div class="hint" id="q3f-h1">
+        Avec la fragmentation, l'optimiseur sait qu'aucun tuple satisfaisant les deux prédicats ne peut se trouver en dehors du fragment G_HCSC_Stat. Il n'a donc besoin de lire que ce fragment.
+    </div>
+</div>
+
+<div class="reponse-zone" data-placeholder="Nombre de tuples Grades scannés…"></div>
+
+<button class="solution-btn" aria-expanded="false">
+    <span class="btn-arrow">▶</span>
+    <span class="btn-label">Voir la solution</span>
+</button>
+<div class="solution">
+    <div class="solution-inner">
+        <h4 style="margin-top:0;">Solution — Q3 : Tuples scannés et élimination de partitions</h4>
+
+        <!-- Partition elimination SVG -->
+        <p><strong>Élimination de partitions (partition pruning) :</strong></p>
+        <svg viewBox="0 0 540 180" fill="none" xmlns="http://www.w3.org/2000/svg"
+             style="width:100%;max-width:540px;display:block;margin:0.8rem auto;font-family:'Inter',system-ui,sans-serif;">
+
+            <!-- Query filter banner -->
+            <rect x="8" y="4" width="524" height="22" rx="5" fill="rgba(214,117,86,0.1)" stroke="#d67556" stroke-width="1"/>
+            <text x="270" y="19" text-anchor="middle" font-size="10" fill="#d67556">Requête : WHERE Level = 'HCSC' AND Dept = 'Stat'</text>
+
+            <!-- Column headers -->
+            <text x="230" y="44" text-anchor="middle" font-size="9" fill="#9e9a94">Comp</text>
+            <text x="380" y="44" text-anchor="middle" font-size="9" fill="#9e9a94">Math</text>
+            <text x="456" y="44" text-anchor="middle" font-size="10" font-weight="700" fill="#d67556">Stat ★</text>
+
+            <!-- Row headers -->
+            <text x="72" y="92" text-anchor="end" font-size="10" font-weight="700" fill="#5ba6a0">HCSC</text>
+            <text x="72" y="128" text-anchor="end" font-size="9" fill="#9e9a94">MCSC</text>
+            <text x="72" y="164" text-anchor="end" font-size="9" fill="#a78bfa">MSC</text>
+
+            <!-- Row 0: HCSC — Comp and Math dimmed with X -->
+            <rect x="80" y="58" width="150" height="48" rx="4" fill="rgba(158,154,148,0.04)" stroke="rgba(158,154,148,0.15)" stroke-width="1"/>
+            <text x="155" y="82" text-anchor="middle" font-size="9" fill="#9e9a94" opacity="0.5">7 tuples</text>
+            <line x1="85" y1="63" x2="225" y2="101" stroke="#9e9a94" stroke-width="1" stroke-opacity="0.3"/>
+            <line x1="225" y1="63" x2="85" y2="101" stroke="#9e9a94" stroke-width="1" stroke-opacity="0.3"/>
+
+            <rect x="230" y="58" width="150" height="48" rx="4" fill="rgba(158,154,148,0.04)" stroke="rgba(158,154,148,0.15)" stroke-width="1"/>
+            <text x="305" y="82" text-anchor="middle" font-size="9" fill="#9e9a94" opacity="0.5">2 tuples</text>
+            <line x1="235" y1="63" x2="375" y2="101" stroke="#9e9a94" stroke-width="1" stroke-opacity="0.3"/>
+            <line x1="375" y1="63" x2="235" y2="101" stroke="#9e9a94" stroke-width="1" stroke-opacity="0.3"/>
+
+            <!-- G_HCSC_Stat — ACTIVE -->
+            <rect x="380" y="52" width="152" height="60" rx="4" fill="rgba(214,117,86,0.18)" stroke="#d67556" stroke-width="2.5"/>
+            <text x="456" y="76" text-anchor="middle" font-size="10" font-weight="700" fill="#d67556">G_HCSC_Stat</text>
+            <text x="456" y="94" text-anchor="middle" font-size="10" fill="#d67556">✓ 4 tuples lus</text>
+
+            <!-- Rows 1 and 2 — fully dimmed with X -->
+            <rect x="80" y="106" width="452" height="36" rx="3" fill="rgba(158,154,148,0.03)" stroke="rgba(158,154,148,0.1)" stroke-width="1"/>
+            <text x="270" y="128" text-anchor="middle" font-size="9" fill="#9e9a94" opacity="0.4">G_MCSC_Comp · G_MCSC_Math · G_MCSC_Stat · G_MSC_Comp · G_MSC_Math · G_MSC_Stat</text>
+            <line x1="84" y1="110" x2="528" y2="138" stroke="#9e9a94" stroke-width="0.8" stroke-opacity="0.25"/>
+            <line x1="528" y1="110" x2="84" y2="138" stroke="#9e9a94" stroke-width="0.8" stroke-opacity="0.25"/>
+
+            <!-- Legend -->
+            <line x1="90" y1="162" x2="106" y2="172" stroke="#9e9a94" stroke-width="1" stroke-opacity="0.5"/>
+            <line x1="106" y1="162" x2="90" y2="172" stroke="#9e9a94" stroke-width="1" stroke-opacity="0.5"/>
+            <text x="114" y="171" font-size="8" fill="#9e9a94">Fragment ignoré (partition pruning)</text>
+            <rect x="300" y="161" width="14" height="12" rx="2" fill="rgba(214,117,86,0.18)" stroke="#d67556" stroke-width="1"/>
+            <text x="320" y="171" font-size="8" fill="#d67556">Fragment accédé (4 tuples)</text>
+        </svg>
+
+        <p>L'optimiseur effectue un scan complet du seul fragment <strong>G_HCSC_Stat</strong>, soit <strong>4 tuples</strong> sur 27.</p>
+
+        <!-- Bar chart -->
+        <svg viewBox="0 0 320 110" fill="none" xmlns="http://www.w3.org/2000/svg"
+             style="width:100%;max-width:320px;display:block;margin:0.8rem auto;font-family:'Inter',system-ui,sans-serif;">
+            <line x1="80" y1="10" x2="80" y2="82" stroke="#9e9a94" stroke-width="1" opacity="0.4" stroke-linecap="round"/>
+            <line x1="80" y1="82" x2="310" y2="82" stroke="#9e9a94" stroke-width="1" opacity="0.4" stroke-linecap="round"/>
+            <rect x="80" y="18" width="230" height="22" rx="3" fill="rgba(158,154,148,0.5)"/>
+            <text x="75" y="33" text-anchor="end" font-size="9" fill="#9e9a94">Sans frag.</text>
+            <text x="316" y="33" font-size="9" fill="#9e9a94" font-weight="600">27 tuples</text>
+            <rect x="80" y="50" width="34" height="22" rx="3" fill="rgba(214,117,86,0.8)"/>
+            <text x="75" y="65" text-anchor="end" font-size="9" fill="#9e9a94">Avec frag.</text>
+            <text x="120" y="65" font-size="9" fill="#d67556" font-weight="600">4 tuples (≈ 15%)</text>
+            <text x="195" y="98" text-anchor="middle" font-size="9" fill="#9e9a94" font-style="italic">Réduction de 85 % des lectures</text>
+        </svg>
+
+        <div class="table-glass">
+            <table>
+                <thead><tr><th>Approche</th><th>Tuples Grades lus</th><th>Ratio</th></tr></thead>
+                <tbody>
+                    <tr><td>Sans fragmentation (scan complet)</td><td>27</td><td>100 %</td></tr>
+                    <tr><td>Avec fragmentation dérivée</td><td>4 (fragment G_HCSC_Stat)</td><td>≈ 15 %</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── QUESTION 4 ── -->
+<div class="question">
+    <div class="question-header">
+        <span class="question-num">Q4</span>
+        <span class="question-pts">2 pts</span>
+        <span class="diff-badge diff-moyen">Intermédiaire</span>
+    </div>
+    <p>Comparer cette solution (fragmentation) avec celle des index de jointure binaire (exercice 1). Quelles sont les différences pratiques ?</p>
+
+    <div class="erreur-freq">
+        <strong>Piège courant :</strong> Conclure que l'une est "meilleure" que l'autre de façon absolue. Les deux approches ont des avantages différents selon le contexte (charge de mise à jour, requêtes ad hoc, volume…).
+    </div>
+
+    <button class="hint-btn" data-hint="q4f-h1" data-label="Indice" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Indice</span>
+    </button>
+    <div class="hint" id="q4f-h1">
+        Comparez selon plusieurs critères : stockage (structures auxiliaires vs physique), maintenabilité (coût à l'insert/update), flexibilité (requêtes non prévues), et transparence pour l'optimiseur.
+    </div>
+</div>
+
+<div class="reponse-zone" data-placeholder="Comparaison des deux approches…"></div>
+
+<button class="solution-btn" aria-expanded="false">
+    <span class="btn-arrow">▶</span>
+    <span class="btn-label">Voir la solution</span>
+</button>
+<div class="solution">
+    <div class="solution-inner">
+        <h4 style="margin-top:0;">Solution — Q4 : Comparaison BJI vs Fragmentation</h4>
+        <div class="table-glass">
+            <table>
+                <thead><tr><th>Critère</th><th>Index de jointure binaire (Ex. 1)</th><th>Fragmentation dérivée (Ex. 2)</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Résultat</strong></td><td>Count(*) = 4</td><td>Count(*) = 4</td></tr>
+                    <tr><td><strong>Mécanisme</strong></td><td class="left">Intersection de listes de RIDs (ou bitmaps) en mémoire</td><td class="left">Routage physique vers le fragment approprié</td></tr>
+                    <tr><td><strong>Stockage</strong></td><td class="left">Structures auxiliaires supplémentaires (index)</td><td class="left">Données directement réorganisées physiquement</td></tr>
+                    <tr><td><strong>Mises à jour</strong></td><td class="left">Index à maintenir à chaque INSERT/UPDATE/DELETE</td><td class="left">Fragmentation à réorganiser — coût élevé si fréquent</td></tr>
+                    <tr><td><strong>Requêtes non prévues</strong></td><td class="left">Flexible si plusieurs BJI ; spécifique à l'attribut indexé</td><td class="left">Moins flexible : les fragments sont figés selon les prédicats</td></tr>
+                    <tr><td><strong>Transparence</strong></td><td class="left">Transparent pour l'application ; l'optimiseur choisit</td><td class="left">Visible dans le schéma physique</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── QUESTION 5 ── -->
+<div class="question">
+    <div class="question-header">
+        <span class="question-num">Q5</span>
+        <span class="question-pts">3 pts</span>
+        <span class="diff-badge diff-avance">Avancé</span>
+    </div>
+    <p>
+        Y a-t-il une <strong>similarité</strong> entre les index de jointure binaire et le partitionnement horizontal dérivé ?
+        Si oui, commenter votre réponse.
+    </p>
+
+    <div class="erreur-freq">
+        <strong>Piège courant :</strong> Se limiter à "les deux donnent le même résultat". La similarité est plus profonde : elle touche à la structure logique de la sélectivité pré-calculée, pas seulement au résultat final.
+    </div>
+
+    <button class="hint-btn" data-hint="q5f-h1" data-label="Indice 1/2" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Indice 1/2</span>
+    </button>
+    <div class="hint" id="q5f-h1">
+        Comparez ce que contient un fragment G_HCSC_Stat avec ce que représente l'intersection L<sub>1</sub> ∩ L<sub>2</sub> dans les BJI. Que décrivent-ils tous les deux ? (RIDs 9, 16, 24, 27 dans les deux cas.)
+    </div>
+
+    <button class="hint-btn hint-locked" data-hint="q5f-h2" data-label="Indice 2/2" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Indice 2/2</span>
+    </button>
+    <div class="hint" id="q5f-h2">
+        Les deux techniques pré-calculent la <em>jointure</em> entre la table de faits et les dimensions, mais l'une le fait de façon logique (RIDs) et l'autre de façon physique (données réorganisées). Peut-on dire que l'une est la version physique de l'autre ?
+    </div>
+</div>
+
+<div class="reponse-zone" data-placeholder="Analysez la similarité entre les deux techniques…"></div>
+
+<button class="solution-btn" aria-expanded="false">
+    <span class="btn-arrow">▶</span>
+    <span class="btn-label">Voir la solution</span>
+</button>
+<div class="solution">
+    <div class="solution-inner">
+        <h4 style="margin-top:0;">Solution — Q5 : Similarité entre BJI et fragmentation dérivée</h4>
+
+        <p><strong>Oui, il existe une similarité profonde.</strong> Les deux techniques reposent sur le même principe : <em>pré-calculer la sélectivité de la jointure</em> pour éviter les scans inutiles à l'exécution.</p>
+
+        <!-- Similarity SVG -->
+        <svg viewBox="0 0 600 200" fill="none" xmlns="http://www.w3.org/2000/svg"
+             style="width:100%;max-width:600px;display:block;margin:1rem auto;font-family:'Inter',system-ui,sans-serif;">
+
+            <!-- Left: BJI -->
+            <text x="135" y="14" text-anchor="middle" font-size="10" font-weight="700" fill="#5ba6a0">Index de jointure binaire</text>
+            <text x="135" y="26" text-anchor="middle" font-size="8" fill="#9e9a94">représentation logique (RIDs)</text>
+
+            <rect x="8" y="32" width="254" height="30" rx="6" fill="rgba(91,166,160,0.08)" stroke="#5ba6a0" stroke-width="1.2"/>
+            <text x="135" y="48" text-anchor="middle" font-size="9" font-weight="600" fill="#5ba6a0">JI₁[Level='HCSC']</text>
+            <text x="135" y="59" text-anchor="middle" font-size="9" fill="#9e9a94">L₁ = {1,3,6,7,8,9,14,15,16,24,25,26,27}</text>
+
+            <rect x="8" y="68" width="254" height="30" rx="6" fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.2"/>
+            <text x="135" y="84" text-anchor="middle" font-size="9" font-weight="600" fill="#d67556">JI₂[Dept='Stat']</text>
+            <text x="135" y="95" text-anchor="middle" font-size="9" fill="#9e9a94">L₂ = {9, 16, 17, 18, 23, 24, 27}</text>
+
+            <text x="135" y="118" text-anchor="middle" font-size="18" font-weight="800" fill="#d67556">∩</text>
+
+            <rect x="58" y="126" width="154" height="28" rx="6" fill="rgba(214,117,86,0.18)" stroke="#d67556" stroke-width="2"/>
+            <text x="135" y="145" text-anchor="middle" font-size="11" font-weight="700" fill="#d67556">L₁ ∩ L₂ = {9,16,24,27}</text>
+
+            <!-- Equivalence arrow -->
+            <line x1="214" y1="140" x2="376" y2="140" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="5 3" stroke-linecap="round"/>
+            <text x="295" y="133" text-anchor="middle" font-size="11" font-weight="800" fill="#9e9a94">≡</text>
+            <text x="295" y="156" text-anchor="middle" font-size="8" fill="#9e9a94">même ensemble</text>
+            <text x="295" y="167" text-anchor="middle" font-size="8" fill="#9e9a94">de tuples</text>
+
+            <!-- Right: Fragmentation -->
+            <text x="465" y="14" text-anchor="middle" font-size="10" font-weight="700" fill="#d67556">Fragmentation dérivée</text>
+            <text x="465" y="26" text-anchor="middle" font-size="8" fill="#9e9a94">représentation physique (données)</text>
+
+            <rect x="338" y="32" width="254" height="30" rx="6" fill="rgba(91,166,160,0.08)" stroke="#5ba6a0" stroke-width="1.2"/>
+            <text x="465" y="48" text-anchor="middle" font-size="9" font-weight="600" fill="#5ba6a0">S_HCSC</text>
+            <text x="465" y="59" text-anchor="middle" font-size="9" fill="#9e9a94">StudIds = {101, 303, 606}</text>
+
+            <rect x="338" y="68" width="254" height="30" rx="6" fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.2"/>
+            <text x="465" y="84" text-anchor="middle" font-size="9" font-weight="600" fill="#d67556">C_Stat</text>
+            <text x="465" y="95" text-anchor="middle" font-size="9" fill="#9e9a94">CourIds = {S402, S466}</text>
+
+            <text x="465" y="118" text-anchor="middle" font-size="18" font-weight="800" fill="#d67556">⋉</text>
+
+            <rect x="388" y="126" width="154" height="28" rx="6" fill="rgba(214,117,86,0.18)" stroke="#d67556" stroke-width="2"/>
+            <text x="465" y="145" text-anchor="middle" font-size="11" font-weight="700" fill="#d67556">G_HCSC_Stat = {9,16,24,27}</text>
+
+            <!-- Bottom label -->
+            <text x="300" y="190" text-anchor="middle" font-size="9" fill="#9e9a94" font-style="italic">Les deux identifient exactement les mêmes 4 tuples qualifiants</text>
+        </svg>
+
+        <div class="table-glass">
+            <table>
+                <thead><tr><th>Dimension</th><th>BJI (Ex. 1)</th><th>Fragmentation (Ex. 2)</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Ce qui est pré-calculé</strong></td>
+                        <td class="left">Pour chaque valeur de dimension, la liste des RIDs de Grades qui satisfont la jointure</td>
+                        <td class="left">Pour chaque combinaison de valeurs, le sous-ensemble physique de Grades</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Forme</strong></td>
+                        <td class="left">Structure auxiliaire : listes de RIDs (ou bitmaps)</td>
+                        <td class="left">Structure physique : données réorganisées en partitions</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Équivalence</strong></td>
+                        <td colspan="2" class="left">L<sub>1</sub>(HCSC) ∩ L<sub>2</sub>(Stat) = {9,16,24,27} = contenu exact du fragment G_HCSC_Stat</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout-info" style="margin-top:1rem;">
+            <p><span class="badge badge-blue">Conclusion</span></p>
+            <p>
+                La <strong>fragmentation horizontale dérivée</strong> peut être vue comme la <em>matérialisation physique</em> de ce que les index de jointure binaire représentent de façon logique.
+                Le BJI dit « pour cette valeur, les tuples qualifiants ont <em>ces RIDs</em> » ;
+                la fragmentation dit « pour cette valeur, <em>ces tuples</em> sont dans ce fragment sur disque ».
+            </p>
+            <p>
+                Les deux techniques éliminent les mêmes accès inutiles, par des mécanismes différents :
+                le BJI par <strong>intersection logique de RIDs</strong>, la fragmentation par <strong>routage physique</strong> vers une partition.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- ── POUR ALLER PLUS LOIN ── -->
+<div class="pour-aller-plus-loin">
+    <h4>Pour aller plus loin</h4>
+    <ul>
+        <li>Dans un entrepôt de données réel (ex: schéma en étoile), comment la fragmentation dérivée se combine-t-elle avec le partitionnement par plages (RANGE) ou par hachage (HASH) ?</li>
+        <li>Les systèmes OLAP comme Apache Hive ou BigQuery utilisent-ils des principes similaires à la fragmentation dérivée ? Sous quel nom ?</li>
+        <li>Si on ajoute une 3<sup>e</sup> dimension (ex: semestre), combien de fragments de Grades obtient-on ? Comment évolue la granularité de l'élimination de partitions ?</li>
+        <li>La similarité entre BJI et fragmentation est-elle exploitée dans les optimiseurs de bases de données actuelles ?</li>
+    </ul>
+</div>
 
 </body>
 </html>
