@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Q1.6 – Q1.7 : Charge &amp; Rafraîchissement</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 2 questions</span>
+            <span class="exo-time">⏱ 20–25 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Créer une VM pour le suivi de la charge enseignante</li>
+                <li>Maîtriser les stratégies de rafraîchissement des vues matérialisées</li>
+                <li>Justifier la fréquence de rafraîchissement selon le contexte métier</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Q1.1 – Q1.5 — Vues matérialisées de base</em></p>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.6                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.6</span>
+            <span class="question-pts">Charge d'enseignement</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Créer une vue matérialisée <strong>VM_Charge_Enseignants</strong> qui calcule, pour chaque enseignant :
+            son nom complet et son département, le nombre de cours enseignés,
+            le total d'heures d'enseignement et la moyenne du nombre d'étudiants par cours.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Division par zéro pour les enseignants sans affectation.
+            Toujours protéger la division avec <code>NULLIF(..., 0)</code> pour éviter une erreur d'exécution.
+        </div>
+
+        <button class="hint-btn" data-hint="q16-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q16-h1">
+            Jointure : <code>Enseignants en LEFT JOIN Affectations a LEFT JOIN Inscriptions i ON a.ID_cours = i.ID_cours</code>.
+            Utilisez <code>COALESCE(SUM(a.Nb_heures), 0)</code> pour obtenir 0 au lieu de NULL quand un enseignant n'a pas d'affectation.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q16-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q16-h2">
+            Pour la moyenne d'étudiants par cours :
+            <code>ROUND(COUNT(i.ID_inscription) * 1.0 / NULLIF(COUNT(DISTINCT a.ID_cours), 0), 1)</code>.
+            Le <code>* 1.0</code> force la division en nombre décimal (évite la division entière).
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre réponse…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.6</h4>
+
+            <pre><code>CREATE MATERIALIZED VIEW VM_Charge_Enseignants AS
+SELECT
+    en.ID_enseignant,
+    en.Nom || ' ' || en.Prenom              AS Nom_Complet,
+    en.Departement,
+    COUNT(DISTINCT a.ID_cours)              AS Nb_Cours_Enseignes,
+    COALESCE(SUM(a.Nb_heures), 0)           AS Total_Heures,
+    ROUND(
+        COUNT(i.ID_inscription) * 1.0
+        / NULLIF(COUNT(DISTINCT a.ID_cours), 0),
+    1)                                       AS Moy_Etudiants_Par_Cours
+FROM   Enseignants en
+LEFT JOIN Affectations a  ON en.ID_enseignant = a.ID_enseignant
+LEFT JOIN Inscriptions  i  ON a.ID_cours       = i.ID_cours
+GROUP BY
+    en.ID_enseignant, en.Nom, en.Prenom, en.Departement;</code></pre>
+
+            <div class="callout-info">
+                <strong>Formule de Moy_Etudiants_Par_Cours :</strong>
+                On divise le nombre total d'inscriptions (toutes affectations confondues) par le nombre de cours distincts
+                enseignés. <code>NULLIF(..., 0)</code> évite une division par zéro pour les enseignants sans affectation.
+                <code>COALESCE(SUM(...), 0)</code> retourne 0 au lieu de NULL pour un enseignant sans affectation.
+            </div>
+
+            <p><strong>Exemple de résultat attendu :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nom_Complet</th>
+                            <th>Departement</th>
+                            <th>Nb_Cours</th>
+                            <th>Total_Heures</th>
+                            <th>Moy_Etudiants</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Martin Sophie</td><td>Informatique</td><td>3</td><td>120</td><td>28.3</td></tr>
+                        <tr><td>Dubois Pierre</td><td>Mathématiques</td><td>2</td><td>80</td><td>22.5</td></tr>
+                        <tr><td>Leroy Anne</td><td>Informatique</td><td>4</td><td>160</td><td>31.0</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="highlight-box">
+                <strong>Cas d'usage — suivi RH et planification :</strong>
+                Cette vue permet à l'administration d'identifier les enseignants surchargés
+                (<code>Total_Heures</code> élevé) ou ceux avec un grand nombre d'étudiants par cours,
+                afin d'adapter les ressources pédagogiques et les tailles de groupes.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.7                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.7</span>
+            <span class="question-pts">Rafraîchissement de VM_Performance_Etudiants</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Écrire les commandes SQL de rafraîchissement de <code>VM_Performance_Etudiants</code>.
+            Proposer et justifier une fréquence de rafraîchissement adaptée au contexte
+            (50 000 étudiants, 500 000 inscriptions, 100 consultations/jour).
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Lancer <code>REFRESH MATERIALIZED VIEW VM_Performance_Etudiants</code>
+            sans <code>CONCURRENTLY</code> en production. Sans ce mot-clé, toutes les lectures sont bloquées pendant
+            le rafraîchissement — inacceptable en production avec 100 consultations/jour.
+        </div>
+
+        <button class="hint-btn" data-hint="q17-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q17-h1">
+            Deux variantes : <code>REFRESH MATERIALIZED VIEW vm;</code> (bloquant) et
+            <code>REFRESH MATERIALIZED VIEW CONCURRENTLY vm;</code> (non bloquant, nécessite un index UNIQUE).
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q17-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q17-h2">
+            Pour justifier la fréquence, raisonnez sur le rythme de mise à jour des données sources :
+            si les notes sont saisies quotidiennement, un rafraîchissement hebdomadaire laisse les données périmées trop longtemps.
+            Un rafraîchissement à chaque INSERT serait trop coûteux (recalcul sur 500 000 lignes à chaque saisie).
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Commandes SQL et justification de la fréquence…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.7</h4>
+
+            <p><strong>1. Commandes SQL de rafraîchissement</strong></p>
+
+            <div class="two-col">
+                <div class="highlight-box">
+                    <strong>Rafraîchissement complet</strong>
+                    <pre><code>-- Supprime et recrée toutes les lignes
+REFRESH MATERIALIZED VIEW
+    VM_Performance_Etudiants;</code></pre>
+                    <p class="inline-note">Simple, toujours disponible. Verrouille la vue pendant le recalcul — la vue est inaccessible pendant quelques secondes.</p>
+                </div>
+
+                <div class="highlight-box">
+                    <strong>Rafraîchissement concurrent (PostgreSQL)</strong>
+                    <pre><code>-- Ne met à jour que les lignes modifiées
+-- Nécessite un index UNIQUE sur la VM
+REFRESH MATERIALIZED VIEW CONCURRENTLY
+    VM_Performance_Etudiants;</code></pre>
+                    <p class="inline-note">La vue reste lisible pendant le rafraîchissement. Requiert <code>CREATE UNIQUE INDEX ON VM_Performance_Etudiants (ID_etudiant);</code></p>
+                </div>
+            </div>
+
+            <p><strong>2. Fréquence de rafraîchissement recommandée : quotidienne</strong></p>
+            <pre><code>-- Exemple avec pg_cron (PostgreSQL)
+SELECT cron.schedule(
+    'refresh-vm-perf-etudiants',
+    '0 2 * * *',                          -- chaque jour à 02h00
+    $$REFRESH MATERIALIZED VIEW CONCURRENTLY VM_Performance_Etudiants;$$
+);</code></pre>
+
+            <p><strong>3. Justification du choix</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fréquence</th>
+                            <th>Avantages</th>
+                            <th>Inconvénients</th>
+                            <th>Adapté ici ?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Temps réel (trigger)</strong></td>
+                            <td>Données toujours fraîches</td>
+                            <td>Coût élevé à chaque INSERT/UPDATE sur Inscriptions — 500 000 lignes recalculées à la moindre modification</td>
+                            <td><span class="badge badge-red">Non — disproportionné</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Horaire</strong></td>
+                            <td>Données fraîches à l'heure près</td>
+                            <td>Recalcul 24×/jour inutile si les notes ne changent pas souvent</td>
+                            <td><span class="badge badge-orange">Possible mais excessif</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Quotidienne (recommandée)</strong></td>
+                            <td>Données fraîches chaque matin — cohérent avec le rythme académique. Coût minimal (1 recalcul/jour vs 100 requêtes)</td>
+                            <td>Données potentiellement décalées de 24h max</td>
+                            <td><span class="badge badge-green">Oui — optimal</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hebdomadaire</strong></td>
+                            <td>Très faible charge</td>
+                            <td>Données périmées en milieu de semaine si des inscriptions ou notes ont été saisies</td>
+                            <td><span class="badge badge-red">Non — trop long</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout-info">
+                <strong>Raisonnement final :</strong>
+                Les inscriptions et les notes évoluent quotidiennement (saisies par les enseignants en fin de journée).
+                Un rafraîchissement <strong>nocturne quotidien</strong> garantit que les 100 consultations de la journée
+                s'appuient sur des données à jour du matin, tout en limitant le coût de recalcul à <strong>une seule
+                agrégation par 24h</strong> sur les 500 000 lignes de la table Inscriptions.
+            </div>
+        </div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Que se passe-t-il si <code>REFRESH MATERIALIZED VIEW CONCURRENTLY</code> échoue parce qu'aucun index unique n'existe sur la VM ?
+                Créez l'index requis et testez la commande.</li>
+            <li>Comparez <code>pg_cron</code> (extension PostgreSQL) avec un cron système (crontab) pour planifier le rafraîchissement.
+                Quels sont les avantages de chaque approche ?</li>
+            <li>Comment adapteriez-vous la fréquence de rafraîchissement pendant les périodes d'examens,
+                quand les notes sont saisies en masse ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>

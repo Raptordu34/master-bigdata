@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 2 — Sélection de Vues Matérialisées</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-points">◎ 3 questions</span>
+            <span class="exo-time">⏱ 30–40 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Formaliser le problème de sélection de vues matérialisées</li>
+                <li>Comprendre la complexité du problème (NP-difficile)</li>
+                <li>Appliquer l'heuristique gloutonne pour sélectionner les VMs optimales</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Exercice 1 complet — Notions de vues matérialisées</em></p>
+    </div>
+
+    <!-- CONTEXTE -->
+    <div class="context-block">
+        <h3 style="margin-top:0;">Contexte — Schéma de la base de données</h3>
+        <p>La base de données de vente est composée de quatre tables :</p>
+
+        <div class="two-col">
+            <div class="table-glass">
+                <table>
+                    <caption style="text-align:left; padding:0.5rem 1rem; font-weight:700; color:#fb923c;">Ventes</caption>
+                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>PID</td><td>INT (FK → Produit)</td></tr>
+                        <tr><td>CID</td><td>INT (FK → Client)</td></tr>
+                        <tr><td>TID</td><td>INT (FK → Temps)</td></tr>
+                        <tr><td>Ventes_Dollars</td><td>DECIMAL</td></tr>
+                        <tr><td>Cout_Unitaire</td><td>DECIMAL</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-glass">
+                <table>
+                    <caption style="text-align:left; padding:0.5rem 1rem; font-weight:700; color:#fb923c;">Produit</caption>
+                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>PID</td><td>INT (PK)</td></tr>
+                        <tr><td>Gamme</td><td>VARCHAR</td></tr>
+                        <tr><td>Taille</td><td>VARCHAR</td></tr>
+                        <tr><td>Poids</td><td>DECIMAL</td></tr>
+                        <tr><td>Type_Paquet</td><td>VARCHAR</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="two-col">
+            <div class="table-glass">
+                <table>
+                    <caption style="text-align:left; padding:0.5rem 1rem; font-weight:700; color:#fb923c;">Temps</caption>
+                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>TID</td><td>INT (PK)</td></tr>
+                        <tr><td>Date</td><td>DATE</td></tr>
+                        <tr><td>Mois</td><td>VARCHAR</td></tr>
+                        <tr><td>Saison</td><td>VARCHAR</td></tr>
+                        <tr><td>Annee</td><td>INT</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-glass">
+                <table>
+                    <caption style="text-align:left; padding:0.5rem 1rem; font-weight:700; color:#fb923c;">Client</caption>
+                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td>CID</td><td>INT (PK)</td></tr>
+                        <tr><td>Sexe</td><td>CHAR(1)</td></tr>
+                        <tr><td>Ville</td><td>VARCHAR</td></tr>
+                        <tr><td>Etat</td><td>VARCHAR</td></tr>
+                        <tr><td>Age</td><td>INT</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <h3 style="margin-top:1.5rem;">Workload — Les 5 requêtes fréquentes</h3>
+        <p>On suppose que les cinq requêtes suivantes sont exécutées fréquemment sur cette base :</p>
+
+        <div class="table-glass">
+            <table>
+                <thead><tr><th>Req.</th><th>SQL</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Q1</strong></td>
+                        <td><pre style="margin:0;"><code>SELECT C.CID, SUM(V.Ventes_Dollars)
+FROM Client C, Ventes V
+WHERE C.CID = V.CID
+GROUP BY C.CID</code></pre></td>
+                        <td>Ventes totales par client</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Q2</strong></td>
+                        <td><pre style="margin:0;"><code>SELECT P.PID, SUM(V.Ventes_Dollars)
+FROM Ventes V, Produit P
+WHERE P.Type_Paquet = 'Boite'
+AND P.PID = V.PID
+GROUP BY V.PID</code></pre></td>
+                        <td>Ventes des produits en boîte par produit</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Q3</strong></td>
+                        <td><pre style="margin:0;"><code>SELECT T.TID, SUM(V.Ventes_Dollars)
+FROM Ventes V, Temps T, Produit P, Client C
+WHERE T.Mois = 'Mars' AND C.Sexe = 'M'
+AND P.PID = V.PID AND C.CID = V.CID
+AND T.TID = V.TID
+GROUP BY T.TID</code></pre></td>
+                        <td>Ventes de Mars pour clients hommes, par période</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Q4</strong></td>
+                        <td><pre style="margin:0;"><code>SELECT C.CID, SUM(V.Ventes_Dollars)
+FROM Ventes V, Temps T, Client C
+WHERE T.Mois = 'Mars'
+AND C.CID = V.CID AND T.TID = V.TID
+GROUP BY C.CID</code></pre></td>
+                        <td>Ventes du mois de Mars par client</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Q5</strong></td>
+                        <td><pre style="margin:0;"><code>SELECT P.PID, SUM(V.Ventes_Dollars)
+FROM Ventes V, Produit P, Client C
+WHERE C.Sexe = 'M'
+AND P.PID = V.PID AND C.CID = V.CID
+GROUP BY P.PID</code></pre></td>
+                        <td>Ventes aux clients hommes par produit</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2.1                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2.1</span>
+            <span class="question-pts">Formalisation du problème</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Formaliser le problème de sélection de vues matérialisées :
+            définir la fonction objectif, les contraintes, et préciser la complexité du problème.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Croire que l'on peut résoudre ce problème de façon exacte et efficace.
+            C'est un problème NP-difficile (réductible au problème du sac-à-dos) — on doit recourir à des heuristiques.
+        </div>
+
+        <button class="hint-btn" data-hint="q21-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q21-h1">
+            La fonction objectif minimise le coût total d'exécution du workload :
+            <code>Cost(W, S) = Σ freq(qᵢ) × coût(qᵢ, S)</code> où S est l'ensemble des VMs sélectionnées.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q21-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q21-h2">
+            Deux contraintes : espace disque (<code>Σ taille(vᵢ) ≤ B</code>) et coût de maintenance
+            (<code>Σ coût_MAJ(vᵢ) ≤ T_max</code>). Pour n requêtes, il y a jusqu'à 2ⁿ sous-ensembles à évaluer.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre formalisation : fonction objectif, contraintes, complexité…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2.1</h4>
+
+            <p><strong>Fonction objectif</strong></p>
+            <p>On cherche à sélectionner un ensemble S de vues matérialisées qui minimise le coût total d'exécution du workload W :</p>
+            <div class="highlight-box">
+                <code>Minimiser : Cost(W, S) = Σ<sub>qᵢ ∈ W</sub> freq(qᵢ) × coût(qᵢ, S)</code>
+                <p class="inline-note">Où <code>coût(qᵢ, S)</code> est le coût d'exécution de qᵢ en utilisant les meilleures vues disponibles dans S (ou les tables de base si aucune VM n'est utile).</p>
+            </div>
+
+            <p><strong>Contraintes</strong></p>
+            <div class="two-col">
+                <div class="callout-info">
+                    <strong>Contrainte d'espace</strong>
+                    <p>La somme des tailles des VMs sélectionnées doit rester sous un budget :</p>
+                    <code>Σ<sub>vᵢ ∈ S</sub> taille(vᵢ) ≤ B</code>
+                    <p class="inline-note">B = espace disque disponible pour les VMs</p>
+                </div>
+                <div class="callout-info">
+                    <strong>Contrainte de maintenance</strong>
+                    <p>Le coût total de mise à jour des VMs lors d'une modification de la base doit rester acceptable :</p>
+                    <code>Σ<sub>vᵢ ∈ S</sub> coût_MAJ(vᵢ) ≤ T_max</code>
+                    <p class="inline-note">T_max = temps maximal de rafraîchissement toléré</p>
+                </div>
+            </div>
+
+            <div class="callout-info">
+                <strong>Complexité :</strong> ce problème est <strong>NP-difficile</strong>
+                (réductible au problème du sac-à-dos). Pour n requêtes, il y a jusqu'à 2ⁿ
+                sous-ensembles de VMs candidates à évaluer. On doit donc recourir à des
+                heuristiques ou algorithmes approchés.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2.2                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2.2</span>
+            <span class="question-pts">Solution naïve</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Décrire la solution naïve pour ce problème : comment fonctionne-t-elle, quels sont ses avantages
+            et pourquoi est-elle impraticable en pratique ?
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Penser qu'avec 5 requêtes la solution naïve est "raisonnable".
+            2⁵ = 32 sous-ensembles seulement ici, mais un workload réel compte des centaines de requêtes :
+            2¹⁰⁰ est astronomique.
+        </div>
+
+        <button class="hint-btn" data-hint="q22-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q22-h1">
+            La solution naïve énumère toutes les sous-expressions de toutes les requêtes, évalue chaque
+            sous-ensemble possible, et retient celui qui minimise Cost(W, S) sous les contraintes.
+            Son problème est exponentiel en n (le nombre de requêtes).
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Décrivez l'algorithme naïf, ses avantages et ses limites…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2.2</h4>
+
+            <div class="highlight-box">
+                <strong>Algorithme naïf</strong>
+                <ol>
+                    <li>Générer toutes les sous-expressions de toutes les requêtes du workload.</li>
+                    <li>Pour chaque sous-ensemble possible de ces expressions → calculer Cost(W, S).</li>
+                    <li>Retenir le sous-ensemble S* qui minimise Cost(W, S) sous les contraintes.</li>
+                </ol>
+            </div>
+
+            <div class="two-col">
+                <div class="callout-info">
+                    <strong>Avantage</strong>
+                    <ul>
+                        <li>Garantit la solution <strong>optimale</strong></li>
+                        <li>Simple à comprendre conceptuellement</li>
+                    </ul>
+                </div>
+                <div class="callout-info">
+                    <strong>Inconvénient</strong>
+                    <ul>
+                        <li>Complexité exponentielle : <strong>2ⁿ</strong> sous-ensembles à évaluer</li>
+                        <li>Totalement impraticable dès que n &gt; 20–30 requêtes</li>
+                        <li>L'espace de stockage des VMs serait prohibitif si toutes sont créées</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="callout-info">
+                <strong>Exemple sur notre workload (5 requêtes) :</strong>
+                On pourrait générer jusqu'à 2⁵ = 32 sous-ensembles de vues.
+                Chacune devrait être évaluée en termes de bénéfice sur les 5 requêtes.
+                C'est faisable ici, mais explose pour un workload de 100+ requêtes réelles.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2.3                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2.3</span>
+            <span class="question-pts">Heuristique de sélection</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Décrire une heuristique gloutonne pour sélectionner les vues matérialisées.
+            L'appliquer aux 5 requêtes du workload pour identifier les vues candidates les plus pertinentes.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Sélectionner des VMs spécialisées pour une seule requête chacune.
+            L'heuristique doit favoriser la <strong>réutilisation</strong> : une VM couvrant 3 requêtes
+            vaut mieux que trois VMs spécialisées si elle tient dans le budget.
+        </div>
+
+        <button class="hint-btn" data-hint="q23-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q23-h1">
+            L'algorithme glouton calcule à chaque étape le <em>bénéfice marginal</em> de chaque vue candidate :
+            <code>bénéfice(vᵢ) = Σ freq(qⱼ) × [coût(qⱼ, S) − coût(qⱼ, S ∪ {vᵢ})]</code>,
+            puis sélectionne celle avec le meilleur ratio <code>bénéfice / taille</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q23-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q23-h2">
+            Pour les 5 requêtes données, identifiez les recouvrements : Q1 et Q4 partagent le JOIN Client ⋈ Ventes ;
+            Q2 et Q5 partagent le JOIN Produit ⋈ Ventes. Une VM couvrant ces sous-expressions bénéficiera à plusieurs requêtes.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Décrivez l'algorithme glouton et identifiez les vues candidates…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2.3</h4>
+
+            <div class="highlight-box">
+                <strong>Algorithme glouton</strong>
+                <p><strong>Entrées :</strong> workload W = {q₁…qₙ} avec fréquences, budget B.<br>
+                <strong>Initialisation :</strong> S = ∅, budget_restant = B.</p>
+                <p><strong>Répéter jusqu'à saturation du budget :</strong></p>
+                <ul class="steps">
+                    <li>Pour chaque vue candidate vᵢ non encore sélectionnée, calculer son bénéfice marginal :<br>
+                        <code>bénéfice(vᵢ) = Σ freq(qⱼ) × [coût(qⱼ, S) − coût(qⱼ, S ∪ {vᵢ})]</code>
+                    </li>
+                    <li>Calculer le ratio : <code>ratio(vᵢ) = bénéfice(vᵢ) / taille(vᵢ)</code></li>
+                    <li>Sélectionner la vue v* avec le plus grand ratio qui tient dans le budget restant.</li>
+                    <li>Ajouter v* à S, déduire taille(v*) du budget.</li>
+                    <li>Mettre à jour les coûts des requêtes (qui peuvent maintenant utiliser v*).</li>
+                </ul>
+            </div>
+
+            <p><strong>Application aux 5 requêtes — Vues candidates identifiées :</strong></p>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Vue candidate</th><th>Définition</th><th>Requêtes couvertes</th><th>Intérêt</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>VM_A</strong></td>
+                            <td><pre style="margin:0;"><code>SELECT CID, SUM(Ventes_Dollars)
+FROM Ventes GROUP BY CID</code></pre></td>
+                            <td>Q1, Q4 (partiellement)</td>
+                            <td>Forte réutilisation — jointure minimale</td>
+                        </tr>
+                        <tr>
+                            <td><strong>VM_B</strong></td>
+                            <td><pre style="margin:0;"><code>SELECT PID, SUM(Ventes_Dollars)
+FROM Ventes V, Produit P
+WHERE P.PID = V.PID GROUP BY PID</code></pre></td>
+                            <td>Q2, Q5 (partiellement)</td>
+                            <td>Élimine le JOIN Produit pour Q2 et Q5</td>
+                        </tr>
+                        <tr>
+                            <td><strong>VM_C</strong></td>
+                            <td><pre style="margin:0;"><code>SELECT CID, Mois, SUM(Ventes_Dollars)
+FROM Ventes V, Temps T
+WHERE T.TID=V.TID GROUP BY CID, Mois</code></pre></td>
+                            <td>Q3, Q4</td>
+                            <td>Pré-calcule la dimension temporelle — couvre Q4 directement</td>
+                        </tr>
+                        <tr>
+                            <td><strong>VM_D</strong></td>
+                            <td><pre style="margin:0;"><code>SELECT PID, Sexe, SUM(Ventes_Dollars)
+FROM Ventes V, Client C, Produit P
+WHERE C.CID=V.CID AND P.PID=V.PID
+GROUP BY PID, Sexe</code></pre></td>
+                            <td>Q2, Q5</td>
+                            <td>Filtre <code>Sexe='M'</code> et <code>Type_Paquet='Boite'</code> applicables directement</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout-info">
+                <strong>Critères de l'heuristique :</strong>
+                <ul>
+                    <li><strong>Fréquence d'exécution :</strong> une requête exécutée 1 000 fois/jour pèse 10× plus qu'une exécutée 100 fois.</li>
+                    <li><strong>Coût de calcul :</strong> une requête avec 4 JOINs bénéficie davantage d'une VM qu'une requête simple.</li>
+                    <li><strong>Coût de stockage :</strong> une VM volumineuse doit apporter un bénéfice proportionnellement plus grand.</li>
+                    <li><strong>Réutilisation :</strong> une VM couvrant 3 requêtes est préférable à trois VMs spécialisées si elle tient dans le budget.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Recherchez la différence entre l'heuristique gloutonne et l'algorithme de <em>recuit simulé</em> pour ce problème.
+                Dans quels cas le recuit simulé offre-t-il un meilleur résultat ?</li>
+            <li>Implémentez en Python un simulateur simple qui évalue le coût de chaque sous-ensemble de VMs pour les 5 requêtes données.</li>
+            <li>Comment le problème évolue-t-il si on ajoute la contrainte que le coût de mise à jour de toutes les VMs
+                ne doit pas dépasser 10 minutes lors d'un batch nocturne ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>

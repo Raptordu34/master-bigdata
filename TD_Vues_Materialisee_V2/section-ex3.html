@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 3 — Mise à Jour Incrémentale</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-points">◎ 3 questions</span>
+            <span class="exo-time">⏱ 25–35 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Calculer le delta ΔV lors d'une insertion dans une relation source</li>
+                <li>Comparer le coût du recalcul complet vs la maintenance incrémentale</li>
+                <li>Généraliser au cas d'insertions simultanées dans plusieurs relations</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Algèbre relationnelle — jointures et distributivité</em></p>
+    </div>
+
+    <!-- CONTEXTE -->
+    <div class="context-block">
+        <h3 style="margin-top:0;">Contexte</h3>
+        <p>
+            Une vue matérialisée est maintenue de manière incrémentale. Cette maintenance consiste à identifier le nouvel
+            ensemble de n-uplets à ajouter à la vue dans le cas d'une insertion (ou de suppressions) dans les relations sources.
+        </p>
+        <p>Considérons trois relations <strong>R</strong>, <strong>S</strong>, et <strong>T</strong>. Soit une vue définie comme suit :</p>
+
+        <div class="highlight-box" style="text-align:center;">
+            <code style="font-size:1.2rem; font-weight:bold;">V = R ⋈ S ⋈ T</code>
+        </div>
+
+        <p>Supposons qu'on insère un ensemble de n-uplets <strong>ΔR</strong> dans la relation R.</p>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-algebre" data-label="Rappel de cours — Distributivité de la jointure" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Distributivité de la jointure</span>
+    </button>
+    <div class="hint" id="rappel-algebre">
+        <p><strong>Propriété clé :</strong> la jointure est distributive par rapport à l'union :</p>
+        <p style="text-align:center;"><code>(A ∪ B) ⋈ C = (A ⋈ C) ∪ (B ⋈ C)</code></p>
+        <p>C'est cette propriété qui permet de calculer ΔV sans refaire toute la jointure depuis le début.</p>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 3.1                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3.1</span>
+            <span class="question-pts">Méthodes de mise à jour</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Proposer des méthodes de mise à jour de la vue V. Comment calculer l'ensemble <strong>ΔV</strong> à ajouter à V
+            sans recalculer complètement la vue ?
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Penser que la nouvelle vue est <code>ΔR ⋈ S ⋈ T</code> uniquement.
+            C'est le delta à <em>ajouter</em> à l'ancienne vue, mais la nouvelle vue complète est
+            <code>V_nouveau = V_ancien ∪ ΔV</code>.
+        </div>
+
+        <button class="hint-btn" data-hint="q31-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q31-h1">
+            Posez d'abord : <code>R_nouveau = R ∪ ΔR</code>.
+            Puis développez <code>V_nouveau = (R ∪ ΔR) ⋈ S ⋈ T</code> en utilisant la distributivité.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q31-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q31-h2">
+            Après développement : <code>V_nouveau = (R ⋈ S ⋈ T) ∪ (ΔR ⋈ S ⋈ T)</code>.
+            Le premier terme est <code>V</code> (l'ancienne vue), donc le delta est <code>ΔV = ΔR ⋈ S ⋈ T</code>.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Dérivez ΔV en algèbre relationnelle…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3.1</h4>
+
+            <div class="highlight-box">
+                <p><strong>Raisonnement :</strong></p>
+                <p>Lorsqu'on ajoute <strong>ΔR</strong> à <strong>R</strong>, la nouvelle relation R devient <code>R_nouveau = R ∪ ΔR</code>. La nouvelle vue <code>V_nouveau</code> sera :</p>
+                <pre><code>V_nouveau = (R ∪ ΔR) ⋈ S ⋈ T</code></pre>
+                <p>Par distributivité de la jointure sur l'union, on obtient :</p>
+                <pre><code>V_nouveau = (R ⋈ S ⋈ T) ∪ (ΔR ⋈ S ⋈ T)</code></pre>
+                <p>Comme on sait que <code>V = (R ⋈ S ⋈ T)</code>, alors la partie à ajouter (le delta) est simplement :</p>
+            </div>
+
+            <div class="highlight-box" style="text-align:center; background:rgba(134,239,172,0.08); border-color:rgba(134,239,172,0.3);">
+                <code style="color:#86efac; font-weight:bold; font-size:1.1rem;">ΔV = ΔR ⋈ S ⋈ T</code>
+            </div>
+
+            <!-- ── Arbre algébrique ── -->
+            <div style="margin: 1.5rem 0; display:flex; flex-direction:column; align-items:center; gap:0.5rem;">
+                <p style="font-size:0.8rem; color:var(--text-secondary,#9e9a94); margin:0; letter-spacing:0.05em; text-transform:uppercase;">
+                    Arbre algébrique — après distributivité
+                </p>
+                <svg width="640" height="378" viewBox="0 0 640 378" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+                    <!-- ── Lignes de connexion ── -->
+                    <!-- ∪ → ⋈_V  (gauche = ancienne vue) -->
+                    <line x1="310" y1="67" x2="155" y2="123" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ∪ → ⋈_ΔV (droite = delta) -->
+                    <line x1="310" y1="67" x2="465" y2="123" stroke="#5ba6a0" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ⋈_V → ⋈_RS_V -->
+                    <line x1="155" y1="157" x2="90"  y2="213" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ⋈_V → T_V -->
+                    <line x1="155" y1="157" x2="220" y2="213" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ⋈_RS_V → R -->
+                    <line x1="90"  y1="247" x2="55"  y2="303" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ⋈_RS_V → S -->
+                    <line x1="90"  y1="247" x2="125" y2="303" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ⋈_ΔV → ⋈_RS_ΔV -->
+                    <line x1="465" y1="157" x2="400" y2="213" stroke="#5ba6a0" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ⋈_ΔV → T_ΔV -->
+                    <line x1="465" y1="157" x2="530" y2="213" stroke="#5ba6a0" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ⋈_RS_ΔV → ΔR -->
+                    <line x1="400" y1="247" x2="365" y2="303" stroke="#5ba6a0" stroke-width="1.5" stroke-linecap="round"/>
+                    <!-- ⋈_RS_ΔV → S' -->
+                    <line x1="400" y1="247" x2="435" y2="303" stroke="#5ba6a0" stroke-width="1.5" stroke-linecap="round"/>
+
+                    <!-- ── Nœud racine  ∪ ── -->
+                    <rect x="280" y="33" width="60" height="34" rx="6"
+                        fill="rgba(214,117,86,0.12)" stroke="#d67556" stroke-width="1.5"/>
+                    <text x="310" y="55" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="17" fill="#dedad5">∪</text>
+
+                    <!-- ── Sous-arbre gauche : V = R ⋈ S ⋈ T (muted) ── -->
+                    <!-- ⋈_V -->
+                    <rect x="125" y="123" width="60" height="34" rx="6"
+                        fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                    <text x="155" y="145" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="15" fill="#9e9a94">⋈</text>
+                    <!-- ⋈_RS_V -->
+                    <rect x="60" y="213" width="60" height="34" rx="6"
+                        fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                    <text x="90" y="235" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="15" fill="#9e9a94">⋈</text>
+                    <!-- T_V -->
+                    <rect x="190" y="213" width="60" height="34" rx="6"
+                        fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                    <text x="220" y="235" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="14" fill="#9e9a94">T</text>
+                    <!-- R -->
+                    <rect x="25" y="303" width="60" height="34" rx="6"
+                        fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                    <text x="55" y="325" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="14" fill="#9e9a94">R</text>
+                    <!-- S (gauche) -->
+                    <rect x="95" y="303" width="60" height="34" rx="6"
+                        fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                    <text x="125" y="325" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="14" fill="#9e9a94">S</text>
+
+                    <!-- ── Sous-arbre droit : ΔV = ΔR ⋈ S ⋈ T (teal) ── -->
+                    <!-- ⋈_ΔV -->
+                    <rect x="435" y="123" width="60" height="34" rx="6"
+                        fill="rgba(91,166,160,0.10)" stroke="#5ba6a0" stroke-width="1.5"/>
+                    <text x="465" y="145" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="15" fill="#5ba6a0">⋈</text>
+                    <!-- ⋈_RS_ΔV -->
+                    <rect x="370" y="213" width="60" height="34" rx="6"
+                        fill="rgba(91,166,160,0.10)" stroke="#5ba6a0" stroke-width="1.5"/>
+                    <text x="400" y="235" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="15" fill="#5ba6a0">⋈</text>
+                    <!-- T_ΔV -->
+                    <rect x="500" y="213" width="60" height="34" rx="6"
+                        fill="rgba(91,166,160,0.10)" stroke="#5ba6a0" stroke-width="1.5"/>
+                    <text x="530" y="235" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="14" fill="#5ba6a0">T</text>
+                    <!-- ΔR -->
+                    <rect x="335" y="303" width="60" height="34" rx="6"
+                        fill="rgba(91,166,160,0.14)" stroke="#5ba6a0" stroke-width="2"/>
+                    <text x="365" y="325" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="13" fill="#6ee7b7">ΔR</text>
+                    <!-- S (droite) -->
+                    <rect x="405" y="303" width="60" height="34" rx="6"
+                        fill="rgba(91,166,160,0.10)" stroke="#5ba6a0" stroke-width="1.5"/>
+                    <text x="435" y="325" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="14" fill="#5ba6a0">S</text>
+
+                    <!-- ── Labels sous-arbres ── -->
+                    <text x="140" y="362" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="11"
+                        fill="#9e9a94" font-style="italic">= V  (ancienne vue)</text>
+                    <text x="462" y="362" text-anchor="middle"
+                        font-family="'Inter', system-ui, sans-serif" font-size="11"
+                        fill="#5ba6a0" font-style="italic">= ΔV = ΔR ⋈ S ⋈ T</text>
+                </svg>
+            </div>
+
+            <div class="callout-info">
+                <strong>Méthode :</strong> On calcule uniquement la jointure entre les nouvelles lignes <code>ΔR</code> et
+                les relations existantes <code>S</code> et <code>T</code>, puis on ajoute ce résultat à <code>V</code>.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 3.2                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3.2</span>
+            <span class="question-pts">Évaluation du coût</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Évaluer et comparer le coût de calcul du recalcul complet vs la maintenance incrémentale (Q3.1).
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Dire simplement "la maintenance incrémentale est plus rapide" sans
+            exprimer les complexités en notation O(…). La différence clé est |ΔR| ≪ |R|.
+        </div>
+
+        <button class="hint-btn" data-hint="q32-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q32-h1">
+            Comparez <code>O(|R| × |S| × |T|)</code> vs <code>O(|ΔR| × |S| × |T|)</code>.
+            Si ΔR = 100 nouvelles lignes et |R| = 1 000 000, le gain est d'un facteur 10 000.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Comparez les coûts en notation O(…)…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3.2</h4>
+
+            <div class="two-col">
+                <div class="highlight-box">
+                    <h4 style="margin-top:0;">Recalcul Complet (Naïf)</h4>
+                    <ul>
+                        <li><strong>Opération :</strong> R_nouveau ⋈ S ⋈ T</li>
+                        <li><strong>Nombre de jointures :</strong> 2 (sur de très grandes tables)</li>
+                        <li><strong>Taille des intermédiaires :</strong> Très grande. Par ex, |R_nouveau| × |S| lignes à croiser avec |T|.</li>
+                        <li><strong>Coût :</strong> O(|R| × |S| × |T|)</li>
+                    </ul>
+                </div>
+                <div class="highlight-box">
+                    <h4 style="margin-top:0;">Maintenance Incrémentale</h4>
+                    <ul>
+                        <li><strong>Opération :</strong> ΔR ⋈ S ⋈ T</li>
+                        <li><strong>Nombre de jointures :</strong> 2 (mais sur un sous-ensemble)</li>
+                        <li><strong>Taille des intermédiaires :</strong> Très faible. |ΔR| est généralement minuscule par rapport à |R|.</li>
+                        <li><strong>Coût :</strong> O(|ΔR| × |S| × |T|)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="callout-info">
+                <strong>Conclusion :</strong> La maintenance incrémentale est <strong>infiniment plus rapide</strong> et moins coûteuse.
+                Le nombre de jointures (2) reste le même dans l'absolu, mais la taille de la relation de gauche (ΔR au lieu de R tout entier)
+                réduit drastiquement le nombre de comparaisons et l'I/O disque.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 3.3                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3.3</span>
+            <span class="question-pts">Insertions multiples</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Même question si on insère des ensembles de n-uplets <strong>ΔR</strong> et <strong>ΔS</strong>
+            dans les relations R et S, respectivement. Exprimer ΔV en algèbre relationnelle.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Oublier le terme <code>ΔR ⋈ ΔS ⋈ T</code> qui correspond au croisement
+            des nouvelles lignes entre elles. Ce terme est petit (ΔR et ΔS sont petits) mais ne doit pas être omis
+            pour garantir l'exactitude de la mise à jour.
+        </div>
+
+        <button class="hint-btn" data-hint="q33-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q33-h1">
+            Posez <code>R_nouveau = R ∪ ΔR</code> et <code>S_nouveau = S ∪ ΔS</code>.
+            Développez <code>(R ∪ ΔR) ⋈ (S ∪ ΔS) ⋈ T</code> en appliquant la distributivité deux fois.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q33-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q33-h2">
+            Le développement complet donne 4 termes : <code>R ⋈ S ⋈ T</code> (= V existant),
+            <code>ΔR ⋈ S ⋈ T</code>, <code>R ⋈ ΔS ⋈ T</code>, et <code>ΔR ⋈ ΔS ⋈ T</code>.
+            Le delta ΔV est l'union des 3 derniers.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Dérivez ΔV pour les deux insertions simultanées…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3.3</h4>
+
+            <div class="highlight-box">
+                <p><strong>Raisonnement — Double distributivité :</strong></p>
+                <p>Les nouvelles relations sont <code>R_nouveau = R ∪ ΔR</code> et <code>S_nouveau = S ∪ ΔS</code>. La nouvelle vue est :</p>
+                <pre><code>V_nouveau = (R ∪ ΔR) ⋈ (S ∪ ΔS) ⋈ T</code></pre>
+                <p>En développant cette expression, on obtient quatre termes :</p>
+                <ol>
+                    <li><code>R ⋈ S ⋈ T</code> → C'est l'ancienne vue <strong>V</strong></li>
+                    <li><code>ΔR ⋈ S ⋈ T</code> → Nouvelles lignes de R croisées avec les anciennes de S</li>
+                    <li><code>R ⋈ ΔS ⋈ T</code> → Anciennes lignes de R croisées avec les nouvelles de S</li>
+                    <li><code>ΔR ⋈ ΔS ⋈ T</code> → Croisement des nouvelles lignes entre elles</li>
+                </ol>
+                <p>Le delta global <strong>ΔV</strong> à ajouter est donc l'union des trois derniers termes :</p>
+            </div>
+
+            <div class="highlight-box" style="text-align:center; background:rgba(251,146,60,0.08); border-color:rgba(251,146,60,0.35);">
+                <code style="color:#fb923c; font-weight:bold; font-size:0.95rem;">ΔV = (ΔR ⋈ S ⋈ T) ∪ (R ⋈ ΔS ⋈ T) ∪ (ΔR ⋈ ΔS ⋈ T)</code>
+            </div>
+
+            <div class="callout-info">
+                <strong>Implémentation pratique :</strong> Dans les SGBD modernes (Oracle, PostgreSQL avec <code>pg_ivm</code>),
+                ces algorithmes algébriques sont implémentés sous forme de triggers internes ou de processus asynchrones
+                qui capturent les deltas (via des logs de type WAL) et appliquent exactement ces équations pour maintenir la vue à jour.
+            </div>
+        </div>
+    </div>
+
+    <div class="bareme">
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">Q3.1 — Calcul de ΔV</span>
+        <span class="bareme-desc">2 pts dérivation algébrique · 2 pts formule finale correcte</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q3.2 — Évaluation du coût</span>
+        <span class="bareme-desc">1 pt coût recalcul complet · 1 pt coût incrémental · 1 pt conclusion justifiée</span>
+
+        <span class="bareme-pts">5</span>
+        <span class="bareme-label">Q3.3 — Insertions multiples</span>
+        <span class="bareme-desc">2 pts développement algébrique · 2 pts 3 termes du delta · 1 pt formule finale</span>
+
+        <div class="bareme-total">Total : <strong>12 pts</strong></div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Que se passe-t-il pour une <strong>suppression</strong> de ΔR dans R ? Dérivez le ΔV correspondant
+                (indice : la vue perd des tuples au lieu d'en gagner).</li>
+            <li>Recherchez <code>pg_ivm</code> (Incremental View Maintenance) pour PostgreSQL :
+                comment cette extension implémente-t-elle ces algorithmes ?</li>
+            <li>Comparez la maintenance incrémentale avec le <code>REFRESH MATERIALIZED VIEW CONCURRENTLY</code> de PostgreSQL :
+                lequel est vraiment incrémental ? Lequel recalcule tout ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>

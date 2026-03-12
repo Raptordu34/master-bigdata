@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Q1.8 – Q1.12 : Requêtes, Index &amp; Compromis</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 5 questions</span>
+            <span class="exo-time">⏱ 35–45 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Exploiter les vues matérialisées pour des requêtes analytiques</li>
+                <li>Créer des index adaptés sur les vues matérialisées</li>
+                <li>Analyser les compromis performance / stockage / fraîcheur</li>
+                <li>Comprendre l'impact d'une évolution de schéma sur les VMs</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Q1.1 – Q1.7 — Toutes les VMs créées</em></p>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.8                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.8</span>
+            <span class="question-pts">Requêtes sur les vues</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            En utilisant les vues matérialisées créées, écrire les requêtes SQL pour :
+        </p>
+        <ul>
+            <li><strong>a)</strong> Les 10 étudiants avec la meilleure moyenne générale</li>
+            <li><strong>b)</strong> Le département avec la meilleure moyenne étudiante</li>
+            <li><strong>c)</strong> Les enseignants ayant plus de 100 heures de cours</li>
+        </ul>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Utiliser <code>ORDER BY … DESC</code> sans <code>NULLS LAST</code>.
+            Sous PostgreSQL, <code>DESC</code> place les valeurs NULL <em>en tête</em> par défaut —
+            les étudiants sans note apparaîtraient avant ceux avec une bonne moyenne.
+        </div>
+
+        <button class="hint-btn" data-hint="q18-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q18-h1">
+            Ces requêtes sont très simples : un <code>SELECT … ORDER BY … LIMIT</code> ou un <code>WHERE</code> direct
+            sur les VMs, sans aucune jointure ni GROUP BY à écrire. C'est l'avantage des données pré-calculées.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre réponse pour a), b), c)…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.8</h4>
+
+            <p><strong>a) Les 10 étudiants avec la meilleure moyenne générale</strong></p>
+            <pre><code>SELECT
+    ID_etudiant,
+    Nom_Complet,
+    Niveau,
+    Nb_Cours_Suivis,
+    Moyenne_Generale
+FROM   VM_Performance_Etudiants
+ORDER BY Moyenne_Generale DESC NULLS LAST
+LIMIT  10;</code></pre>
+
+            <p><strong>b) Le département avec la meilleure moyenne étudiante</strong></p>
+            <pre><code>SELECT
+    Departement,
+    Nb_Cours,
+    Nb_Enseignants,
+    Moyenne_Etudiants
+FROM   VM_Stats_Departement
+ORDER BY Moyenne_Etudiants DESC NULLS LAST
+LIMIT  1;</code></pre>
+
+            <p><strong>c) Les enseignants ayant plus de 100 heures de cours</strong></p>
+            <pre><code>SELECT
+    Nom_Complet,
+    Departement,
+    Nb_Cours_Enseignes,
+    Total_Heures,
+    Moy_Etudiants_Par_Cours
+FROM   VM_Charge_Enseignants
+WHERE  Total_Heures > 100
+ORDER BY Total_Heures DESC;</code></pre>
+
+            <div class="highlight-box">
+                <strong>Remarque sur la simplicité des requêtes :</strong>
+                Ces trois requêtes sont <strong>triviales</strong> grâce aux vues matérialisées :
+                un simple <code>SELECT … ORDER BY … LIMIT</code> ou <code>WHERE</code> sur une table
+                pré-calculée, sans aucune jointure ni agrégation à l'exécution.
+                Sans les VMs, chaque requête nécessiterait un JOIN multi-tables + GROUP BY sur
+                les 500 000 lignes d'Inscriptions.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.9                                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.9</span>
+            <span class="question-pts">Avantages des vues matérialisées</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Pourquoi les VMs sont-elles avantageuses pour ces requêtes comparé à l'exécution directe sur les tables de base ?
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Répondre uniquement "c'est plus rapide" sans quantifier ni expliquer
+            le mécanisme. Une bonne réponse compare le nombre d'opérations, la lecture disque et l'indexabilité.
+        </div>
+
+        <button class="hint-btn" data-hint="q19-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q19-h1">
+            Pensez aux 5 aspects : opérations à l'exécution, lecture disque, indexabilité, temps de réponse,
+            et charge serveur cumulée sur 100 exécutions par jour.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre analyse des avantages…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.9</h4>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Aspect</th><th>Sans VM (tables de base)</th><th>Avec VM</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Opérations à l'exécution</strong></td>
+                            <td>JOIN Etudiants ⋈ Inscriptions (550 000 lignes) + GROUP BY + ORDER BY</td>
+                            <td>Scan VM (~50 000 lignes) + ORDER BY simple</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Lecture disque</strong></td>
+                            <td>Toutes les pages des deux tables + index</td>
+                            <td>Pages de la VM uniquement</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Indexabilité</strong></td>
+                            <td>Index sur tables de base, peu utiles après JOIN</td>
+                            <td>Index direct sur <code>Niveau</code>, <code>Moyenne_Generale</code>, <code>Total_Heures</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Temps de réponse</strong></td>
+                            <td>Secondes (voire dizaines de secondes)</td>
+                            <td>Millisecondes</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Charge serveur (×100/jour)</strong></td>
+                            <td>100 × recalcul complet</td>
+                            <td>100 × lecture légère + 1 rafraîchissement nocturne</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.10                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.10</span>
+            <span class="question-pts">Index sur vue matérialisée</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Proposer un index approprié pour optimiser les recherches d'étudiants par niveau
+            dans la vue <code>VM_Performance_Etudiants</code>.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Créer un index sur chaque colonne séparément alors qu'un
+            index composite <code>(Niveau, Moyenne_Generale DESC)</code> couvre à la fois le filtre
+            <code>WHERE Niveau = 'Master'</code> et le tri <code>ORDER BY Moyenne_Generale DESC</code>
+            en un seul parcours.
+        </div>
+
+        <button class="hint-btn" data-hint="q110-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q110-h1">
+            La requête la plus fréquente est <code>WHERE Niveau = '…' ORDER BY Moyenne_Generale DESC</code>.
+            Un index sur <code>(Niveau, Moyenne_Generale DESC NULLS LAST)</code> couvre les deux conditions
+            avec un seul index-only scan.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q110-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q110-h2">
+            Attention : avec <code>REFRESH MATERIALIZED VIEW</code> (sans CONCURRENTLY), les index doivent être
+            recréés automatiquement. Avec <code>REFRESH CONCURRENTLY</code>, ils sont maintenus en place.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre CREATE INDEX…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.10</h4>
+
+            <pre><code>-- Index pour les filtres WHERE Niveau = 'Master'
+CREATE INDEX idx_vm_perf_niveau
+    ON VM_Performance_Etudiants (Niveau);
+
+-- Index pour les tris ORDER BY Moyenne_Generale DESC
+CREATE INDEX idx_vm_perf_moyenne
+    ON VM_Performance_Etudiants (Moyenne_Generale DESC NULLS LAST);
+
+-- Index combiné pour les deux en une seule passe
+CREATE INDEX idx_vm_perf_niveau_moy
+    ON VM_Performance_Etudiants (Niveau, Moyenne_Generale DESC NULLS LAST);</code></pre>
+
+            <div class="callout-info">
+                <strong>Impact :</strong> avec <code>idx_vm_perf_niveau_moy</code>, la requête
+                <code>WHERE Niveau = 'Master' ORDER BY Moyenne_Generale DESC</code>
+                est satisfaite <em>entièrement par l'index</em> (index-only scan) — le moteur ne touche
+                même pas les pages de données de la VM.
+                <br><br>
+                <strong>Attention :</strong> les index sur une vue matérialisée doivent être
+                <strong>recréés</strong> (ou mis à jour automatiquement selon le SGBD) après un
+                <code>REFRESH MATERIALIZED VIEW</code> complet. Avec <code>CONCURRENTLY</code>,
+                ils sont maintenus automatiquement.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.11                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.11</span>
+            <span class="question-pts">Compromis des vues matérialisées</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Analyser les avantages et inconvénients des vues matérialisées dans le contexte universitaire.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Présenter les vues matérialisées comme une solution universelle.
+            Elles sont inadaptées quand les données changent très fréquemment (temps réel) ou quand
+            l'espace disque est très contraint.
+        </div>
+
+        <button class="hint-btn" data-hint="q111-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q111-h1">
+            Structurez votre réponse en deux colonnes : avantages (performance, indexabilité, réécriture auto)
+            et inconvénients (stockage, fraîcheur, complexité de maintenance). Concluez avec le bilan
+            pour le contexte académique.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre analyse avantages / inconvénients…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.11</h4>
+
+            <div class="two-col">
+                <div class="highlight-box">
+                    <h4 style="color:#86efac; margin-top:0;">Avantages — Performance</h4>
+                    <ul>
+                        <li>Temps de réponse drastiquement réduit pour les requêtes analytiques (ms vs s)</li>
+                        <li>Allègement de la charge CPU : les agrégats coûteux sont calculés une seule fois</li>
+                        <li>Indexation possible directement sur les résultats agrégés</li>
+                        <li>Réécriture automatique : le SGBD peut utiliser la VM sans modifier les requêtes applicatives</li>
+                        <li>Idéal pour les dashboards consultés fréquemment (100×/jour)</li>
+                    </ul>
+                </div>
+                <div class="callout-info">
+                    <h4 style="color:#fca5a5; margin-top:0;">Inconvénients — Stockage &amp; Fraîcheur</h4>
+                    <ul>
+                        <li>Espace disque supplémentaire (~50 000 lignes × nb de VMs)</li>
+                        <li>Données potentiellement obsolètes entre deux rafraîchissements</li>
+                        <li>Coût de maintenance : le recalcul complet bloque la VM pendant quelques secondes</li>
+                        <li>Complexité de gestion : décider quelles vues créer, quand les rafraîchir</li>
+                        <li>Risque de désynchronisation si les politiques de rafraîchissement sont mal définies</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <strong>Bilan pour le contexte universitaire :</strong>
+                Le contexte académique est <strong>très favorable</strong> aux vues matérialisées :
+                les données évoluent lentement (inscriptions et notes saisies par lots),
+                les requêtes analytiques sont fréquentes (tableaux de bord, suivi pédagogique)
+                et une légère obsolescence des données (24h) est parfaitement acceptable.
+                Le gain de performance justifie largement le surcoût de stockage.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1.12                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1.12</span>
+            <span class="question-pts">Mise à jour du schéma</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Si on ajoute une nouvelle colonne <code>Mention VARCHAR(20)</code> dans la table
+            <code>Inscriptions</code>, faut-il recréer la vue matérialisée
+            <code>VM_Performance_Etudiants</code> ? Distinguez les deux cas.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Penser qu'une modification de la table source invalide toujours la VM.
+            Ce n'est pas le cas si la nouvelle colonne n'est pas référencée dans la définition de la VM.
+        </div>
+
+        <button class="hint-btn" data-hint="q112-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q112-h1">
+            Cas 1 : la VM ne référence pas <code>Mention</code> dans son <code>SELECT</code> → elle continue de fonctionner sans modification.
+            Cas 2 : on veut inclure <code>Mention</code> dans la VM → il faut la recréer avec <code>CREATE OR REPLACE MATERIALIZED VIEW</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q112-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q112-h2">
+            La règle générale : une VM est indépendante des modifications de schéma des tables sources
+            tant que les colonnes qu'elle référence existent toujours.
+            Ajouter une colonne est non-destructif. Renommer ou supprimer une colonne référencée est destructif.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Votre réponse pour les deux cas…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1.12</h4>
+
+            <div class="two-col">
+                <div class="highlight-box">
+                    <h4 style="margin-top:0;">Cas 1 — Mention non utilisée dans la VM</h4>
+                    <p>
+                        <strong>Non, la VM n'a pas besoin d'être recréée.</strong>
+                        Elle continue de fonctionner normalement car sa définition ne référence pas
+                        la colonne <code>Mention</code>. Un simple <code>REFRESH</code> suffit
+                        si des notes ont été modifiées en parallèle.
+                    </p>
+                    <pre><code>-- Aucune modification de la VM nécessaire.
+-- Optionnel : rafraîchir si des données ont changé
+REFRESH MATERIALIZED VIEW
+    VM_Performance_Etudiants;</code></pre>
+                </div>
+                <div class="highlight-box">
+                    <h4 style="margin-top:0;">Cas 2 — On veut inclure Mention dans la VM</h4>
+                    <p>
+                        <strong>Oui, il faut recréer la VM</strong> avec
+                        <code>CREATE OR REPLACE MATERIALIZED VIEW</code> pour ajouter
+                        <code>Mention</code> à la définition.
+                    </p>
+                    <pre><code>CREATE OR REPLACE MATERIALIZED VIEW
+    VM_Performance_Etudiants AS
+SELECT
+    e.ID_etudiant,
+    e.Nom || ' ' || e.Prenom AS Nom_Complet,
+    e.Niveau,
+    COUNT(i.ID_cours)    AS Nb_Cours_Suivis,
+    ROUND(AVG(i.Note),2) AS Moyenne_Generale,
+    MODE() WITHIN GROUP
+        (ORDER BY i.Mention) AS Mention_Freq
+FROM   Etudiants e
+LEFT JOIN Inscriptions i
+    ON e.ID_etudiant = i.ID_etudiant
+GROUP BY
+    e.ID_etudiant, e.Nom,
+    e.Prenom, e.Niveau;</code></pre>
+                </div>
+            </div>
+
+            <div class="callout-info">
+                <strong>Règle générale :</strong> une vue matérialisée est <em>indépendante</em> des
+                modifications de schéma des tables sources tant que les colonnes qu'elle référence
+                dans son <code>SELECT</code> et ses <code>JOIN</code> existent toujours.
+                Ajouter une colonne à une table source est une opération <strong>non destructive</strong>
+                pour les VMs existantes.
+            </div>
+        </div>
+    </div>
+
+    <div class="bareme">
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">Q1.8 — Requêtes sur les VMs</span>
+        <span class="bareme-desc">1 pt par requête correcte (a, b, c), dont usage de NULLS LAST</span>
+
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">Q1.9 — Avantages des VMs</span>
+        <span class="bareme-desc">1 pt comparaison opérations · 1 pt charge journée</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q1.10 — Index</span>
+        <span class="bareme-desc">1 pt index simple · 2 pts index composite justifié</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q1.11 — Compromis</span>
+        <span class="bareme-desc">1 pt avantages · 1 pt inconvénients · 1 pt bilan contexte</span>
+
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">Q1.12 — Évolution de schéma</span>
+        <span class="bareme-desc">1 pt par cas distingué et justifié</span>
+
+        <div class="bareme-total">Total : <strong>12 pts</strong></div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Comparez <code>EXPLAIN (ANALYZE, BUFFERS)</code> sur une requête avant et après la création des index — observez la colonne <code>shared hit</code>.</li>
+            <li>Que se passe-t-il si on <strong>renomme</strong> la colonne <code>Note</code> en <code>Score</code> dans <code>Inscriptions</code> ?
+                La VM est-elle automatiquement invalide ? Comment le SGBD le signale-t-il ?</li>
+            <li>Explorez la vue système <code>pg_matviews</code> de PostgreSQL : quelles informations donne-t-elle sur l'état des VMs ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>
