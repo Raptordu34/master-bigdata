@@ -12,16 +12,27 @@ body {
 /* ── h2/h3/h4 dans les slides — tailles adaptées ────────────────── */
 .slide-content h2 {
     display: block;
+    position: relative;
     font-size: 2rem;
     margin-bottom: 1.25rem;
-    padding-bottom: 0.6rem;
+    padding-bottom: 0.9rem;
     line-height: 1.12;
     letter-spacing: -0.02em;
     background: linear-gradient(135deg, var(--text-primary) 24%, var(--text-muted) 70%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: none;
+    filter:
+        drop-shadow(1px 2px 3px rgba(0,0,0,0.55))
+        drop-shadow(0 4px 10px rgba(0,0,0,0.30));
+}
+.slide-content h2::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 56px; height: 3px;
+    background: var(--accent);
+    border-radius: 2px;
 }
 .slide-content h3 {
     font-size: 1.25rem;
@@ -33,7 +44,7 @@ body {
 
 /* ── SLIDE TYPOGRAPHY ────────────────────────────────────────────── */
 .slide-title {
-    font-size: clamp(2.2rem, 5vw, 3.5rem);
+    font-size: clamp(3rem, 7vw, 5rem);
     font-weight: 800;
     line-height: 1.15;
     background: linear-gradient(135deg, var(--text-primary) 30%, var(--text-muted));
@@ -43,6 +54,9 @@ body {
     text-align: center;
     margin: 0 0 1rem;
     letter-spacing: -0.02em;
+    filter:
+        drop-shadow(1px 3px 4px rgba(0,0,0,0.55))
+        drop-shadow(0 6px 16px rgba(0,0,0,0.30));
 }
 .slide-subtitle {
     font-size: 1.05rem;
@@ -53,11 +67,22 @@ body {
     line-height: 1.6;
 }
 
-/* Badge catégorie au-dessus du titre */
+/* ── En-tête avec badge à droite du titre ────────────────────────── */
+.slide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.slide-header h2 {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+/* Badge catégorie — affiché à droite du titre via .slide-header */
 .slide-section-label {
-    position: absolute !important;
-    top: 1.2rem;
-    right: 1.5rem;
+    flex-shrink: 0;
     width: fit-content;
     font-size: 0.72rem;
     font-weight: 700;
@@ -152,6 +177,8 @@ ul.agenda-list li {
     font-size: 1.05rem;
     margin-bottom: 0;
     transition: background 0.2s;
+    word-break: normal;
+    overflow-wrap: break-word;
 }
 ul.agenda-list li::before {
     content: counter(agenda-counter, decimal-leading-zero);
@@ -196,6 +223,8 @@ ul.key-points li {
     border-radius: 10px;
     font-size: 1.05rem;
     margin-bottom: 0;
+    word-break: normal;
+    overflow-wrap: break-word;
 }
 ul.key-points li::before {
     content: '✓';
@@ -308,6 +337,8 @@ ul.key-points li::before {
         0 2px 8px rgba(214,117,86,0.08);
 }
 .table-glass table { margin: 0; }
+.table-glass th,
+.table-glass td { text-align: center; }
 
 /* ── BLOC DE CODE ─────────────────────────────────────────────────── */
 .code-wrapper { position: relative; margin-top: 1rem; }
