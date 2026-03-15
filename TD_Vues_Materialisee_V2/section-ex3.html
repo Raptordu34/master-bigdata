@@ -290,6 +290,76 @@
                 </div>
             </div>
 
+            <div style="display:flex; justify-content:center; margin:1.5rem 0;">
+            <svg width="640" height="210" viewBox="0 0 640 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- LEFT: Recalcul complet -->
+                <text x="155" y="14" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#9e9a94">Recalcul complet</text>
+                <!-- R (big block) -->
+                <rect x="20" y="24" width="270" height="44" rx="7"
+                    fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                <text x="100" y="46" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#9e9a94">R</text>
+                <text x="100" y="60" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.7">3 000 000 lignes</text>
+                <rect x="120" y="30" width="160" height="32" rx="4"
+                    fill="rgba(158,154,148,0.05)" stroke="#9e9a94" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
+                <text x="200" y="50" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" opacity="0.7">+ ΔR (500 nouvelles)</text>
+                <!-- arrow down -->
+                <line x1="155" y1="68" x2="155" y2="94" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 155 101 L 150.5 94 Q 155 96 159.5 94 Z" fill="#9e9a94"/>
+                <!-- process: JOIN R × S × T -->
+                <rect x="30" y="101" width="250" height="40" rx="7"
+                    fill="rgba(158,154,148,0.04)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="6 4"/>
+                <text x="155" y="118" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">R_nouveau ⋈ S ⋈ T</text>
+                <text x="155" y="133" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.7">O(|R| × |S| × |T|) — coût maximal</text>
+                <!-- arrow down -->
+                <line x1="155" y1="141" x2="155" y2="161" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 155 168 L 150.5 161 Q 155 163 159.5 161 Z" fill="#9e9a94"/>
+                <text x="155" y="185" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">V mis à jour</text>
+                <text x="155" y="200" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" font-style="italic">Coût : O(|R| × |S| × |T|)</text>
+                <!-- Separator -->
+                <line x1="320" y1="2" x2="320" y2="208" stroke="#9e9a94" stroke-width="1" stroke-dasharray="3 4" opacity="0.2"/>
+                <!-- RIGHT: Maintenance incrémentale -->
+                <text x="485" y="14" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#d67556">Maintenance incrémentale</text>
+                <!-- ΔR (small block, accent) -->
+                <rect x="365" y="24" width="240" height="44" rx="7"
+                    fill="rgba(214,117,86,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                <text x="380" y="43" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" opacity="0.5">R existant (inchangé)</text>
+                <!-- ΔR highlighted -->
+                <rect x="490" y="28" width="100" height="36" rx="5"
+                    fill="rgba(214,117,86,0.16)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="540" y="45" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" font-weight="600" fill="#d67556">ΔR</text>
+                <text x="540" y="58" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#d67556">500 lignes</text>
+                <!-- arrow down (from ΔR only) -->
+                <line x1="485" y1="68" x2="485" y2="94" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 485 101 L 480.5 94 Q 485 96 489.5 94 Z" fill="#d67556"/>
+                <!-- process: ΔR ⋈ S ⋈ T (accent) -->
+                <rect x="365" y="101" width="240" height="40" rx="7"
+                    fill="rgba(214,117,86,0.10)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="485" y="118" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">ΔR ⋈ S ⋈ T</text>
+                <text x="485" y="133" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#d67556">O(|ΔR| × |S| × |T|) — 6 000× moins</text>
+                <!-- arrow down -->
+                <line x1="485" y1="141" x2="485" y2="161" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 485 168 L 480.5 161 Q 485 163 489.5 161 Z" fill="#d67556"/>
+                <text x="485" y="185" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#dedad5">V ← V ∪ ΔV</text>
+                <text x="485" y="200" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#d67556" font-style="italic">Coût : O(|ΔR| × |S| × |T|)</text>
+            </svg>
+            </div>
+
             <div class="callout-info">
                 <strong>Conclusion :</strong> La maintenance incrémentale est <strong>infiniment plus rapide</strong> et moins coûteuse.
                 Le nombre de jointures (2) reste le même dans l'absolu, mais la taille de la relation de gauche (ΔR au lieu de R tout entier)
@@ -381,6 +451,52 @@
 
             <div class="callout-info">
                 <code>ΔV = (ΔR ⋈ S ⋈ T) ∪ (R ⋈ ΔS ⋈ T) ∪ (ΔR ⋈ ΔS ⋈ T)</code>
+            </div>
+
+            <div style="display:flex; justify-content:center; margin:1.5rem 0;">
+            <svg width="680" height="160" viewBox="0 0 680 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Terme 1: ΔR ⋈ S ⋈ T -->
+                <rect x="10" y="30" width="190" height="80" rx="7"
+                    fill="rgba(214,117,86,0.10)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="105" y="58" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="12" fill="#d67556">ΔR ⋈ S ⋈ T</text>
+                <text x="105" y="78" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Nouvelles lignes R</text>
+                <text x="105" y="92" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">× anciennes S</text>
+                <!-- union symbol 1→2 -->
+                <text x="218" y="76" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="18" fill="#d67556">∪</text>
+                <!-- Terme 2: R ⋈ ΔS ⋈ T -->
+                <rect x="245" y="30" width="190" height="80" rx="7"
+                    fill="rgba(214,117,86,0.10)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="340" y="58" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="12" fill="#d67556">R ⋈ ΔS ⋈ T</text>
+                <text x="340" y="78" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Anciennes lignes R</text>
+                <text x="340" y="92" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">× nouvelles S</text>
+                <!-- union symbol 2→3 -->
+                <text x="452" y="76" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="18" fill="#d67556">∪</text>
+                <!-- Terme 3: ΔR ⋈ ΔS ⋈ T (with callout note) -->
+                <rect x="478" y="30" width="190" height="80" rx="7"
+                    fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5" stroke-dasharray="5 3"/>
+                <text x="573" y="58" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="12" fill="#d67556">ΔR ⋈ ΔS ⋈ T</text>
+                <text x="573" y="78" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Nouvelles lignes R</text>
+                <text x="573" y="92" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">× nouvelles S</text>
+                <!-- brace-bottom label -->
+                <path d="M 12 118 C 8 118, 8 138, 340 138 C 672 138, 672 118, 668 118"
+                    stroke="#d67556" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <text x="340" y="155" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#d67556">= ΔV  (à ajouter à V)</text>
+                <!-- callout for term 3 -->
+                <text x="573" y="14" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" font-style="italic">petit mais obligatoire</text>
+            </svg>
             </div>
 
             <div class="highlight-box">

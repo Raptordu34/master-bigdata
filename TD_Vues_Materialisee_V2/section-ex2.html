@@ -96,6 +96,52 @@
             </div>
         </div>
 
+        <h3>Schéma en étoile</h3>
+        <div style="display:flex; justify-content:center; margin:1rem 0;">
+        <svg width="500" height="268" viewBox="0 0 500 268" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Ventes (fact, center, accent) -->
+            <rect x="180" y="98" width="140" height="60" rx="7"
+                fill="rgba(214,117,86,0.14)" stroke="#d67556" stroke-width="1.5"/>
+            <text x="250" y="124" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="13" font-weight="600" fill="#d67556">Ventes</text>
+            <text x="250" y="141" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Table de faits</text>
+            <!-- Produit (top) -->
+            <rect x="185" y="10" width="130" height="40" rx="7"
+                fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+            <text x="250" y="35" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="12" fill="#9e9a94">Produit</text>
+            <!-- Client (left) -->
+            <rect x="10" y="106" width="120" height="44" rx="7"
+                fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+            <text x="70" y="133" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="12" fill="#9e9a94">Client</text>
+            <!-- Temps (right) -->
+            <rect x="370" y="106" width="120" height="44" rx="7"
+                fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+            <text x="430" y="133" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="12" fill="#9e9a94">Temps</text>
+            <!-- Arrow: Ventes → Produit (up) -->
+            <line x1="250" y1="98" x2="250" y2="52" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 250 45 L 245.5 52 Q 250 50 254.5 52 Z" fill="#d67556"/>
+            <text x="262" y="79" text-anchor="start"
+                font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">PID</text>
+            <!-- Arrow: Ventes → Client (left) -->
+            <line x1="180" y1="128" x2="132" y2="128" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 125 128 L 132 123.5 Q 130 128 132 132.5 Z" fill="#d67556"/>
+            <text x="156" y="121" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">CID</text>
+            <!-- Arrow: Ventes → Temps (right) -->
+            <line x1="320" y1="128" x2="368" y2="128" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 375 128 L 368 123.5 Q 370 128 368 132.5 Z" fill="#d67556"/>
+            <text x="344" y="121" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">TID</text>
+            <!-- Label bottom -->
+            <text x="250" y="262" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94" font-style="italic">Schéma en étoile — Ventes comme table de faits centrale</text>
+        </svg>
+        </div>
+
         <h3>Workload — Les 5 requêtes fréquentes</h3>
         <p>On suppose que les cinq requêtes suivantes sont exécutées fréquemment sur cette base :</p>
 
@@ -396,6 +442,75 @@ GROUP BY P.PID</code></pre></td>
                     <li>Ajouter v* à S, déduire taille(v*) du budget.</li>
                     <li>Mettre à jour les coûts des requêtes (qui peuvent maintenant utiliser v*).</li>
                 </ul>
+            </div>
+
+            <div style="display:flex; justify-content:center; margin:1.5rem 0;">
+            <svg width="300" height="430" viewBox="0 0 300 430" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- START pill -->
+                <rect x="85" y="10" width="130" height="32" rx="16"
+                    fill="rgba(214,117,86,0.10)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="150" y="31" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">S = ∅ · budget = B</text>
+                <!-- arrow down -->
+                <line x1="150" y1="42" x2="150" y2="66" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 150 73 L 145.5 66 Q 150 68 154.5 66 Z" fill="#d67556"/>
+                <!-- process: Calculer bénéfices -->
+                <rect x="30" y="73" width="240" height="44" rx="7"
+                    fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="150" y="91" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">Pour chaque vᵢ non sélectionnée :</text>
+                <text x="150" y="108" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">calculer bénéfice(vᵢ) et ratio(vᵢ)</text>
+                <!-- arrow down -->
+                <line x1="150" y1="117" x2="150" y2="141" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 150 148 L 145.5 141 Q 150 143 154.5 141 Z" fill="#d67556"/>
+                <!-- process: Sélectionner v* -->
+                <rect x="40" y="148" width="220" height="34" rx="7"
+                    fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="150" y="165" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">Sélectionner v* (ratio max)</text>
+                <text x="150" y="176" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94">bénéfice(v*) / taille(v*)</text>
+                <!-- arrow down -->
+                <line x1="150" y1="182" x2="150" y2="206" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 150 213 L 145.5 206 Q 150 208 154.5 206 Z" fill="#d67556"/>
+                <!-- decision: losange Budget? -->
+                <polygon points="150,213 230,248 150,283 70,248"
+                    fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5" stroke-linejoin="round"/>
+                <text x="150" y="244" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">v* ≤ budget?</text>
+                <text x="150" y="257" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94">taille(v*) ≤ budget restant</text>
+                <!-- branch Oui: down -->
+                <text x="158" y="296" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556">Oui</text>
+                <line x1="150" y1="283" x2="150" y2="307" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 150 314 L 145.5 307 Q 150 309 154.5 307 Z" fill="#d67556"/>
+                <!-- process: S ← S ∪ {v*} -->
+                <rect x="30" y="314" width="240" height="44" rx="7"
+                    fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="150" y="332" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">S ← S ∪ {v*}</text>
+                <text x="150" y="349" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">budget -= taille(v*) · màj coûts</text>
+                <!-- loop back arrow: right side -->
+                <line x1="270" y1="336" x2="288" y2="336" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="288" y1="336" x2="288" y2="95" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="288" y1="95" x2="272" y2="95" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 265 95 L 272 90.5 Q 270 95 272 99.5 Z" fill="#d67556"/>
+                <!-- branch Non: right then down to FIN -->
+                <text x="234" y="242" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Non</text>
+                <line x1="230" y1="248" x2="268" y2="248" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="268" y1="248" x2="268" y2="398" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="268" y1="398" x2="215" y2="398" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 208 398 L 215 393.5 Q 213 398 215 402.5 Z" fill="#9e9a94"/>
+                <!-- END pill -->
+                <rect x="80" y="386" width="128" height="32" rx="16"
+                    fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                <text x="144" y="407" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">FIN — S optimal approché</text>
+            </svg>
             </div>
 
             <p><strong>Application aux 5 requêtes — Vues candidates identifiées :</strong></p>

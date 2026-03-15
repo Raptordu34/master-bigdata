@@ -51,6 +51,58 @@
             <strong>rafraîchit</strong> pas.
         </div>
 
+        <div style="display:flex; justify-content:center; margin:1.5rem 0;">
+        <svg width="640" height="220" viewBox="0 0 640 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- LEFT: Vue classique -->
+            <text x="155" y="14" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#9e9a94">Vue classique</text>
+            <!-- pill: Requête SQL -->
+            <rect x="75" y="22" width="160" height="32" rx="16"
+                fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+            <text x="155" y="43" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">Requête SQL × 100/jour</text>
+            <!-- arrow down -->
+            <line x1="155" y1="54" x2="155" y2="78" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 155 85 L 150.5 78 Q 155 80 159.5 78 Z" fill="#9e9a94"/>
+            <!-- process: JOIN + GROUP BY (dashed = expensive) -->
+            <rect x="45" y="85" width="220" height="40" rx="7"
+                fill="rgba(158,154,148,0.04)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="6 4"/>
+            <text x="155" y="103" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">JOIN + GROUP BY</text>
+            <text x="155" y="117" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.7">550 000 lignes — recalculé à chaque fois</text>
+            <!-- arrow down -->
+            <line x1="155" y1="125" x2="155" y2="149" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 155 156 L 150.5 149 Q 155 151 159.5 149 Z" fill="#9e9a94"/>
+            <!-- pill: Résultat -->
+            <rect x="75" y="156" width="160" height="32" rx="16"
+                fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+            <text x="155" y="177" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">Résultat — plusieurs secondes</text>
+            <text x="155" y="208" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" font-style="italic">Recalcul complet × 100/jour</text>
+            <!-- Separator -->
+            <line x1="320" y1="2" x2="320" y2="218" stroke="#9e9a94" stroke-width="1" stroke-dasharray="3 4" opacity="0.2"/>
+            <!-- RIGHT: Vue Matérialisée -->
+            <text x="485" y="14" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#d67556">Vue Matérialisée</text>
+            <!-- process: Rafraîchissement (muted dashed, 1×/nuit) -->
+            <rect x="365" y="22" width="240" height="40" rx="7"
+                fill="rgba(158,154,148,0.06)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="5 3"/>
+            <text x="485" y="40" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">Rafraîchissement nocturne</text>
+            <text x="485" y="54" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.7">1×/jour — calcul complet une seule fois</text>
+            <!-- dashed arrow down -->
+            <line x1="485" y1="62" x2="485" y2="82" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 3"/>
+            <path d="M 485 89 L 480.5 82 Q 485 84 489.5 82 Z" fill="#9e9a94"/>
+            <!-- process: VM stockée (accent) -->
+            <rect x="365" y="89" width="240" height="40" rx="7"
+                fill="rgba(214,117,86,0.12)" stroke="#d67556" stroke-width="1.5"/>
+            <text x="485" y="107" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">VM stockée — 50 000 lignes</text>
+            <text x="485" y="121" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#d67556">Résultat pré-calculé sur disque</text>
+            <!-- accent arrow down -->
+            <line x1="485" y1="129" x2="485" y2="149" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 485 156 L 480.5 149 Q 485 151 489.5 149 Z" fill="#d67556"/>
+            <!-- pill: Résultat rapide -->
+            <rect x="405" y="156" width="160" height="32" rx="16"
+                fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+            <text x="485" y="177" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">Résultat — millisecondes</text>
+            <text x="485" y="208" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556" font-style="italic">100 lectures légères × 100/jour</text>
+        </svg>
+        </div>
+
         <div class="highlight-box">
             <strong>Pourquoi en avons-nous besoin sur ce schéma ?</strong>
             <p>Considérez cette requête typique du tableau de bord pédagogique :</p>
@@ -157,40 +209,52 @@ GROUP BY e.ID_etudiant;</code></pre>
 
     <h3>Diagramme de relations</h3>
     <div class="context-block">
-        <svg viewBox="0 0 720 280" style="min-width:500px; max-width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#f97316"/>
-                </marker>
-            </defs>
+        <svg viewBox="0 0 760 300" style="min-width:500px; max-width:100%; height:auto; display:block;" fill="none" xmlns="http://www.w3.org/2000/svg">
             <!-- Etudiants -->
-            <rect x="10" y="110" width="130" height="40" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="2"/>
-            <text x="75" y="135" text-anchor="middle" fill="#fff7ed" font-family="sans-serif" font-size="13" font-weight="bold">Etudiants</text>
-            <!-- Inscriptions (centre) -->
-            <rect x="290" y="110" width="140" height="40" rx="8" fill="#0f172a" stroke="#f97316" stroke-width="2.5"/>
-            <text x="360" y="135" text-anchor="middle" fill="#fb923c" font-family="sans-serif" font-size="13" font-weight="bold">Inscriptions</text>
+            <rect x="10" y="108" width="140" height="44" rx="7"
+                fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+            <text x="80" y="135" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="13" fill="#dedad5">Etudiants</text>
+            <!-- Inscriptions (centre, accent) -->
+            <rect x="305" y="108" width="150" height="44" rx="7"
+                fill="rgba(214,117,86,0.14)" stroke="#d67556" stroke-width="1.5"/>
+            <text x="380" y="135" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="13" font-weight="600" fill="#d67556">Inscriptions</text>
             <!-- Cours -->
-            <rect x="580" y="110" width="130" height="40" rx="8" fill="#1e293b" stroke="#f97316" stroke-width="2"/>
-            <text x="645" y="135" text-anchor="middle" fill="#fff7ed" font-family="sans-serif" font-size="13" font-weight="bold">Cours</text>
-            <!-- Enseignants -->
-            <rect x="580" y="210" width="130" height="40" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
-            <text x="645" y="235" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="13" font-weight="bold">Enseignants</text>
+            <rect x="610" y="108" width="140" height="44" rx="7"
+                fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+            <text x="680" y="135" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="13" fill="#dedad5">Cours</text>
             <!-- Affectations -->
-            <rect x="290" y="210" width="140" height="40" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
-            <text x="360" y="235" text-anchor="middle" fill="#f1f5f9" font-family="sans-serif" font-size="13" font-weight="bold">Affectations</text>
-            <!-- Etudiants → Inscriptions -->
-            <line x1="140" y1="130" x2="288" y2="130" stroke="#f97316" stroke-width="2" marker-end="url(#arr)"/>
-            <text x="215" y="120" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="11">ID_etudiant</text>
-            <!-- Cours → Inscriptions -->
-            <line x1="580" y1="130" x2="432" y2="130" stroke="#f97316" stroke-width="2" marker-end="url(#arr)"/>
-            <text x="506" y="120" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="11">ID_cours</text>
-            <!-- Cours → Affectations -->
-            <line x1="645" y1="150" x2="645" y2="208" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
-            <!-- Enseignants → Affectations -->
-            <line x1="580" y1="230" x2="432" y2="230" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
-            <text x="506" y="222" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="11">ID_enseignant</text>
-            <!-- Affectations → Cours label -->
-            <text x="645" y="200" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="11">ID_cours</text>
+            <rect x="305" y="218" width="150" height="44" rx="7"
+                fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+            <text x="380" y="245" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="13" fill="#9e9a94">Affectations</text>
+            <!-- Enseignants -->
+            <rect x="610" y="218" width="140" height="44" rx="7"
+                fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+            <text x="680" y="245" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="13" fill="#9e9a94">Enseignants</text>
+            <!-- Arrow: Etudiants → Inscriptions -->
+            <line x1="150" y1="130" x2="303" y2="130" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 310 130 L 303 125.5 Q 305 130 303 134.5 Z" fill="#d67556"/>
+            <text x="228" y="122" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">ID_etudiant</text>
+            <!-- Arrow: Cours → Inscriptions -->
+            <line x1="610" y1="130" x2="457" y2="130" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 450 130 L 457 125.5 Q 455 130 457 134.5 Z" fill="#d67556"/>
+            <text x="534" y="122" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">ID_cours</text>
+            <!-- Arrow: Cours → Affectations (vertical) -->
+            <line x1="680" y1="152" x2="680" y2="216" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 680 223 L 675.5 216 Q 680 218 684.5 216 Z" fill="#9e9a94"/>
+            <text x="694" y="190" text-anchor="start"
+                font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">ID_cours</text>
+            <!-- Arrow: Enseignants → Affectations -->
+            <line x1="610" y1="240" x2="457" y2="240" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M 450 240 L 457 235.5 Q 455 240 457 244.5 Z" fill="#9e9a94"/>
+            <text x="534" y="232" text-anchor="middle"
+                font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">ID_enseignant</text>
         </svg>
     </div>
 

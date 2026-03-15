@@ -270,6 +270,80 @@ SELECT cron.schedule(
                 </table>
             </div>
 
+            <div style="display:flex; justify-content:center; margin:1.5rem 0;">
+            <svg width="620" height="200" viewBox="0 0 620 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Axe horizontal du temps -->
+                <line x1="30" y1="100" x2="590" y2="100" stroke="#9e9a94" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+                <text x="30" y="170" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" opacity="0.6">t=0</text>
+                <text x="590" y="170" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" opacity="0.6">24h</text>
+
+                <!-- ROW 1: Temps réel (trigger) — très fréquent -->
+                <text x="22" y="30" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Temps réel</text>
+                <!-- many dots -->
+                <circle cx="40"  cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="68"  cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="96"  cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="124" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="152" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="180" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="208" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="236" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="264" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="292" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="320" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="348" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="376" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="404" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="432" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="460" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="488" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="516" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="544" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="572" cy="26" r="3" fill="#9e9a94" opacity="0.5"/>
+                <text x="600" y="30" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.6">coûteux</text>
+
+                <!-- ROW 2: Horaire -->
+                <text x="22" y="62" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Horaire</text>
+                <circle cx="60"  cy="58" r="4" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="200" cy="58" r="4" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="340" cy="58" r="4" fill="#9e9a94" opacity="0.5"/>
+                <circle cx="480" cy="58" r="4" fill="#9e9a94" opacity="0.5"/>
+                <text x="600" y="62" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.6">excessif</text>
+
+                <!-- ROW 3: Quotidien — RECOMMANDÉ (accent) -->
+                <rect x="26" y="78" width="570" height="28" rx="4"
+                    fill="rgba(214,117,86,0.06)" stroke="none"/>
+                <text x="22" y="97" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556">Quotidien</text>
+                <circle cx="305" cy="92" r="6" fill="#d67556"/>
+                <!-- brace-bottom small annotation -->
+                <path d="M 28 106 C 24 106, 24 116, 305 116 C 586 116, 586 106, 582 106"
+                    stroke="#d67556" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+                <text x="305" y="130" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556">1 rafraîchissement nocturne (02h00)</text>
+                <text x="600" y="97" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#d67556">optimal</text>
+
+                <!-- ROW 4: Hebdomadaire -->
+                <text x="22" y="152" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Hebdo</text>
+                <circle cx="305" cy="148" r="4" fill="#9e9a94" opacity="0.3"/>
+                <text x="600" y="152" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.6">périmé</text>
+                <!-- dashed region showing stale data -->
+                <rect x="40" y="138" width="555" height="20" rx="3"
+                    fill="none" stroke="#9e9a94" stroke-width="1" stroke-dasharray="4 4" opacity="0.2"/>
+                <text x="320" y="185" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" font-style="italic">Données potentiellement périmées 7 jours</text>
+            </svg>
+            </div>
+
             <div class="callout-info">
                 <strong>Raisonnement final :</strong>
                 Les inscriptions et les notes évoluent quotidiennement (saisies par les enseignants en fin de journée).

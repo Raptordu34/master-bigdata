@@ -279,6 +279,63 @@ CREATE INDEX idx_vm_perf_niveau_moy
                 ils sont maintenus automatiquement.
             </div>
 
+            <div style="display:flex; justify-content:center; margin:1.5rem 0;">
+            <svg width="640" height="190" viewBox="0 0 640 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- LEFT: Scan normal -->
+                <text x="155" y="14" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#9e9a94">Scan normal</text>
+                <!-- Index block -->
+                <rect x="55" y="24" width="200" height="44" rx="7"
+                    fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                <text x="155" y="44" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#9e9a94">Index (Niveau)</text>
+                <text x="155" y="59" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" opacity="0.7">pointeurs vers pages de données</text>
+                <!-- arrow down -->
+                <line x1="155" y1="68" x2="155" y2="92" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 155 99 L 150.5 92 Q 155 94 159.5 92 Z" fill="#9e9a94"/>
+                <!-- Data pages block -->
+                <rect x="40" y="99" width="230" height="44" rx="7"
+                    fill="rgba(158,154,148,0.06)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="5 3"/>
+                <text x="155" y="119" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#9e9a94">Pages de données VM</text>
+                <text x="155" y="134" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" opacity="0.7">lecture I/O supplémentaire</text>
+                <!-- arrow down -->
+                <line x1="155" y1="143" x2="155" y2="160" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 155 167 L 150.5 160 Q 155 162 159.5 160 Z" fill="#9e9a94"/>
+                <text x="155" y="183" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Résultat — 2 lectures</text>
+                <!-- Separator -->
+                <line x1="320" y1="2" x2="320" y2="188" stroke="#9e9a94" stroke-width="1" stroke-dasharray="3 4" opacity="0.2"/>
+                <!-- RIGHT: Index-only scan -->
+                <text x="485" y="14" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#d67556">Index-only scan</text>
+                <!-- Index block (accent — contains all needed columns) -->
+                <rect x="365" y="24" width="240" height="44" rx="7"
+                    fill="rgba(214,117,86,0.12)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="485" y="44" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#d67556">Index (Niveau, Moyenne DESC)</text>
+                <text x="485" y="59" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">contient toutes les colonnes nécessaires</text>
+                <!-- arrow down (accent, skips data pages) -->
+                <line x1="485" y1="68" x2="485" y2="160" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 485 167 L 480.5 160 Q 485 162 489.5 160 Z" fill="#d67556"/>
+                <!-- Crossed-out data pages -->
+                <rect x="365" y="99" width="240" height="44" rx="7"
+                    fill="rgba(158,154,148,0.03)" stroke="#9e9a94" stroke-width="1" stroke-dasharray="4 4" opacity="0.3"/>
+                <line x1="370" y1="104" x2="600" y2="138" stroke="#9e9a94" stroke-width="1" opacity="0.25"/>
+                <line x1="600" y1="104" x2="370" y2="138" stroke="#9e9a94" stroke-width="1" opacity="0.25"/>
+                <text x="485" y="125" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" opacity="0.35">Pages de données</text>
+                <!-- label skip -->
+                <text x="608" y="117" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.5">ignorées</text>
+                <text x="485" y="183" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556">Résultat — 1 lecture (index seul)</text>
+            </svg>
+            </div>
+
             <div class="highlight-box">
                 <p><span class="badge badge-blue">Qu'est-ce qu'un index-only scan ?</span></p>
                 <p>Normalement, pour répondre à une requête, le moteur :</p>
@@ -356,6 +413,56 @@ CREATE INDEX idx_vm_perf_niveau_moy
                         <li>Risque de désynchronisation si les politiques de rafraîchissement sont mal définies</li>
                     </ul>
                 </div>
+            </div>
+
+            <div style="display:flex; justify-content:center; margin:1.5rem 0;">
+            <svg width="560" height="150" viewBox="0 0 560 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Axe Y -->
+                <line x1="110" y1="10" x2="110" y2="120" stroke="#9e9a94" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                <!-- Axe X -->
+                <line x1="110" y1="120" x2="540" y2="120" stroke="#9e9a94" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                <!-- AVANTAGES (barres accent) -->
+                <!-- Performance requêtes: 92% -->
+                <rect x="110" y="16" width="212" height="16" rx="3" fill="rgba(214,117,86,0.80)"/>
+                <text x="105" y="28" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Performance</text>
+                <text x="328" y="28"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556">×100 — ms vs s</text>
+                <!-- Charge CPU: 78% -->
+                <rect x="110" y="38" width="180" height="16" rx="3" fill="rgba(214,117,86,0.65)"/>
+                <text x="105" y="50" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Charge CPU</text>
+                <text x="296" y="50"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556">1 calcul/jour vs 100</text>
+                <!-- Indexabilité: 65% -->
+                <rect x="110" y="60" width="150" height="16" rx="3" fill="rgba(214,117,86,0.55)"/>
+                <text x="105" y="72" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Indexabilité</text>
+                <text x="266" y="72"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556">index sur agrégats</text>
+                <!-- INCONVÉNIENTS (barres muted) -->
+                <!-- Stockage: 30% -->
+                <rect x="110" y="82" width="69" height="16" rx="3" fill="rgba(158,154,148,0.5)"/>
+                <text x="105" y="94" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Stockage</text>
+                <text x="185" y="94"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">50 000 lignes supp.</text>
+                <!-- Fraîcheur: 20% -->
+                <rect x="110" y="100" width="46" height="16" rx="3" fill="rgba(158,154,148,0.4)"/>
+                <text x="105" y="112" text-anchor="end"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">Fraîcheur</text>
+                <text x="162" y="112"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94">décalage max 24h</text>
+                <!-- Labels -->
+                <text x="2" y="55" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#d67556" font-style="italic">Avantages</text>
+                <text x="2" y="100" text-anchor="start"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" font-style="italic">Inconvénients</text>
+                <!-- separator between avantages/inconvénients -->
+                <line x1="10" y1="77" x2="540" y2="77" stroke="#9e9a94" stroke-width="1" stroke-dasharray="3 4" opacity="0.2"/>
+                <text x="335" y="140" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" font-style="italic">Bilan : avantages nettement supérieurs aux coûts dans un contexte académique</text>
+            </svg>
             </div>
 
             <div class="highlight-box">

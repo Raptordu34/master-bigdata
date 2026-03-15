@@ -209,6 +209,69 @@ SELECT *
 FROM   VM_Performance_Etudiants
 WHERE  Niveau = 'Master';</code></pre>
 
+            <div style="display:flex; justify-content:center; margin:1.5rem 0;">
+            <svg width="640" height="200" viewBox="0 0 640 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- LEFT: Requête directe -->
+                <text x="155" y="14" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#9e9a94">Requête directe</text>
+                <!-- pill: Requête -->
+                <rect x="75" y="22" width="160" height="30" rx="15"
+                    fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                <text x="155" y="42" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">SELECT * WHERE Niveau='Master'</text>
+                <!-- arrow down -->
+                <line x1="155" y1="52" x2="155" y2="74" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 155 81 L 150.5 74 Q 155 76 159.5 74 Z" fill="#9e9a94"/>
+                <!-- process: Scan + JOIN + GROUP BY -->
+                <rect x="35" y="81" width="240" height="46" rx="7"
+                    fill="rgba(158,154,148,0.04)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="6 4"/>
+                <text x="155" y="100" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">Scan Etudiants + Scan Inscriptions</text>
+                <text x="155" y="113" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#9e9a94" opacity="0.7">JOIN + GROUP BY + filtre</text>
+                <text x="155" y="122" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#9e9a94" opacity="0.5">550 000 lignes</text>
+                <!-- arrow down -->
+                <line x1="155" y1="127" x2="155" y2="149" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 155 156 L 150.5 149 Q 155 151 159.5 149 Z" fill="#9e9a94"/>
+                <!-- terminal: résultat -->
+                <rect x="75" y="156" width="160" height="30" rx="15"
+                    fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                <text x="155" y="176" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#9e9a94">Résultat — secondes</text>
+                <!-- Separator -->
+                <line x1="320" y1="2" x2="320" y2="198" stroke="#9e9a94" stroke-width="1" stroke-dasharray="3 4" opacity="0.2"/>
+                <!-- RIGHT: Via VM -->
+                <text x="485" y="14" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#d67556">Via VM_Performance_Etudiants</text>
+                <!-- pill: Requête -->
+                <rect x="405" y="22" width="160" height="30" rx="15"
+                    fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="485" y="42" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">SELECT * WHERE Niveau='Master'</text>
+                <!-- arrow down -->
+                <line x1="485" y1="52" x2="485" y2="74" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 485 81 L 480.5 74 Q 485 76 489.5 74 Z" fill="#d67556"/>
+                <!-- process: Scan VM (accent) -->
+                <rect x="365" y="81" width="240" height="46" rx="7"
+                    fill="rgba(214,117,86,0.12)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="485" y="100" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">Scan VM — 50 000 lignes</text>
+                <text x="485" y="113" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="9" fill="#d67556">Filtre WHERE sur données pré-calculées</text>
+                <text x="485" y="126" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="8" fill="#d67556" opacity="0.7">Aucun JOIN ni GROUP BY</text>
+                <!-- arrow down -->
+                <line x1="485" y1="127" x2="485" y2="149" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M 485 156 L 480.5 149 Q 485 151 489.5 149 Z" fill="#d67556"/>
+                <!-- terminal: résultat rapide -->
+                <rect x="405" y="156" width="160" height="30" rx="15"
+                    fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+                <text x="485" y="176" text-anchor="middle"
+                    font-family="'Inter',system-ui,sans-serif" font-size="10" fill="#dedad5">Résultat — millisecondes</text>
+            </svg>
+            </div>
+
             <div class="callout-info">
                 <p><span class="badge badge-blue">Analogie</span></p>
                 <p><strong>La requête directe</strong>, c'est comme demander à un comptable de tout recalculer depuis les
