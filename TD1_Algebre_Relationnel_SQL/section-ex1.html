@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Algèbre Relationnelle &amp; Langage SQL</h2>
+
+    <!-- ── EN-TÊTE DE L'EXERCICE ── -->
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 20 pts</span>
+            <span class="exo-time">⏱ 60–90 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Traduire des requêtes en langage naturel en expressions d'algèbre relationnelle</li>
+                <li>Exprimer les mêmes requêtes en SQL</li>
+                <li>Manipuler les opérateurs : sélection, projection, jointure, union, intersection, différence</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> Cours 1 — <em>Modèle relationnel</em> · Cours 2 — <em>Algèbre relationnelle</em> · Cours 3 — <em>Langage SQL</em></p>
+    </div>
+
+    <!-- ── CONTEXTE ── -->
+    <div class="context-block">
+        <h3>Base de données — Gestion_Employé</h3>
+        <p>
+            On travaille sur la base de données relationnelle <strong>Gestion_Employé</strong> composée de quatre tables.
+            Les attributs <u>soulignés</u> sont clés primaires ; les attributs précédés de <code>#</code> sont clés étrangères.
+        </p>
+
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Table</th><th>Attributs</th><th>Remarques</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Employé</strong></td>
+                        <td><u>NSS</u>, Nom, Prénom, DateNaissance, Adresse, Salaire, <code>#NoDep</code>, <code>#Supérieur</code></td>
+                        <td>Supérieur → NSS d'un autre Employé</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Département</strong></td>
+                        <td><u>NoDep</u>, NomD, <code>#Directeur</code></td>
+                        <td>Directeur → NSS d'un Employé</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Projet</strong></td>
+                        <td><u>NoPro</u>, NomP, Lieu, <code>#NoDep</code></td>
+                        <td>NoDep → département responsable</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Travaille</strong></td>
+                        <td><u><code>#NSS</code></u>, <u><code>#NoPro</code></u>, Heures</td>
+                        <td>Clé primaire composée</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SVG — Schéma relationnel -->
+        <svg width="560" height="280" viewBox="0 0 560 280" fill="none" xmlns="http://www.w3.org/2000/svg"
+             style="font-family:'Inter',system-ui,sans-serif; display:block; margin:1.5rem auto; max-width:100%; overflow:visible;">
+          <text x="280" y="10" text-anchor="middle" font-size="9" font-weight="600" letter-spacing="0.1em" fill="#9e9a94">RELATIONS ET CLÉS ÉTRANGÈRES</text>
+          <!-- Employé -->
+          <rect x="15" y="53" width="160" height="46" rx="7" fill="rgba(214,117,86,0.1)" stroke="#d67556" stroke-width="1.5"/>
+          <text x="95" y="72" text-anchor="middle" font-size="11" font-weight="600" fill="#d67556">Employé</text>
+          <text x="95" y="87" text-anchor="middle" font-size="9" fill="#9e9a94">NSS · Nom · Prénom · NoDep</text>
+          <!-- Département -->
+          <rect x="385" y="53" width="160" height="46" rx="7" fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+          <text x="465" y="72" text-anchor="middle" font-size="11" font-weight="500" fill="#dedad5">Département</text>
+          <text x="465" y="87" text-anchor="middle" font-size="9" fill="#9e9a94">NoDep · NomD · Directeur</text>
+          <!-- Travaille (dashed = table d'association) -->
+          <rect x="15" y="210" width="160" height="46" rx="7" fill="rgba(158,154,148,0.05)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="5 3"/>
+          <text x="95" y="229" text-anchor="middle" font-size="11" font-weight="500" fill="#dedad5">Travaille</text>
+          <text x="95" y="244" text-anchor="middle" font-size="9" fill="#9e9a94">NSS · NoPro · Heures</text>
+          <!-- Projet -->
+          <rect x="385" y="210" width="160" height="46" rx="7" fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+          <text x="465" y="229" text-anchor="middle" font-size="11" font-weight="500" fill="#dedad5">Projet</text>
+          <text x="465" y="244" text-anchor="middle" font-size="9" fill="#9e9a94">NoPro · NomP · Lieu · NoDep</text>
+          <!-- FK: Employé.NoDep → Département -->
+          <line x1="175" y1="76" x2="377" y2="76" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M 385 76 L 377 71 Q 379 76 377 81 Z" fill="#d67556"/>
+          <text x="280" y="68" text-anchor="middle" font-size="9" fill="#d67556">NoDep</text>
+          <!-- FK: Travaille.NoPro → Projet -->
+          <line x1="175" y1="233" x2="377" y2="233" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M 385 233 L 377 228 Q 379 233 377 238 Z" fill="#9e9a94"/>
+          <text x="280" y="225" text-anchor="middle" font-size="9" fill="#9e9a94">NoPro</text>
+          <!-- FK: Travaille.NSS → Employé -->
+          <line x1="95" y1="202" x2="95" y2="107" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M 95 99 L 90 107 Q 95 105 100 107 Z" fill="#9e9a94"/>
+          <text x="110" y="158" font-size="9" fill="#9e9a94">NSS</text>
+          <!-- FK: Projet.NoDep → Département -->
+          <line x1="465" y1="202" x2="465" y2="107" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M 465 99 L 460 107 Q 465 105 470 107 Z" fill="#9e9a94"/>
+          <text x="480" y="158" font-size="9" fill="#9e9a94">NoDep</text>
+          <!-- Self-loop: Employé.Supérieur → Employé.NSS -->
+          <path d="M 50 53 C 50 23, 140 23, 140 53" stroke="#d67556" stroke-width="1.5" stroke-dasharray="4 3" fill="none" stroke-linecap="round"/>
+          <path d="M 140 53 L 135 45 Q 140 47 145 45 Z" fill="#d67556"/>
+          <text x="95" y="17" text-anchor="middle" font-size="9" fill="#d67556">Supérieur (↻ NSS)</text>
+        </svg>
+
+        <div class="highlight-box">
+            <p><span class="badge badge-blue">Concept clé</span></p>
+            <p><strong>L'algèbre relationnelle, c'est quoi ?</strong> Un langage formel composé d'opérations sur des tables (appelées <em>relations</em>). Chaque opération prend une ou plusieurs tables en entrée et retourne une <em>nouvelle table</em> en sortie. On peut les chaîner comme des filtres successifs.</p>
+            <p><strong>Analogie globale :</strong> imaginez un entrepôt logistique. La <em>sélection</em> (σ) est le portier qui ne laisse passer que certaines caisses (des lignes). La <em>projection</em> (π) est l'opérateur qui retire les articles inutiles de chaque caisse (des colonnes). La <em>jointure</em> (⨝) est le poste qui assemble chaque caisse avec sa fiche de livraison provenant d'un autre rayon (une autre table).</p>
+        </div>
+
+        <div class="callout-info">
+            <strong>Notation algébrique utilisée dans ce corrigé :</strong>
+            <ul>
+                <li>
+                    <code>σ_{condition}(R)</code> — <strong>sélection</strong> : filtre les <em>lignes</em> de R vérifiant la condition<br>
+                    <span class="inline-note">Ex : <code>σ_{Lieu='Genève'}(Projet)</code> → ne garde que les projets à Genève</span>
+                </li>
+                <li>
+                    <code>π_{attrs}(R)</code> — <strong>projection</strong> : conserve uniquement les <em>colonnes</em> listées<br>
+                    <span class="inline-note">Ex : <code>π_{Nom,Prénom}(Employé)</code> → supprime toutes les colonnes sauf Nom et Prénom</span>
+                </li>
+                <li>
+                    <code>R ⨝ S</code> — <strong>jointure naturelle</strong> (sur attributs de même nom) : colle les lignes de R et S qui ont la même valeur sur l'attribut commun<br>
+                    <span class="inline-note">Ex : <code>Employé ⨝ Département</code> joint sur <code>NoDep</code> — chaque employé hérite des infos de son département</span>
+                </li>
+                <li>
+                    <code>R ⨝_{cond} S</code> — <strong>jointure thêta</strong> : même idée mais avec une condition explicite (utile quand les colonnes n'ont pas le même nom)<br>
+                    <span class="inline-note">Ex : <code>Employé ⨝_{Supérieur=NSS_sup} Chef</code> pour relier un employé à son supérieur hiérarchique</span>
+                </li>
+                <li>
+                    <code>∪</code> — <strong>union</strong> : toutes les lignes de R <em>ou</em> de S (au moins l'une des deux) &nbsp;·&nbsp;
+                    <code>∩</code> — <strong>intersection</strong> : lignes présentes dans R <em>et</em> dans S &nbsp;·&nbsp;
+                    <code>−</code> — <strong>différence</strong> : lignes de R qui n'apparaissent <em>pas</em> dans S<br>
+                    <span class="inline-note">Ces trois opérateurs se comportent comme les cercles d'un diagramme de Venn : ∪ = tout, ∩ = zone commune, − = zone exclusive à R</span>
+                </li>
+                <li>
+                    <code>ρ_{ancien→nouveau}(R)</code> — <strong>renommage</strong> : renomme un attribut dans R pour éviter les conflits lors d'une jointure avec la même table<br>
+                    <span class="inline-note">Ex : <code>ρ_{NSS→NSS_sup}(…)</code> permet de distinguer le NSS du subordonné de celui du supérieur quand on joint Employé avec lui-même</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- REQUÊTE 1                                      -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">R1</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Date de naissance et adresse de <strong>Juliette Rochat</strong>.</p>
+
+        <div class="sub-question"><strong>a)</strong> Exprimer en algèbre relationnelle.</div>
+        <div class="sub-question"><strong>b)</strong> Exprimer en SQL.</div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Algèbre relationnelle…"></div>
+    <div class="reponse-zone" contenteditable="true" data-placeholder="b) SQL…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — R1</h4>
+
+            <div class="two-col">
+                <div class="highlight-box">
+                    <p><span class="badge badge-green">Visualisation</span></p>
+                    <p>Imaginez la table <code>Employé</code> comme un tableau Excel. La sélection σ <strong>supprime des lignes</strong> — toutes sauf celle de Juliette Rochat. La projection π <strong>masque des colonnes</strong> — garde uniquement DateNaissance et Adresse.</p>
+                    <p>Résultat : un tableau réduit à 1 ligne × 2 colonnes.</p>
+                    <!-- SVG σ→π pipeline -->
+                    <svg width="460" height="90" viewBox="0 0 460 90" fill="none" xmlns="http://www.w3.org/2000/svg"
+                         style="font-family:'Inter',system-ui,sans-serif; display:block; margin:0.75rem auto; max-width:100%;">
+                      <!-- Employé source -->
+                      <rect x="5" y="18" width="90" height="52" rx="6" fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+                      <text x="50" y="38" text-anchor="middle" font-size="10" font-weight="500" fill="#d67556">Employé</text>
+                      <text x="50" y="52" text-anchor="middle" font-size="8" fill="#9e9a94">n lignes</text>
+                      <text x="50" y="63" text-anchor="middle" font-size="8" fill="#9e9a94">8 colonnes</text>
+                      <!-- Arrow + σ -->
+                      <line x1="95" y1="44" x2="147" y2="44" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="M 155 44 L 147 39 Q 149 44 147 49 Z" fill="#d67556"/>
+                      <text x="125" y="37" text-anchor="middle" font-size="11" font-weight="600" fill="#d67556">σ</text>
+                      <text x="125" y="60" text-anchor="middle" font-size="8" fill="#9e9a94">filtre lignes</text>
+                      <!-- After σ -->
+                      <rect x="155" y="18" width="90" height="52" rx="6" fill="rgba(214,117,86,0.08)" stroke="#d67556" stroke-width="1.5"/>
+                      <text x="200" y="38" text-anchor="middle" font-size="10" font-weight="500" fill="#d67556">Filtré</text>
+                      <text x="200" y="52" text-anchor="middle" font-size="8" fill="#9e9a94">1 ligne</text>
+                      <text x="200" y="63" text-anchor="middle" font-size="8" fill="#9e9a94">8 colonnes</text>
+                      <!-- Arrow + π -->
+                      <line x1="245" y1="44" x2="297" y2="44" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                      <path d="M 305 44 L 297 39 Q 299 44 297 49 Z" fill="#d67556"/>
+                      <text x="275" y="37" text-anchor="middle" font-size="11" font-weight="600" fill="#d67556">π</text>
+                      <text x="275" y="60" text-anchor="middle" font-size="8" fill="#9e9a94">filtre col.</text>
+                      <!-- Final result -->
+                      <rect x="305" y="18" width="148" height="52" rx="6" fill="rgba(214,117,86,0.14)" stroke="#d67556" stroke-width="1.5"/>
+                      <text x="379" y="38" text-anchor="middle" font-size="10" font-weight="600" fill="#d67556">Résultat</text>
+                      <text x="379" y="52" text-anchor="middle" font-size="8" fill="#d67556">1 ligne · 2 colonnes</text>
+                      <text x="379" y="63" text-anchor="middle" font-size="8" fill="#9e9a94">DateNaissance, Adresse</text>
+                    </svg>
+                </div>
+                <div class="callout-info">
+                    <p><span class="badge badge-blue">Ordre des opérations</span></p>
+                    <p>On applique toujours σ <em>avant</em> π. Pourquoi ? Parce que σ réduit le nombre de lignes en premier — on projette ensuite sur un ensemble déjà filtré, ce qui est logiquement plus naturel (et plus efficace en pratique).</p>
+                </div>
+            </div>
+
+            <p><strong>a) Algèbre relationnelle</strong></p>
+            <pre><code>π_{DateNaissance, Adresse}(σ_{Nom='Rochat' ∧ Prénom='Juliette'}(Employé))</code></pre>
+            <p class="inline-note">On sélectionne la ligne de Juliette Rochat (σ filtre les lignes) puis on projette sur les deux attributs demandés (π filtre les colonnes). Aucune jointure n'est nécessaire car toutes les informations sont dans <code>Employé</code>.</p>
+
+            <p><strong>b) SQL</strong></p>
+            <pre><code>SELECT DateNaissance, Adresse
+FROM   Employé
+WHERE  Nom    = 'Rochat'
+  AND  Prénom = 'Juliette';</code></pre>
+            <p class="inline-note">La clause <code>WHERE</code> est l'équivalent SQL de σ ; <code>SELECT DateNaissance, Adresse</code> est l'équivalent de π.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- REQUÊTE 2                                      -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">R2</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Nom et adresse des employés qui travaillent au <strong>département de recherche</strong>.</p>
+
+        <button class="hint-btn" data-hint="r2-h1" data-label="Indice" data-close-label="Masquer l'indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="r2-h1">
+            Il faut joindre <code>Employé</code> et <code>Département</code> via <code>NoDep</code>,
+            puis filtrer sur <code>NomD = 'Recherche'</code>.
+        </div>
+
+        <div class="sub-question"><strong>a)</strong> Exprimer en algèbre relationnelle.</div>
+        <div class="sub-question"><strong>b)</strong> Exprimer en SQL.</div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Algèbre relationnelle…"></div>
+    <div class="reponse-zone" contenteditable="true" data-placeholder="b) SQL…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — R2</h4>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Pourquoi joindre ?</span></p>
+                <p>La table <code>Employé</code> ne stocke que le <em>numéro</em> de département (<code>NoDep</code>), pas son nom. Pour savoir si un employé travaille au département "Recherche", il faut consulter la table <code>Département</code>.</p>
+                <p>La <strong>jointure naturelle</strong> <em>colle</em> automatiquement chaque ligne d'<code>Employé</code> à la ligne correspondante dans <code>Département</code> en cherchant la colonne de même nom : <code>NoDep</code>. C'est comme faire une fonction RECHERCHEV dans Excel sur la colonne <code>NoDep</code>.</p>
+                <!-- SVG Join bridge -->
+                <svg width="440" height="80" viewBox="0 0 440 80" fill="none" xmlns="http://www.w3.org/2000/svg"
+                     style="font-family:'Inter',system-ui,sans-serif; display:block; margin:0.75rem auto; max-width:100%;">
+                  <rect x="5" y="18" width="130" height="44" rx="7" fill="rgba(214,117,86,0.1)" stroke="#d67556" stroke-width="1.5"/>
+                  <text x="70" y="36" text-anchor="middle" font-size="10" font-weight="600" fill="#d67556">Employé</text>
+                  <text x="70" y="51" text-anchor="middle" font-size="8" fill="#9e9a94">NSS · Nom · NoDep</text>
+                  <!-- Bridge node -->
+                  <rect x="175" y="26" width="90" height="28" rx="14" fill="rgba(214,117,86,0.18)" stroke="#d67556" stroke-width="1.5"/>
+                  <text x="220" y="44" text-anchor="middle" font-size="10" font-weight="700" fill="#d67556">⨝ NoDep</text>
+                  <!-- Département -->
+                  <rect x="305" y="18" width="130" height="44" rx="7" fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                  <text x="370" y="36" text-anchor="middle" font-size="10" font-weight="500" fill="#dedad5">Département</text>
+                  <text x="370" y="51" text-anchor="middle" font-size="8" fill="#9e9a94">NoDep · NomD</text>
+                  <!-- Lines -->
+                  <line x1="135" y1="40" x2="175" y2="40" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                  <line x1="265" y1="40" x2="305" y2="40" stroke="#9e9a94" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+
+            <p><strong>a) Algèbre relationnelle</strong></p>
+            <pre><code>π_{Nom, Adresse}(σ_{NomD='Recherche'}(Employé ⨝ Département))</code></pre>
+            <p class="inline-note">La jointure naturelle sur <code>NoDep</code> est possible car les deux tables partagent cet attribut sous le même nom. Après la jointure, chaque ligne fusionnée contient tous les attributs d'Employé <em>et</em> de Département — on peut donc filtrer sur <code>NomD</code> puis projeter sur <code>Nom</code> et <code>Adresse</code>.</p>
+
+            <p><strong>b) SQL</strong></p>
+            <pre><code>SELECT e.Nom, e.Adresse
+FROM   Employé     e
+JOIN   Département d ON e.NoDep = d.NoDep
+WHERE  d.NomD = 'Recherche';</code></pre>
+            <p class="inline-note">Les alias <code>e</code> et <code>d</code> permettent d'éviter toute ambiguïté si deux tables possèdent une colonne de même nom (ici <code>NoDep</code> existe dans les deux).</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- REQUÊTE 3                                      -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">R3</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Nom et prénom des employés dont le <strong>supérieur est Juliette Rochat</strong>.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> L'attribut <code>Supérieur</code> stocke le <em>NSS</em> du supérieur,
+            pas son nom. Il faut joindre la table <code>Employé</code> avec elle-même
+            (auto-jointure) pour relier un employé à son supérieur.
+        </div>
+
+        <button class="hint-btn" data-hint="r3-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="r3-h1">
+            En algèbre, extrayez d'abord le NSS de Juliette Rochat, puis renommez cet attribut
+            (<code>NSS → NSS_sup</code>) pour éviter l'ambiguïté lors de la jointure.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="r3-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="r3-h2">
+            En SQL, utilisez deux alias sur la même table :
+            <code>FROM Employé e JOIN Employé chef ON e.Supérieur = chef.NSS</code>,
+            puis filtrez sur le nom de <code>chef</code>.
+        </div>
+
+        <div class="sub-question"><strong>a)</strong> Exprimer en algèbre relationnelle.</div>
+        <div class="sub-question"><strong>b)</strong> Exprimer en SQL.</div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Algèbre relationnelle…"></div>
+    <div class="reponse-zone" contenteditable="true" data-placeholder="b) SQL…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — R3</h4>
+
+            <p><strong>a) Algèbre relationnelle</strong></p>
+            <pre><code>Sup ← ρ_{NSS → NSS_sup}(π_{NSS}(σ_{Nom='Rochat' ∧ Prénom='Juliette'}(Employé)))
+
+π_{Nom, Prénom}(Employé ⨝_{Supérieur = NSS_sup} Sup)</code></pre>
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Comprendre l'auto-jointure</span></p>
+                <p>Imaginez qu'on <strong>imprime la table <code>Employé</code> en deux exemplaires</strong>. On pose une copie sur la table en l'appelant "subordonné" (<code>e</code>) et l'autre en l'appelant "chef" (<code>chef</code>). La jointure relie chaque ligne de la copie "subordonné" à la ligne de "chef" dont le NSS correspond à la valeur stockée dans <code>e.Supérieur</code>.</p>
+                <p>En algèbre, le renommage <code>ρ_{NSS→NSS_sup}</code> joue le même rôle que ces alias : il différencie les deux "copies" pour qu'on sache de quel NSS on parle à chaque étape.</p>
+                <!-- SVG Auto-join -->
+                <svg width="420" height="110" viewBox="0 0 420 110" fill="none" xmlns="http://www.w3.org/2000/svg"
+                     style="font-family:'Inter',system-ui,sans-serif; display:block; margin:0.75rem auto; max-width:100%;">
+                  <!-- Copy e (subordonné) -->
+                  <rect x="10" y="35" width="150" height="44" rx="7" fill="rgba(214,117,86,0.1)" stroke="#d67556" stroke-width="1.5"/>
+                  <text x="85" y="54" text-anchor="middle" font-size="10" font-weight="600" fill="#d67556">Employé e</text>
+                  <text x="85" y="68" text-anchor="middle" font-size="8" fill="#9e9a94">subordonné · e.Supérieur</text>
+                  <!-- Copy chef -->
+                  <rect x="260" y="35" width="150" height="44" rx="7" fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="5 3"/>
+                  <text x="335" y="54" text-anchor="middle" font-size="10" font-weight="500" fill="#dedad5">Employé chef</text>
+                  <text x="335" y="68" text-anchor="middle" font-size="8" fill="#9e9a94">chef.NSS = e.Supérieur</text>
+                  <!-- Join arrow -->
+                  <line x1="160" y1="57" x2="252" y2="57" stroke="#d67556" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="3 3"/>
+                  <path d="M 260 57 L 252 52 Q 254 57 252 62 Z" fill="#d67556"/>
+                  <text x="210" y="49" text-anchor="middle" font-size="8" fill="#d67556">e.Supérieur</text>
+                  <text x="210" y="70" text-anchor="middle" font-size="8" fill="#d67556">= chef.NSS</text>
+                  <!-- Source label -->
+                  <text x="85" y="96" text-anchor="middle" font-size="8" fill="#9e9a94">copie 1 (alias e)</text>
+                  <text x="335" y="96" text-anchor="middle" font-size="8" fill="#9e9a94">copie 2 (alias chef)</text>
+                  <text x="210" y="108" text-anchor="middle" font-size="8" font-weight="500" fill="#9e9a94">même table Employé — deux rôles</text>
+                </svg>
+            </div>
+
+            <ul class="steps">
+                <li><strong>Étape 1 :</strong> On extrait le NSS de Juliette Rochat → une mini-table à 1 ligne, 1 colonne (<code>NSS</code>).</li>
+                <li><strong>Étape 2 :</strong> On renomme cette colonne <code>NSS → NSS_sup</code> pour pouvoir la joindre avec <code>Employé.Supérieur</code> sans ambiguïté.</li>
+                <li><strong>Étape 3 :</strong> La jointure thêta <code>Supérieur = NSS_sup</code> retrouve toutes les lignes d'Employé dont le champ Supérieur vaut le NSS de Juliette.</li>
+                <li><strong>Étape 4 :</strong> On projette sur <code>Nom, Prénom</code> des subordonnés trouvés.</li>
+            </ul>
+
+            <p><strong>b) SQL</strong></p>
+            <pre><code>SELECT e.Nom, e.Prénom
+FROM   Employé e
+JOIN   Employé chef ON e.Supérieur = chef.NSS
+WHERE  chef.Nom    = 'Rochat'
+  AND  chef.Prénom = 'Juliette';</code></pre>
+            <p class="inline-note">L'alias <code>chef</code> représente la copie « supérieur » de la table ; <code>e</code> représente le subordonné. La colonne <code>e.Supérieur</code> stocke un NSS — la jointure le relie au vrai NSS de <code>chef</code>. Sans les deux alias, SQL ne pourrait pas distinguer les deux usages de la même table.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- REQUÊTE 4                                      -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">R4</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Nom des employés qui travaillent <strong>plus de 10 heures</strong> sur un projet situé à <strong>Genève</strong>.</p>
+
+        <button class="hint-btn" data-hint="r4-h1" data-label="Indice" data-close-label="Masquer l'indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="r4-h1">
+            Deux conditions à combiner : <code>Lieu = 'Genève'</code> dans <code>Projet</code>
+            et <code>Heures &gt; 10</code> dans <code>Travaille</code>.
+            Les trois tables <code>Employé</code>, <code>Travaille</code> et <code>Projet</code> sont nécessaires.
+        </div>
+
+        <div class="sub-question"><strong>a)</strong> Exprimer en algèbre relationnelle.</div>
+        <div class="sub-question"><strong>b)</strong> Exprimer en SQL.</div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Algèbre relationnelle…"></div>
+    <div class="reponse-zone" contenteditable="true" data-placeholder="b) SQL…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — R4</h4>
+
+            <p><strong>a) Algèbre relationnelle</strong></p>
+            <pre><code>ProjGen ← π_{NoPro}(σ_{Lieu='Genève'}(Projet))
+TravGen ← π_{NSS}(σ_{Heures>10}(Travaille ⨝ ProjGen))
+π_{Nom}(Employé ⨝ TravGen)</code></pre>
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Stratégie : filtrer tôt, joindre ensuite</span></p>
+                <p>Cette requête doit traverser trois tables : <code>Projet</code> → <code>Travaille</code> → <code>Employé</code>. Bonne pratique : <strong>filtrer le plus tôt possible</strong> pour réduire la taille des tables intermédiaires avant chaque jointure. En algèbre, on commence par isoler les projets à Genève (1 opération légère), puis on filtre les heures, puis seulement on récupère les noms.</p>
+                <!-- SVG 3-table pipeline -->
+                <svg width="480" height="80" viewBox="0 0 480 80" fill="none" xmlns="http://www.w3.org/2000/svg"
+                     style="font-family:'Inter',system-ui,sans-serif; display:block; margin:0.75rem auto; max-width:100%;">
+                  <!-- Projet -->
+                  <rect x="5" y="18" width="120" height="44" rx="7" fill="rgba(158,154,148,0.08)" stroke="#9e9a94" stroke-width="1.5"/>
+                  <text x="65" y="37" text-anchor="middle" font-size="10" font-weight="500" fill="#dedad5">Projet</text>
+                  <text x="65" y="52" text-anchor="middle" font-size="8" fill="#9e9a94">σ Lieu='Genève'</text>
+                  <!-- Arrow 1 -->
+                  <line x1="125" y1="40" x2="172" y2="40" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M 180 40 L 172 35 Q 174 40 172 45 Z" fill="#d67556"/>
+                  <text x="152" y="33" text-anchor="middle" font-size="8" fill="#9e9a94">⨝ NoPro</text>
+                  <!-- Travaille -->
+                  <rect x="180" y="18" width="120" height="44" rx="7" fill="rgba(158,154,148,0.05)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="5 3"/>
+                  <text x="240" y="37" text-anchor="middle" font-size="10" font-weight="500" fill="#dedad5">Travaille</text>
+                  <text x="240" y="52" text-anchor="middle" font-size="8" fill="#9e9a94">σ Heures&gt;10</text>
+                  <!-- Arrow 2 -->
+                  <line x1="300" y1="40" x2="347" y2="40" stroke="#d67556" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M 355 40 L 347 35 Q 349 40 347 45 Z" fill="#d67556"/>
+                  <text x="327" y="33" text-anchor="middle" font-size="8" fill="#9e9a94">⨝ NSS</text>
+                  <!-- Employé -->
+                  <rect x="355" y="18" width="120" height="44" rx="7" fill="rgba(214,117,86,0.1)" stroke="#d67556" stroke-width="1.5"/>
+                  <text x="415" y="37" text-anchor="middle" font-size="10" font-weight="600" fill="#d67556">Employé</text>
+                  <text x="415" y="52" text-anchor="middle" font-size="8" fill="#9e9a94">π Nom</text>
+                </svg>
+            </div>
+
+            <ul class="steps">
+                <li><strong>Étape 1 :</strong> <code>σ_{Lieu='Genève'}(Projet)</code> → liste des projets genevois. On ne garde que leur <code>NoPro</code> par projection.</li>
+                <li><strong>Étape 2 :</strong> On joint avec <code>Travaille</code> (via <code>NoPro</code>) puis on filtre <code>Heures &gt; 10</code>. On obtient les NSS des employés concernés.</li>
+                <li><strong>Étape 3 :</strong> On joint avec <code>Employé</code> (via <code>NSS</code>) pour récupérer les noms.</li>
+            </ul>
+
+            <p><strong>b) SQL</strong></p>
+            <pre><code>SELECT DISTINCT e.Nom
+FROM   Employé  e
+JOIN   Travaille t ON e.NSS  = t.NSS
+JOIN   Projet    p ON t.NoPro = p.NoPro
+WHERE  p.Lieu    = 'Genève'
+  AND  t.Heures  > 10;</code></pre>
+            <p class="inline-note"><code>DISTINCT</code> évite les doublons : un même employé qui travaillerait sur <em>deux</em> projets genevois à plus de 10 heures chacun apparaîtrait deux fois sans <code>DISTINCT</code>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- REQUÊTE 5                                      -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">R5</span>
+            <span class="question-pts">4 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Nom des projets sur lesquels travaillent <strong>Jean Muller et Annie Grandjean</strong>.
+            Ici le mot <em>« et »</em> signifie l'un ou l'autre, ou les deux — c'est une <strong>union</strong>.
+        </p>
+
+        <div class="callout-info">
+            <strong>Attention à l'ambiguïté du « et » en français :</strong>
+            l'énoncé précise que « et » désigne ici l'union (au moins l'un des deux).
+            La requête R6 traitera le cas où les <em>deux</em> doivent travailler ensemble sur le même projet (intersection).
+        </div>
+
+        <button class="hint-btn" data-hint="r5-h1" data-label="Indice — stratégie en 3 étapes" data-close-label="Masquer l'indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice — stratégie en 3 étapes</span>
+        </button>
+        <div class="hint" id="r5-h1">
+            <strong>Étape 1 :</strong> Isoler le NSS de chaque personne séparément (deux σ sur <code>Employé</code>).<br>
+            <strong>Étape 2 :</strong> Pour chaque personne, retrouver ses numéros de projets (⨝ avec <code>Travaille</code>, puis π sur <code>NoPro</code>).<br>
+            <strong>Étape 3 :</strong> Combiner les deux ensembles de NoPro avec <code>∪</code>, puis récupérer les noms via <code>Projet</code>.
+        </div>
+
+        <div class="sub-question"><strong>a)</strong> Exprimer en algèbre relationnelle.</div>
+        <div class="sub-question"><strong>b)</strong> Exprimer en SQL.</div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Algèbre relationnelle…"></div>
+    <div class="reponse-zone" contenteditable="true" data-placeholder="b) SQL…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — R5</h4>
+
+            <p><strong>a) Algèbre relationnelle</strong></p>
+            <pre><code>NSS_M ← π_{NSS}(σ_{Nom='Muller'    ∧ Prénom='Jean' }(Employé))
+NSS_A ← π_{NSS}(σ_{Nom='Grandjean' ∧ Prénom='Annie'}(Employé))
+
+NoPro_M ← π_{NoPro}(Travaille ⨝ NSS_M)
+NoPro_A ← π_{NoPro}(Travaille ⨝ NSS_A)
+
+π_{NomP}(Projet ⨝ (NoPro_M ∪ NoPro_A))</code></pre>
+            <div class="two-col">
+                <div class="highlight-box">
+                    <p><span class="badge badge-green">Diagramme de Venn — Union</span></p>
+                    <p>Visualisez deux cercles. Le cercle gauche contient les numéros de projets de Jean Muller. Le cercle droit contient ceux d'Annie Grandjean. L'<strong>union (∪)</strong> retourne <em>tout ce qui est dans au moins un des deux cercles</em> — la zone de gauche, la zone commune et la zone de droite.</p>
+                    <!-- SVG Venn Union -->
+                    <svg width="260" height="115" viewBox="0 0 260 115" fill="none" xmlns="http://www.w3.org/2000/svg"
+                         style="font-family:'Inter',system-ui,sans-serif; display:block; margin:0.5rem auto; max-width:100%;">
+                      <!-- Both circles filled = union -->
+                      <circle cx="90" cy="52" r="46" fill="rgba(214,117,86,0.2)" stroke="#d67556" stroke-width="1.5"/>
+                      <circle cx="170" cy="52" r="46" fill="rgba(214,117,86,0.2)" stroke="#d67556" stroke-width="1.5"/>
+                      <text x="58" y="49" text-anchor="middle" font-size="9" fill="#d67556">Jean</text>
+                      <text x="58" y="61" text-anchor="middle" font-size="9" fill="#d67556">Muller</text>
+                      <text x="202" y="49" text-anchor="middle" font-size="9" fill="#d67556">Annie</text>
+                      <text x="202" y="61" text-anchor="middle" font-size="9" fill="#d67556">Grandjean</text>
+                      <text x="130" y="55" text-anchor="middle" font-size="16" font-weight="700" fill="#d67556">∪</text>
+                      <text x="130" y="106" text-anchor="middle" font-size="8" fill="#9e9a94">tout ce qui est dans au moins un cercle</text>
+                    </svg>
+                </div>
+                <div class="callout-info">
+                    <p><span class="badge badge-blue">Structure en 3 étapes</span></p>
+                    <p>1. Isoler les NSS de chaque personne (σ sur Employé)</p>
+                    <p>2. Trouver les NoPro associés à chaque personne (⨝ avec Travaille)</p>
+                    <p>3. Faire l'union des deux ensembles de NoPro, puis récupérer les noms via Projet</p>
+                </div>
+            </div>
+
+            <p class="inline-note">L'union <code>∪</code> retourne les numéros de projets impliquant Jean Muller, Annie Grandjean, ou les deux à la fois. Une même valeur apparaît une seule fois dans le résultat (l'union élimine les doublons automatiquement en algèbre).</p>
+
+            <p><strong>b) SQL</strong></p>
+            <pre><code>SELECT DISTINCT p.NomP
+FROM   Projet    p
+JOIN   Travaille t ON p.NoPro = t.NoPro
+JOIN   Employé   e ON t.NSS   = e.NSS
+WHERE  (e.Nom = 'Muller'    AND e.Prénom = 'Jean' )
+    OR (e.Nom = 'Grandjean' AND e.Prénom = 'Annie');</code></pre>
+            <p class="inline-note">En SQL, l'union se traduit par un <code>OR</code> dans le <code>WHERE</code>. Le <code>DISTINCT</code> est indispensable : un projet commun aux deux apparaîtrait deux fois sans lui.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- REQUÊTE 6                                      -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">R6</span>
+            <span class="question-pts">4 pts</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Nom des projets sur lesquels travaillent <strong>à la fois</strong> Jean Muller et Annie Grandjean
+            — c'est une <strong>intersection</strong>.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Utiliser <code>OR</code> au lieu d'une intersection.
+            Un <code>WHERE … OR …</code> retourne les projets d'<em>au moins un</em> des deux (R5),
+            pas ceux des <em>deux ensemble</em>.
+        </div>
+
+        <button class="hint-btn" data-hint="r6-h1" data-label="Indice" data-close-label="Masquer l'indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="r6-h1">
+            Réutilisez la structure de R5 en remplaçant <code>∪</code> par <code>∩</code>.
+            En SQL, utilisez <code>INTERSECT</code> ou deux sous-requêtes <code>IN (…) AND … IN (…)</code>.
+        </div>
+
+        <div class="sub-question"><strong>a)</strong> Exprimer en algèbre relationnelle.</div>
+        <div class="sub-question"><strong>b)</strong> Exprimer en SQL.</div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Algèbre relationnelle…"></div>
+    <div class="reponse-zone" contenteditable="true" data-placeholder="b) SQL…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — R6</h4>
+
+            <p><strong>a) Algèbre relationnelle</strong></p>
+            <pre><code>NSS_M ← π_{NSS}(σ_{Nom='Muller'    ∧ Prénom='Jean' }(Employé))
+NSS_A ← π_{NSS}(σ_{Nom='Grandjean' ∧ Prénom='Annie'}(Employé))
+
+NoPro_M ← π_{NoPro}(Travaille ⨝ NSS_M)
+NoPro_A ← π_{NoPro}(Travaille ⨝ NSS_A)
+
+π_{NomP}(Projet ⨝ (NoPro_M ∩ NoPro_A))</code></pre>
+            <div class="two-col">
+                <div class="highlight-box">
+                    <p><span class="badge badge-green">Diagramme de Venn — Intersection</span></p>
+                    <p>Avec les mêmes deux cercles, l'<strong>intersection (∩)</strong> ne retourne que la <em>zone de chevauchement</em> : uniquement les numéros de projets présents dans les deux cercles en même temps. Si Muller travaille sur [P1, P2, P3] et Grandjean sur [P2, P3, P4], l'intersection donne [P2, P3].</p>
+                    <!-- SVG Venn Intersection -->
+                    <svg width="260" height="115" viewBox="0 0 260 115" fill="none" xmlns="http://www.w3.org/2000/svg"
+                         style="font-family:'Inter',system-ui,sans-serif; display:block; margin:0.5rem auto; max-width:100%;">
+                      <defs>
+                        <clipPath id="clip-r6-muller">
+                          <circle cx="90" cy="52" r="46"/>
+                        </clipPath>
+                      </defs>
+                      <!-- Circles outlined only -->
+                      <circle cx="90" cy="52" r="46" fill="rgba(214,117,86,0.05)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="4 3"/>
+                      <!-- Intersection fill (circle A clipped to circle J) -->
+                      <circle cx="170" cy="52" r="46" fill="rgba(214,117,86,0.28)" stroke="none" clip-path="url(#clip-r6-muller)"/>
+                      <!-- Circle A outline -->
+                      <circle cx="170" cy="52" r="46" fill="rgba(214,117,86,0.05)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="4 3"/>
+                      <text x="58" y="49" text-anchor="middle" font-size="9" fill="#9e9a94">Jean</text>
+                      <text x="58" y="61" text-anchor="middle" font-size="9" fill="#9e9a94">Muller</text>
+                      <text x="202" y="49" text-anchor="middle" font-size="9" fill="#9e9a94">Annie</text>
+                      <text x="202" y="61" text-anchor="middle" font-size="9" fill="#9e9a94">Grandjean</text>
+                      <text x="130" y="55" text-anchor="middle" font-size="16" font-weight="700" fill="#d67556">∩</text>
+                      <text x="130" y="106" text-anchor="middle" font-size="8" fill="#9e9a94">seulement la zone commune</text>
+                    </svg>
+                </div>
+                <div class="callout-info">
+                    <p><span class="badge badge-red">Union ≠ Intersection</span></p>
+                    <p>R5 et R6 ont <strong>exactement la même structure</strong> en algèbre — seul l'opérateur change : <code>∪</code> pour R5, <code>∩</code> pour R6. Le résultat de R6 est toujours un sous-ensemble de R5.</p>
+                </div>
+            </div>
+
+            <p class="inline-note">L'intersection <code>∩</code> ne conserve que les projets présents dans les deux ensembles : ceux où travaille Muller <em>et</em> ceux où travaille Grandjean.</p>
+
+            <p><strong>b) SQL — avec INTERSECT</strong></p>
+            <pre><code>SELECT p.NomP
+FROM   Projet p JOIN Travaille t ON p.NoPro = t.NoPro
+               JOIN Employé   e ON t.NSS   = e.NSS
+WHERE  e.Nom = 'Muller' AND e.Prénom = 'Jean'
+
+INTERSECT
+
+SELECT p.NomP
+FROM   Projet p JOIN Travaille t ON p.NoPro = t.NoPro
+               JOIN Employé   e ON t.NSS   = e.NSS
+WHERE  e.Nom = 'Grandjean' AND e.Prénom = 'Annie';</code></pre>
+
+            <div class="callout-info">
+                <strong>Variante avec double <code>IN</code></strong> (sans opérateur <code>INTERSECT</code>) :
+                <pre><code>SELECT NomP
+FROM   Projet
+WHERE  NoPro IN (SELECT t.NoPro FROM Travaille t
+                 JOIN Employé e ON t.NSS = e.NSS
+                 WHERE e.Nom = 'Muller' AND e.Prénom = 'Jean')
+  AND  NoPro IN (SELECT t.NoPro FROM Travaille t
+                 JOIN Employé e ON t.NSS = e.NSS
+                 WHERE e.Nom = 'Grandjean' AND e.Prénom = 'Annie');</code></pre>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- REQUÊTE 7                                      -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">R7</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Nom et prénom des employés qui <strong>ne travaillent sur aucun projet</strong>.</p>
+
+        <button class="hint-btn" data-hint="r7-h1" data-label="Indice" data-close-label="Masquer l'indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="r7-h1">
+            En algèbre, soustrayez (<code>−</code>) les NSS présents dans <code>Travaille</code>
+            de l'ensemble de tous les NSS. En SQL, utilisez <code>NOT IN</code> ou <code>LEFT JOIN … WHERE … IS NULL</code>.
+        </div>
+
+        <div class="sub-question"><strong>a)</strong> Exprimer en algèbre relationnelle.</div>
+        <div class="sub-question"><strong>b)</strong> Exprimer en SQL.</div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Algèbre relationnelle…"></div>
+    <div class="reponse-zone" contenteditable="true" data-placeholder="b) SQL…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — R7</h4>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Analogie — la liste d'absents</span></p>
+                <p>Imaginez deux listes : la liste de <em>tous les employés de l'entreprise</em> et la liste des employés qui figurent dans au moins une ligne de <code>Travaille</code> (donc qui travaillent sur un projet). La <strong>différence (−)</strong> donne la liste des employés qui sont dans la première liste mais <em>pas</em> dans la seconde — c'est-à-dire ceux qui n'ont aucun projet assigné.</p>
+                <!-- SVG Set Difference -->
+                <svg width="300" height="110" viewBox="0 0 300 110" fill="none" xmlns="http://www.w3.org/2000/svg"
+                     style="font-family:'Inter',system-ui,sans-serif; display:block; margin:0.75rem auto; max-width:100%;">
+                  <defs>
+                    <clipPath id="clip-r7-right">
+                      <circle cx="175" cy="52" r="42"/>
+                    </clipPath>
+                  </defs>
+                  <!-- Left circle (TousNSS) filled with accent -->
+                  <circle cx="105" cy="52" r="48" fill="rgba(214,117,86,0.22)" stroke="#d67556" stroke-width="1.5"/>
+                  <!-- Mask out intersection from left circle using right circle -->
+                  <circle cx="175" cy="52" r="42" fill="rgba(214,117,86,0.05)" stroke="#9e9a94" stroke-width="1.5" stroke-dasharray="4 3"/>
+                  <!-- Re-fill the intersection with lower opacity to visually "subtract" -->
+                  <circle cx="175" cy="52" r="42" fill="rgba(30,27,22,0.55)" stroke="none" clip-path="url(#clip-r7-right)"/>
+                  <!-- Labels -->
+                  <text x="72" y="49" text-anchor="middle" font-size="8" fill="#d67556">Tous</text>
+                  <text x="72" y="60" text-anchor="middle" font-size="8" fill="#d67556">NSS</text>
+                  <text x="210" y="49" text-anchor="middle" font-size="8" fill="#9e9a94">NSS</text>
+                  <text x="210" y="60" text-anchor="middle" font-size="8" fill="#9e9a94">Travaille</text>
+                  <!-- Minus symbol -->
+                  <text x="148" y="57" text-anchor="middle" font-size="16" font-weight="700" fill="#9e9a94">−</text>
+                  <!-- Bottom label -->
+                  <text x="150" y="105" text-anchor="middle" font-size="8" fill="#9e9a94">zone exclusive = employés sans projet</text>
+                </svg>
+            </div>
+
+            <p><strong>a) Algèbre relationnelle</strong></p>
+            <pre><code>TousNSS  ← π_{NSS}(Employé)
+NSS_Trav ← π_{NSS}(Travaille)
+Sans     ← TousNSS − NSS_Trav
+
+π_{Nom, Prénom}(Employé ⨝ Sans)</code></pre>
+
+            <ul class="steps">
+                <li><strong>Étape 1 :</strong> <code>TousNSS ← π_{NSS}(Employé)</code> — tous les identifiants d'employés.</li>
+                <li><strong>Étape 2 :</strong> <code>NSS_Trav ← π_{NSS}(Travaille)</code> — les identifiants d'employés qui ont au moins un projet.</li>
+                <li><strong>Étape 3 :</strong> <code>Sans ← TousNSS − NSS_Trav</code> — la différence : NSS des employés sans aucun projet.</li>
+                <li><strong>Étape 4 :</strong> On joint avec <code>Employé</code> pour récupérer <code>Nom</code> et <code>Prénom</code> correspondants.</li>
+            </ul>
+
+            <p><strong>b) SQL</strong></p>
+            <pre><code>SELECT Nom, Prénom
+FROM   Employé
+WHERE  NSS NOT IN (SELECT NSS FROM Travaille);</code></pre>
+            <p class="inline-note"><code>NOT IN (sous-requête)</code> est la traduction directe de la différence ensembliste. Attention : si <code>Travaille.NSS</code> peut contenir des <code>NULL</code>, <code>NOT IN</code> se comporte de manière inattendue — préférer alors <code>NOT EXISTS</code> ou le <code>LEFT JOIN</code>.</p>
+
+            <div class="two-col">
+                <div class="callout-info">
+                    <strong>Variante avec <code>LEFT JOIN</code></strong> (généralement plus performante) :
+                    <pre><code>SELECT e.Nom, e.Prénom
+FROM   Employé  e
+LEFT   JOIN Travaille t ON e.NSS = t.NSS
+WHERE  t.NSS IS NULL;</code></pre>
+                    <p style="margin:0.4rem 0 0">Le <code>LEFT JOIN</code> conserve tous les employés ; <code>WHERE t.NSS IS NULL</code> filtre ceux sans correspondance dans <code>Travaille</code>.</p>
+                </div>
+                <div class="highlight-box">
+                    <p><span class="badge badge-green">Comprendre LEFT JOIN + IS NULL</span></p>
+                    <p>Un <code>LEFT JOIN</code> garde toutes les lignes de gauche (<code>Employé</code>), même si elles n'ont pas de correspondance à droite (<code>Travaille</code>). Pour les lignes sans correspondance, les colonnes de droite valent <code>NULL</code>. La condition <code>WHERE t.NSS IS NULL</code> isole exactement ces cas : les employés sans aucune ligne dans <code>Travaille</code>.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ── BARÈME ── -->
+    <div class="bareme">
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">R1 — Projection-sélection simple</span>
+        <span class="bareme-desc">1 pt algèbre · 1 pt SQL</span>
+
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">R2 — Jointure + filtre</span>
+        <span class="bareme-desc">1 pt algèbre · 1 pt SQL</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">R3 — Auto-jointure / renommage</span>
+        <span class="bareme-desc">2 pts algèbre (renommage + jointure thêta) · 1 pt SQL</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">R4 — Jointure triple + double filtre</span>
+        <span class="bareme-desc">2 pts algèbre · 1 pt SQL</span>
+
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">R5 — Union</span>
+        <span class="bareme-desc">2 pts algèbre (construction NoPro_M ∪ NoPro_A) · 2 pts SQL</span>
+
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">R6 — Intersection</span>
+        <span class="bareme-desc">2 pts algèbre · 2 pts SQL (INTERSECT ou double IN)</span>
+
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">R7 — Différence / NOT IN</span>
+        <span class="bareme-desc">1 pt algèbre · 1 pt SQL</span>
+
+        <div class="bareme-total">Total : <strong>20 pts</strong></div>
+    </div>
+
+
+    <!-- ── POUR ALLER PLUS LOIN ── -->
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Pouvez-vous exprimer R6 avec l'opérateur de division (÷) ? À quelle condition cela fonctionne-t-il ?</li>
+            <li>Réécrire R7 avec <code>NOT EXISTS</code>. Quelle différence si <code>NSS</code> peut être <code>NULL</code> dans <code>Travaille</code> ?</li>
+            <li>Pour R4, que se passe-t-il si un employé travaille sur deux projets genevois ? Le <code>DISTINCT</code> est-il toujours suffisant ?</li>
+            <li>Quelle requête permettrait de trouver les employés qui travaillent <em>uniquement</em> sur des projets à Genève (et pas ailleurs) ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>
