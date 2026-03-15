@@ -106,6 +106,35 @@ GROUP BY
     <div class="hint" id="rappel-groupby">
         <p><strong>Sans GROUP BY :</strong> <code>SELECT AVG(Note) FROM Inscriptions</code> retourne <strong>une seule ligne</strong> — la moyenne de toutes les notes confondues.</p>
         <p><strong>Avec GROUP BY e.ID_etudiant :</strong> retourne <strong>une ligne par étudiant</strong>, chacune avec sa propre moyenne.</p>
+
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Exemple concret</span></p>
+            <p>Données brutes dans <code>Inscriptions</code> :</p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>ID_etudiant</th><th>ID_cours</th><th>Note</th></tr></thead>
+                    <tbody>
+                        <tr><td>1 (Alice)</td><td>101</td><td>14</td></tr>
+                        <tr><td>1 (Alice)</td><td>102</td><td>16</td></tr>
+                        <tr><td>1 (Alice)</td><td>103</td><td>12</td></tr>
+                        <tr><td>2 (Bob)</td><td>101</td><td>11</td></tr>
+                        <tr><td>2 (Bob)</td><td>104</td><td>9</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p><strong>Sans GROUP BY :</strong> <code>AVG(Note)</code> = (14+16+12+11+9)/5 = <strong>12,4</strong> — une seule valeur pour tout le monde.</p>
+            <p><strong>Avec <code>GROUP BY ID_etudiant</code> :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>ID_etudiant</th><th>AVG(Note)</th></tr></thead>
+                    <tbody>
+                        <tr><td>1 (Alice)</td><td>14.00</td></tr>
+                        <tr><td>2 (Bob)</td><td>10.00</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="callout-info">
             <strong>Règle fondamentale :</strong> toute colonne dans le <code>SELECT</code> qui
             <em>n'est pas</em> une agrégation <strong>doit</strong> apparaître dans le <code>GROUP BY</code>.
@@ -181,7 +210,13 @@ FROM   VM_Performance_Etudiants
 WHERE  Niveau = 'Master';</code></pre>
 
             <div class="callout-info">
-                Le SGBD lit directement les lignes stockées dans la VM — aucun JOIN ni GROUP BY à l'exécution.
+                <p><span class="badge badge-blue">Analogie</span></p>
+                <p><strong>La requête directe</strong>, c'est comme demander à un comptable de tout recalculer depuis les
+                justificatifs bruts à chaque fois qu'un responsable consulte le bilan.
+                <strong>La vue matérialisée</strong>, c'est un bilan imprimé ce matin : tout le monde le lit instantanément,
+                sans refaire les additions. Tant que les données n'ont pas changé depuis l'impression, la lecture est
+                identique — et infiniment plus rapide.</p>
+                <p>Le SGBD lit directement les lignes stockées dans la VM — aucun JOIN ni GROUP BY à l'exécution.</p>
             </div>
         </div>
     </div>

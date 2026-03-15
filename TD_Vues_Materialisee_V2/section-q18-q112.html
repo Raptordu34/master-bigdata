@@ -190,6 +190,15 @@ ORDER BY Total_Heures DESC;</code></pre>
                     </tbody>
                 </table>
             </div>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Analogie — le caissier et le tableau de bord</span></p>
+                <p>Imaginez un caissier interrogé 100 fois par jour : "quel est le total des ventes de chaque étudiant depuis la rentrée ?"</p>
+                <ul>
+                    <li><strong>Sans VM :</strong> à chaque question, il retourne aux archives brutes — il relit et recalcule toutes les inscriptions depuis le début. Chaque réponse prend 30 secondes.</li>
+                    <li><strong>Avec VM :</strong> il regarde le rapport imprimé ce matin. La réponse est instantanée. Si un étudiant s'est inscrit ce matin même, il ne figure pas encore dans le rapport — mais ce léger décalage est acceptable dans un contexte de reporting pédagogique.</li>
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -269,6 +278,18 @@ CREATE INDEX idx_vm_perf_niveau_moy
                 <code>REFRESH MATERIALIZED VIEW</code> complet. Avec <code>CONCURRENTLY</code>,
                 ils sont maintenus automatiquement.
             </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-blue">Qu'est-ce qu'un index-only scan ?</span></p>
+                <p>Normalement, pour répondre à une requête, le moteur :</p>
+                <ol>
+                    <li>Consulte l'index pour trouver les pointeurs vers les lignes correspondantes.</li>
+                    <li>Lit les pages de données de la table pour récupérer les colonnes demandées.</li>
+                </ol>
+                <p>Avec un <strong>index-only scan</strong>, l'index contient <em>toutes</em> les colonnes nécessaires à la requête (ici <code>Niveau</code> et <code>Moyenne_Generale</code>). L'étape 2 est entièrement évitée — le moteur ne lit jamais les pages de données.</p>
+                <p><strong>Analogie :</strong> c'est comme trouver la réponse directement dans le sommaire d'un livre, sans même avoir à ouvrir le chapitre correspondant.</p>
+                <p class="inline-note">Condition : toutes les colonnes du <code>SELECT</code> et du <code>WHERE</code> doivent être incluses dans l'index. C'est pourquoi un index composite bien conçu est souvent plus efficace que deux index simples séparés.</p>
+            </div>
         </div>
     </div>
 
@@ -316,7 +337,7 @@ CREATE INDEX idx_vm_perf_niveau_moy
 
             <div class="two-col">
                 <div class="highlight-box">
-                    <h4 style="color:#86efac; margin-top:0;">Avantages — Performance</h4>
+                    <h4 style="margin-top:0;">Avantages — Performance</h4>
                     <ul>
                         <li>Temps de réponse drastiquement réduit pour les requêtes analytiques (ms vs s)</li>
                         <li>Allègement de la charge CPU : les agrégats coûteux sont calculés une seule fois</li>
@@ -326,7 +347,7 @@ CREATE INDEX idx_vm_perf_niveau_moy
                     </ul>
                 </div>
                 <div class="callout-info">
-                    <h4 style="color:#fca5a5; margin-top:0;">Inconvénients — Stockage &amp; Fraîcheur</h4>
+                    <h4 style="margin-top:0;">Inconvénients — Stockage &amp; Fraîcheur</h4>
                     <ul>
                         <li>Espace disque supplémentaire (~50 000 lignes × nb de VMs)</li>
                         <li>Données potentiellement obsolètes entre deux rafraîchissements</li>

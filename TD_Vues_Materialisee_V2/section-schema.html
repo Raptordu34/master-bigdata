@@ -42,15 +42,36 @@
             chaque accès), une vue matérialisée <em>stocke physiquement</em> le résultat de la requête.
             Elle se comporte comme une table ordinaire et doit être <strong>rafraîchie</strong> pour
             refléter les mises à jour de la source.
+            <br><br>
+            <strong>Analogie :</strong> une vue classique, c'est un chef cuisinier qui prépare le plat
+            <em>à la commande</em> — rapide pour un client, épuisant pour cent. Une vue matérialisée,
+            c'est un <em>buffet préparé à l'avance</em> : le calcul est fait une fois le matin,
+            et tous les clients se servent instantanément toute la journée. L'inconvénient ?
+            Si un ingrédient change après la préparation, le buffet ne le reflète pas tant qu'on ne le
+            <strong>rafraîchit</strong> pas.
+        </div>
+
+        <div class="highlight-box">
+            <strong>Pourquoi en avons-nous besoin sur ce schéma ?</strong>
+            <p>Considérez cette requête typique du tableau de bord pédagogique :</p>
+            <pre><code>-- Moyenne générale par étudiant — sans VM
+SELECT e.ID_etudiant, AVG(i.Note)
+FROM   Etudiants e
+JOIN   Inscriptions i ON e.ID_etudiant = i.ID_etudiant
+GROUP BY e.ID_etudiant;</code></pre>
+            <p>Avec <strong>50 000 étudiants</strong> et <strong>500 000 inscriptions</strong>, cette
+            requête exécute un JOIN + un GROUP BY complet à chaque appel. Si elle est lancée 100 fois
+            par jour, le moteur recalcule 100 × 550 000 lignes. Une vue matérialisée réduit cela à
+            <strong>un seul calcul nocturne</strong> et 100 lectures légères.</p>
         </div>
     </div>
 
     <h3>Schéma de la base de données</h3>
 
     <!-- Table Etudiants -->
+    <h4>Etudiants</h4>
     <div class="table-glass">
         <table>
-            <caption style="text-align:left; padding: 0.5rem 1rem; font-weight:700; color:#fb923c; font-size:1rem;">Etudiants</caption>
             <thead>
                 <tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr>
             </thead>
@@ -65,9 +86,9 @@
     </div>
 
     <!-- Table Cours -->
+    <h4>Cours</h4>
     <div class="table-glass">
         <table>
-            <caption style="text-align:left; padding: 0.5rem 1rem; font-weight:700; color:#fb923c; font-size:1rem;">Cours</caption>
             <thead>
                 <tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr>
             </thead>
@@ -82,9 +103,9 @@
     </div>
 
     <!-- Table Inscriptions -->
+    <h4>Inscriptions</h4>
     <div class="table-glass">
         <table>
-            <caption style="text-align:left; padding: 0.5rem 1rem; font-weight:700; color:#fb923c; font-size:1rem;">Inscriptions</caption>
             <thead>
                 <tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr>
             </thead>
@@ -101,9 +122,9 @@
     </div>
 
     <!-- Table Enseignants -->
+    <h4>Enseignants</h4>
     <div class="table-glass">
         <table>
-            <caption style="text-align:left; padding: 0.5rem 1rem; font-weight:700; color:#fb923c; font-size:1rem;">Enseignants</caption>
             <thead>
                 <tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr>
             </thead>
@@ -118,9 +139,9 @@
     </div>
 
     <!-- Table Affectations -->
+    <h4>Affectations</h4>
     <div class="table-glass">
         <table>
-            <caption style="text-align:left; padding: 0.5rem 1rem; font-weight:700; color:#fb923c; font-size:1rem;">Affectations</caption>
             <thead>
                 <tr><th>Colonne</th><th>Type</th><th>Contrainte</th></tr>
             </thead>
@@ -175,7 +196,7 @@
 
     <div class="two-col">
         <div class="highlight-box">
-            <h4 style="color:#fb923c; margin-top:0;">Maîtriser les vues matérialisées</h4>
+            <h4 style="margin-top:0;">Maîtriser les vues matérialisées</h4>
             <ul>
                 <li>Créer et utiliser des vues matérialisées</li>
                 <li>Comprendre les stratégies de rafraîchissement</li>
@@ -183,7 +204,7 @@
             </ul>
         </div>
         <div class="highlight-box">
-            <h4 style="color:#fb923c; margin-top:0;">Analyser les performances</h4>
+            <h4 style="margin-top:0;">Analyser les performances</h4>
             <ul>
                 <li>Mesurer les compromis stockage / temps d'exécution</li>
                 <li>Sélectionner les vues matérialisées pertinentes</li>

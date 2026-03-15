@@ -32,63 +32,71 @@
         <p>La base de données de vente est composée de quatre tables :</p>
 
         <div class="two-col">
-            <div class="table-glass">
-                <table>
-                    <caption style="text-align:left; padding:0.5rem 1rem; font-weight:700; color:#fb923c;">Ventes</caption>
-                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
-                    <tbody>
-                        <tr><td>PID</td><td>INT (FK → Produit)</td></tr>
-                        <tr><td>CID</td><td>INT (FK → Client)</td></tr>
-                        <tr><td>TID</td><td>INT (FK → Temps)</td></tr>
-                        <tr><td>Ventes_Dollars</td><td>DECIMAL</td></tr>
-                        <tr><td>Cout_Unitaire</td><td>DECIMAL</td></tr>
-                    </tbody>
-                </table>
+            <div>
+                <h4>Ventes</h4>
+                <div class="table-glass">
+                    <table>
+                        <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                        <tbody>
+                            <tr><td>PID</td><td>INT (FK → Produit)</td></tr>
+                            <tr><td>CID</td><td>INT (FK → Client)</td></tr>
+                            <tr><td>TID</td><td>INT (FK → Temps)</td></tr>
+                            <tr><td>Ventes_Dollars</td><td>DECIMAL</td></tr>
+                            <tr><td>Cout_Unitaire</td><td>DECIMAL</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div class="table-glass">
-                <table>
-                    <caption style="text-align:left; padding:0.5rem 1rem; font-weight:700; color:#fb923c;">Produit</caption>
-                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
-                    <tbody>
-                        <tr><td>PID</td><td>INT (PK)</td></tr>
-                        <tr><td>Gamme</td><td>VARCHAR</td></tr>
-                        <tr><td>Taille</td><td>VARCHAR</td></tr>
-                        <tr><td>Poids</td><td>DECIMAL</td></tr>
-                        <tr><td>Type_Paquet</td><td>VARCHAR</td></tr>
-                    </tbody>
-                </table>
+            <div>
+                <h4>Produit</h4>
+                <div class="table-glass">
+                    <table>
+                        <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                        <tbody>
+                            <tr><td>PID</td><td>INT (PK)</td></tr>
+                            <tr><td>Gamme</td><td>VARCHAR</td></tr>
+                            <tr><td>Taille</td><td>VARCHAR</td></tr>
+                            <tr><td>Poids</td><td>DECIMAL</td></tr>
+                            <tr><td>Type_Paquet</td><td>VARCHAR</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         <div class="two-col">
-            <div class="table-glass">
-                <table>
-                    <caption style="text-align:left; padding:0.5rem 1rem; font-weight:700; color:#fb923c;">Temps</caption>
-                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
-                    <tbody>
-                        <tr><td>TID</td><td>INT (PK)</td></tr>
-                        <tr><td>Date</td><td>DATE</td></tr>
-                        <tr><td>Mois</td><td>VARCHAR</td></tr>
-                        <tr><td>Saison</td><td>VARCHAR</td></tr>
-                        <tr><td>Annee</td><td>INT</td></tr>
-                    </tbody>
-                </table>
+            <div>
+                <h4>Temps</h4>
+                <div class="table-glass">
+                    <table>
+                        <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                        <tbody>
+                            <tr><td>TID</td><td>INT (PK)</td></tr>
+                            <tr><td>Date</td><td>DATE</td></tr>
+                            <tr><td>Mois</td><td>VARCHAR</td></tr>
+                            <tr><td>Saison</td><td>VARCHAR</td></tr>
+                            <tr><td>Annee</td><td>INT</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div class="table-glass">
-                <table>
-                    <caption style="text-align:left; padding:0.5rem 1rem; font-weight:700; color:#fb923c;">Client</caption>
-                    <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
-                    <tbody>
-                        <tr><td>CID</td><td>INT (PK)</td></tr>
-                        <tr><td>Sexe</td><td>CHAR(1)</td></tr>
-                        <tr><td>Ville</td><td>VARCHAR</td></tr>
-                        <tr><td>Etat</td><td>VARCHAR</td></tr>
-                        <tr><td>Age</td><td>INT</td></tr>
-                    </tbody>
-                </table>
+            <div>
+                <h4>Client</h4>
+                <div class="table-glass">
+                    <table>
+                        <thead><tr><th>Colonne</th><th>Type</th></tr></thead>
+                        <tbody>
+                            <tr><td>CID</td><td>INT (PK)</td></tr>
+                            <tr><td>Sexe</td><td>CHAR(1)</td></tr>
+                            <tr><td>Ville</td><td>VARCHAR</td></tr>
+                            <tr><td>Etat</td><td>VARCHAR</td></tr>
+                            <tr><td>Age</td><td>INT</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <h3 style="margin-top:1.5rem;">Workload — Les 5 requêtes fréquentes</h3>
+        <h3>Workload — Les 5 requêtes fréquentes</h3>
         <p>On suppose que les cinq requêtes suivantes sont exécutées fréquemment sur cette base :</p>
 
         <div class="table-glass">
@@ -97,7 +105,7 @@
                 <tbody>
                     <tr>
                         <td><strong>Q1</strong></td>
-                        <td><pre style="margin:0;"><code>SELECT C.CID, SUM(V.Ventes_Dollars)
+                        <td><pre><code>SELECT C.CID, SUM(V.Ventes_Dollars)
 FROM Client C, Ventes V
 WHERE C.CID = V.CID
 GROUP BY C.CID</code></pre></td>
@@ -105,7 +113,7 @@ GROUP BY C.CID</code></pre></td>
                     </tr>
                     <tr>
                         <td><strong>Q2</strong></td>
-                        <td><pre style="margin:0;"><code>SELECT P.PID, SUM(V.Ventes_Dollars)
+                        <td><pre><code>SELECT P.PID, SUM(V.Ventes_Dollars)
 FROM Ventes V, Produit P
 WHERE P.Type_Paquet = 'Boite'
 AND P.PID = V.PID
@@ -114,7 +122,7 @@ GROUP BY V.PID</code></pre></td>
                     </tr>
                     <tr>
                         <td><strong>Q3</strong></td>
-                        <td><pre style="margin:0;"><code>SELECT T.TID, SUM(V.Ventes_Dollars)
+                        <td><pre><code>SELECT T.TID, SUM(V.Ventes_Dollars)
 FROM Ventes V, Temps T, Produit P, Client C
 WHERE T.Mois = 'Mars' AND C.Sexe = 'M'
 AND P.PID = V.PID AND C.CID = V.CID
@@ -124,7 +132,7 @@ GROUP BY T.TID</code></pre></td>
                     </tr>
                     <tr>
                         <td><strong>Q4</strong></td>
-                        <td><pre style="margin:0;"><code>SELECT C.CID, SUM(V.Ventes_Dollars)
+                        <td><pre><code>SELECT C.CID, SUM(V.Ventes_Dollars)
 FROM Ventes V, Temps T, Client C
 WHERE T.Mois = 'Mars'
 AND C.CID = V.CID AND T.TID = V.TID
@@ -133,7 +141,7 @@ GROUP BY C.CID</code></pre></td>
                     </tr>
                     <tr>
                         <td><strong>Q5</strong></td>
-                        <td><pre style="margin:0;"><code>SELECT P.PID, SUM(V.Ventes_Dollars)
+                        <td><pre><code>SELECT P.PID, SUM(V.Ventes_Dollars)
 FROM Ventes V, Produit P, Client C
 WHERE C.Sexe = 'M'
 AND P.PID = V.PID AND C.CID = V.CID
@@ -223,6 +231,22 @@ GROUP BY P.PID</code></pre></td>
                 (réductible au problème du sac-à-dos). Pour n requêtes, il y a jusqu'à 2ⁿ
                 sous-ensembles de VMs candidates à évaluer. On doit donc recourir à des
                 heuristiques ou algorithmes approchés.
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Explosion exponentielle — chiffres concrets</span></p>
+                <div class="table-glass">
+                    <table>
+                        <thead><tr><th>Nombre de requêtes (n)</th><th>Sous-ensembles à évaluer (2ⁿ)</th><th>Praticable ?</th></tr></thead>
+                        <tbody>
+                            <tr><td>5 (notre workload)</td><td>32</td><td><span class="badge badge-green">Oui — en quelques ms</span></td></tr>
+                            <tr><td>20</td><td>1 048 576 ≈ 10⁶</td><td><span class="badge badge-orange">Limite — quelques minutes</span></td></tr>
+                            <tr><td>50</td><td>≈ 10¹⁵</td><td><span class="badge badge-red">Non — millions d'années CPU</span></td></tr>
+                            <tr><td>100</td><td>≈ 10³⁰</td><td><span class="badge badge-red">Hors d'atteinte</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="inline-note">Un workload réel contient typiquement des centaines de requêtes candidates. La solution exacte est structurellement impossible : c'est pour cela que l'heuristique gloutonne (Q2.3) est utilisée en pratique.</p>
             </div>
         </div>
     </div>
@@ -384,14 +408,14 @@ GROUP BY P.PID</code></pre></td>
                     <tbody>
                         <tr>
                             <td><strong>VM_A</strong></td>
-                            <td><pre style="margin:0;"><code>SELECT CID, SUM(Ventes_Dollars)
+                            <td><pre><code>SELECT CID, SUM(Ventes_Dollars)
 FROM Ventes GROUP BY CID</code></pre></td>
                             <td>Q1, Q4 (partiellement)</td>
                             <td>Forte réutilisation — jointure minimale</td>
                         </tr>
                         <tr>
                             <td><strong>VM_B</strong></td>
-                            <td><pre style="margin:0;"><code>SELECT PID, SUM(Ventes_Dollars)
+                            <td><pre><code>SELECT PID, SUM(Ventes_Dollars)
 FROM Ventes V, Produit P
 WHERE P.PID = V.PID GROUP BY PID</code></pre></td>
                             <td>Q2, Q5 (partiellement)</td>
@@ -399,7 +423,7 @@ WHERE P.PID = V.PID GROUP BY PID</code></pre></td>
                         </tr>
                         <tr>
                             <td><strong>VM_C</strong></td>
-                            <td><pre style="margin:0;"><code>SELECT CID, Mois, SUM(Ventes_Dollars)
+                            <td><pre><code>SELECT CID, Mois, SUM(Ventes_Dollars)
 FROM Ventes V, Temps T
 WHERE T.TID=V.TID GROUP BY CID, Mois</code></pre></td>
                             <td>Q3, Q4</td>
@@ -407,7 +431,7 @@ WHERE T.TID=V.TID GROUP BY CID, Mois</code></pre></td>
                         </tr>
                         <tr>
                             <td><strong>VM_D</strong></td>
-                            <td><pre style="margin:0;"><code>SELECT PID, Sexe, SUM(Ventes_Dollars)
+                            <td><pre><code>SELECT PID, Sexe, SUM(Ventes_Dollars)
 FROM Ventes V, Client C, Produit P
 WHERE C.CID=V.CID AND P.PID=V.PID
 GROUP BY PID, Sexe</code></pre></td>
@@ -426,6 +450,28 @@ GROUP BY PID, Sexe</code></pre></td>
                     <li><strong>Coût de stockage :</strong> une VM volumineuse doit apporter un bénéfice proportionnellement plus grand.</li>
                     <li><strong>Réutilisation :</strong> une VM couvrant 3 requêtes est préférable à trois VMs spécialisées si elle tient dans le budget.</li>
                 </ul>
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Exemple numérique — 1ère itération du glouton</span></p>
+                <p>Supposons les hypothèses simplifiées suivantes (coûts en ms par exécution) :</p>
+                <div class="table-glass">
+                    <table>
+                        <thead><tr><th>Requête</th><th>Fréquence (/jour)</th><th>Coût sans VM</th><th>Coût avec VM_A</th><th>Coût avec VM_C</th></tr></thead>
+                        <tbody>
+                            <tr><td>Q1</td><td>100</td><td>500 ms</td><td>10 ms</td><td>500 ms</td></tr>
+                            <tr><td>Q4</td><td>80</td><td>600 ms</td><td>20 ms</td><td>15 ms</td></tr>
+                            <tr><td>Q2, Q3, Q5</td><td>—</td><td>—</td><td>inchangé</td><td>inchangé</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p><strong>Bénéfice marginal :</strong></p>
+                <ul>
+                    <li><code>bénéfice(VM_A)</code> = 100 × (500 − 10) + 80 × (600 − 20) = 49 000 + 46 400 = <strong>95 400 ms</strong></li>
+                    <li><code>bénéfice(VM_C)</code> = 80 × (600 − 15) = <strong>46 800 ms</strong></li>
+                </ul>
+                <p>Le glouton sélectionne <strong>VM_A en premier</strong> (bénéfice le plus élevé). À l'itération suivante, il recalcule les bénéfices des VM restantes <em>en tenant compte de VM_A déjà sélectionnée</em>, puis choisit la meilleure vue complémentaire.</p>
+                <p class="inline-note">Ces chiffres sont illustratifs. En pratique, les coûts sont estimés via EXPLAIN ou des statistiques d'utilisation réelles.</p>
             </div>
         </div>
     </div>

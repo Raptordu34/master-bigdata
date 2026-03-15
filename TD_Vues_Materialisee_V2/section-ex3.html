@@ -35,11 +35,22 @@
         </p>
         <p>Considérons trois relations <strong>R</strong>, <strong>S</strong>, et <strong>T</strong>. Soit une vue définie comme suit :</p>
 
-        <div class="highlight-box" style="text-align:center;">
-            <code style="font-size:1.2rem; font-weight:bold;">V = R ⋈ S ⋈ T</code>
+        <div class="highlight-box">
+            <code>V = R ⋈ S ⋈ T</code>
         </div>
 
         <p>Supposons qu'on insère un ensemble de n-uplets <strong>ΔR</strong> dans la relation R.</p>
+
+        <div class="callout-info">
+            <strong>Exemple concret pour ancrer l'intuition :</strong>
+            <p>Imaginons R = <em>commandes</em> (3 millions de lignes), S = <em>clients</em> (50 000 lignes), T = <em>produits</em> (1 000 lignes), et que V = R ⋈ S ⋈ T est une vue matérialisée des ventes détaillées.
+            Chaque nuit, 500 nouvelles commandes arrivent : <strong>ΔR</strong> contient ces 500 lignes.</p>
+            <ul>
+                <li><strong>Recalcul complet :</strong> rejoindre 3 000 500 lignes avec S et T → des milliards d'opérations.</li>
+                <li><strong>Maintenance incrémentale :</strong> rejoindre seulement <strong>500 lignes</strong> avec S et T → 6 000× moins d'opérations.</li>
+            </ul>
+            <p>C'est le principe que vous allez formaliser algébriquement dans cet exercice.</p>
+        </div>
     </div>
 
     <button class="hint-btn" data-hint="rappel-algebre" data-label="Rappel de cours — Distributivité de la jointure" data-close-label="Masquer le rappel" aria-expanded="false">
@@ -48,7 +59,7 @@
     </button>
     <div class="hint" id="rappel-algebre">
         <p><strong>Propriété clé :</strong> la jointure est distributive par rapport à l'union :</p>
-        <p style="text-align:center;"><code>(A ∪ B) ⋈ C = (A ⋈ C) ∪ (B ⋈ C)</code></p>
+        <p><code>(A ∪ B) ⋈ C = (A ⋈ C) ∪ (B ⋈ C)</code></p>
         <p>C'est cette propriété qui permet de calculer ΔV sans refaire toute la jointure depuis le début.</p>
     </div>
 
@@ -112,16 +123,13 @@
                 <p>Comme on sait que <code>V = (R ⋈ S ⋈ T)</code>, alors la partie à ajouter (le delta) est simplement :</p>
             </div>
 
-            <div class="highlight-box" style="text-align:center; background:rgba(134,239,172,0.08); border-color:rgba(134,239,172,0.3);">
-                <code style="color:#86efac; font-weight:bold; font-size:1.1rem;">ΔV = ΔR ⋈ S ⋈ T</code>
+            <div class="callout-info">
+                <code>ΔV = ΔR ⋈ S ⋈ T</code>
             </div>
 
             <!-- ── Arbre algébrique ── -->
-            <div style="margin: 1.5rem 0; display:flex; flex-direction:column; align-items:center; gap:0.5rem;">
-                <p style="font-size:0.8rem; color:var(--text-secondary,#9e9a94); margin:0; letter-spacing:0.05em; text-transform:uppercase;">
-                    Arbre algébrique — après distributivité
-                </p>
-                <svg width="640" height="378" viewBox="0 0 640 378" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <p class="inline-note">Arbre algébrique — après distributivité</p>
+            <svg width="640" height="378" viewBox="0 0 640 378" fill="none" xmlns="http://www.w3.org/2000/svg">
 
                     <!-- ── Lignes de connexion ── -->
                     <!-- ∪ → ⋈_V  (gauche = ancienne vue) -->
@@ -213,7 +221,6 @@
                         font-family="'Inter', system-ui, sans-serif" font-size="11"
                         fill="#5ba6a0" font-style="italic">= ΔV = ΔR ⋈ S ⋈ T</text>
                 </svg>
-            </div>
 
             <div class="callout-info">
                 <strong>Méthode :</strong> On calcule uniquement la jointure entre les nouvelles lignes <code>ΔR</code> et
@@ -288,6 +295,21 @@
                 Le nombre de jointures (2) reste le même dans l'absolu, mais la taille de la relation de gauche (ΔR au lieu de R tout entier)
                 réduit drastiquement le nombre de comparaisons et l'I/O disque.
             </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Chiffres concrets</span></p>
+                <p>Reprenons l'exemple du contexte : |R| = 3 000 000, |S| = 50 000, |T| = 1 000, |ΔR| = 500.</p>
+                <div class="table-glass">
+                    <table>
+                        <thead><tr><th>Méthode</th><th>Relation de gauche</th><th>Opérations (ordre de grandeur)</th><th>Ratio</th></tr></thead>
+                        <tbody>
+                            <tr><td>Recalcul complet</td><td>|R| = 3 000 000</td><td>3 000 000 × |S| × |T|</td><td>référence</td></tr>
+                            <tr><td>Maintenance incrémentale</td><td>|ΔR| = 500</td><td>500 × |S| × |T|</td><td><span class="badge badge-green">6 000× moins</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="inline-note">La valeur exacte du ratio dépend de la sélectivité des jointures, mais l'ordre de grandeur montre clairement l'intérêt de la maintenance incrémentale dès que |ΔR| ≪ |R|.</p>
+            </div>
         </div>
     </div>
 
@@ -357,8 +379,20 @@
                 <p>Le delta global <strong>ΔV</strong> à ajouter est donc l'union des trois derniers termes :</p>
             </div>
 
-            <div class="highlight-box" style="text-align:center; background:rgba(251,146,60,0.08); border-color:rgba(251,146,60,0.35);">
-                <code style="color:#fb923c; font-weight:bold; font-size:0.95rem;">ΔV = (ΔR ⋈ S ⋈ T) ∪ (R ⋈ ΔS ⋈ T) ∪ (ΔR ⋈ ΔS ⋈ T)</code>
+            <div class="callout-info">
+                <code>ΔV = (ΔR ⋈ S ⋈ T) ∪ (R ⋈ ΔS ⋈ T) ∪ (ΔR ⋈ ΔS ⋈ T)</code>
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-blue">Analogie — livraisons simultanées</span></p>
+                <p>Imaginez un entrepôt qui croise deux listes de fournisseurs (R = fournisseurs A, S = fournisseurs B) avec un catalogue de produits (T). Deux nouvelles livraisons arrivent en même temps : ΔR (nouveaux fournisseurs A) et ΔS (nouveaux fournisseurs B).</p>
+                <p>Les nouvelles références à créer dans la vue sont :</p>
+                <ol>
+                    <li><code>ΔR ⋈ S ⋈ T</code> — les nouveaux fournisseurs A croisés avec les <em>anciens</em> fournisseurs B</li>
+                    <li><code>R ⋈ ΔS ⋈ T</code> — les <em>anciens</em> fournisseurs A croisés avec les nouveaux fournisseurs B</li>
+                    <li><code>ΔR ⋈ ΔS ⋈ T</code> — les nouveaux fournisseurs A croisés avec les nouveaux fournisseurs B</li>
+                </ol>
+                <p class="inline-note">On oublie souvent le terme 3 : il est petit (ΔR et ΔS sont réduits), mais indispensable pour ne pas manquer les paires entièrement nouvelles.</p>
             </div>
 
             <div class="callout-info">

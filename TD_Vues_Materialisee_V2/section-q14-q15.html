@@ -96,6 +96,27 @@ GROUP BY c.Departement;</code></pre>
                 </ul>
             </div>
 
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Trace concrète du problème sans DISTINCT</span></p>
+                <p>Supposons que le département Informatique ait ces affectations :</p>
+                <div class="table-glass">
+                    <table>
+                        <thead><tr><th>ID_enseignant</th><th>Nom</th><th>ID_cours</th><th>Semestre</th></tr></thead>
+                        <tbody>
+                            <tr><td>7</td><td>Dupont</td><td>101</td><td>2024-S1</td></tr>
+                            <tr><td>7</td><td>Dupont</td><td>101</td><td>2024-S2</td></tr>
+                            <tr><td>7</td><td>Dupont</td><td>103</td><td>2024-S1</td></tr>
+                            <tr><td>12</td><td>Martin</td><td>102</td><td>2024-S1</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <ul>
+                    <li><code>COUNT(a.ID_enseignant)</code> → <strong>4</strong> (compte toutes les lignes, Dupont compté 3×)</li>
+                    <li><code>COUNT(DISTINCT a.ID_enseignant)</code> → <strong>2</strong> (Dupont + Martin, chacun une seule fois)</li>
+                </ul>
+                <p class="inline-note">Le même raisonnement s'applique à <code>COUNT(DISTINCT c.ID_cours)</code> : un cours enseigné sur 2 semestres génère 2 lignes d'affectation, mais ne compte que pour 1 cours.</p>
+            </div>
+
             <p><strong>Exemple de résultat attendu :</strong></p>
             <div class="table-glass">
                 <table>

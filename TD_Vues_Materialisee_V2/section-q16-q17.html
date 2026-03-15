@@ -102,6 +102,23 @@ GROUP BY
                 <code>COALESCE(SUM(...), 0)</code> retourne 0 au lieu de NULL pour un enseignant sans affectation.
             </div>
 
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Pourquoi NULLIF et COALESCE ? — Explication pas à pas</span></p>
+                <p>Imaginons un enseignant sans aucune affectation (par exemple, un nouveau recruté qui n'a pas encore de cours assigné) :</p>
+                <ul>
+                    <li><code>COUNT(DISTINCT a.ID_cours)</code> → <strong>0</strong> (pas de cours)</li>
+                    <li><code>SUM(a.Nb_heures)</code> → <strong>NULL</strong> (SUM sur zéro ligne = NULL en SQL)</li>
+                    <li>Sans <code>COALESCE</code> : <code>Total_Heures = NULL</code> au lieu de 0 — trompeur dans un rapport.</li>
+                    <li>Sans <code>NULLIF</code> : <code>nb_inscriptions / 0</code> → <strong>erreur d'exécution</strong> (division par zéro).</li>
+                </ul>
+                <p><strong>Solution combinée :</strong></p>
+                <ul>
+                    <li><code>COALESCE(SUM(a.Nb_heures), 0)</code> → si SUM retourne NULL, on affiche <strong>0</strong>.</li>
+                    <li><code>NULLIF(COUNT(DISTINCT a.ID_cours), 0)</code> → si le diviseur est 0, on le remplace par <strong>NULL</strong>, ce qui rend la division nulle (et non une erreur).</li>
+                </ul>
+                <p class="inline-note">Le comportement de <code>x / NULL</code> en SQL est NULL (pas une erreur), ce qui est le résultat souhaité pour un enseignant sans cours.</p>
+            </div>
+
             <p><strong>Exemple de résultat attendu :</strong></p>
             <div class="table-glass">
                 <table>
@@ -259,6 +276,17 @@ SELECT cron.schedule(
                 Un rafraîchissement <strong>nocturne quotidien</strong> garantit que les 100 consultations de la journée
                 s'appuient sur des données à jour du matin, tout en limitant le coût de recalcul à <strong>une seule
                 agrégation par 24h</strong> sur les 500 000 lignes de la table Inscriptions.
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-blue">Analogie — le journal quotidien</span></p>
+                <p>Choisir la fréquence de rafraîchissement, c'est comme choisir la périodicité d'un journal :</p>
+                <ul>
+                    <li><strong>Temps réel</strong> → réimprimer le journal à chaque nouvelle dépêche : prohibitif, pas de valeur ajoutée.</li>
+                    <li><strong>Quotidien</strong> → une édition le matin, lue toute la journée : équilibre optimal entre fraîcheur et coût.</li>
+                    <li><strong>Hebdomadaire</strong> → les nouvelles du lundi sont périmées le vendredi : inacceptable si les données changent chaque jour.</li>
+                </ul>
+                <p>Dans un contexte académique, les notes et inscriptions changent en journée mais pas à la seconde — le rafraîchissement quotidien (nocturne) est le bon équilibre.</p>
             </div>
         </div>
     </div>
