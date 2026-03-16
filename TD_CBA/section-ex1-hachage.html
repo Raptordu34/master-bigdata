@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 1 — Estimation du coût de la jointure par hachage</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 6 pts</span>
+            <span class="exo-time">⏱ 15–20 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Estimer le coût d'une jointure par hachage en entrées/sorties</li>
+                <li>Distinguer les deux phases d'un hash join et leurs coûts respectifs</li>
+                <li>Identifier les conditions de faisabilité en mémoire</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> Cours — <em>Algorithmes de jointure</em></p>
+    </div>
+
+    <div class="context-block">
+        <h3>Contexte</h3>
+        <p>
+            On considère deux relations <strong>R</strong> et <strong>S</strong> dont on note
+            <code>|R|</code> et <code>|S|</code> le nombre de pages disque respectifs.
+            Le système dispose de <strong>M</strong> pages de mémoire tampon.
+        </p>
+
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Notation</th><th>Signification</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>|R|</code></td><td>Nombre de pages (blocs) de la relation R</td></tr>
+                    <tr><td><code>|S|</code></td><td>Nombre de pages (blocs) de la relation S</td></tr>
+                    <tr><td><code>M</code></td><td>Nombre de pages de mémoire tampon disponibles</td></tr>
+                    <tr><td><code>k</code></td><td>Nombre de partitions créées lors du hachage</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout-info">
+            <strong>Rappel :</strong> On mesure le coût d'un algorithme en nombre d'entrées/sorties disque
+            (lectures + écritures de pages). On ignore le coût CPU.
+        </div>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-hj" data-label="Rappel de cours — Hash Join" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Hash Join</span>
+    </button>
+    <div class="hint" id="rappel-hj">
+        <p>Un hash join procède en <strong>deux phases</strong> :</p>
+        <ul>
+            <li><strong>Phase 1 — Partitionnement :</strong> on hache R et S avec la même fonction de hachage
+                sur l'attribut de jointure, créant <em>k</em> partitions de chaque côté.
+                Chaque paire de partitions (Rᵢ, Sᵢ) est écrite sur disque.</li>
+            <li><strong>Phase 2 — Sondage :</strong> pour chaque partition Rᵢ, on construit une table de hachage
+                en mémoire, puis on scanne Sᵢ pour trouver les correspondances.</li>
+        </ul>
+        <p><strong>Condition clé :</strong> chaque partition de la relation la plus petite (R)
+        doit tenir en mémoire : <code>|R|/k ≤ M − 2</code>.</p>
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Repère</span></p>
+            <p>La mémoire minimale pour que la phase 2 soit possible :
+            <code>M ≥ √|R|</code> (approximativement, car <code>k ≤ M − 1</code>).</p>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie</span></p>
+            <p><strong>Intuition :</strong> le hash join ressemble à trier des lettres par code postal
+            avant de les distribuer. On crée des casiers (partitions) et on traite casier par casier,
+            plutôt que de comparer chaque lettre à toutes les autres.</p>
+        </div>
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Cas simple</span></p>
+            <p>Si R tient entièrement en mémoire (<code>|R| ≤ M</code>) :
+            on charge R une fois, on scanne S une fois.
+            Coût = <code>|R| + |S|</code> — un seul passage, sans écriture intermédiaire.</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">6 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Donner une estimation du coût de la jointure par hachage entre les relations
+            <strong>R</strong> et <strong>S</strong> en termes d'entrées/sorties.
+            Détailler les deux phases de l'algorithme et formuler la condition de faisabilité en mémoire.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Oublier d'<em>écrire</em> les partitions sur disque lors de la
+            phase 1. La phase 1 génère à la fois des lectures (<code>|R| + |S|</code>) ET des écritures
+            (<code>|R| + |S|</code>) — ne comptez pas uniquement les lectures.
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            <strong>Phase 1 (partitionnement) :</strong> le système lit R et S une première fois
+            (<code>|R| + |S|</code> lectures), puis écrit les partitions résultantes sur disque
+            (<code>|R| + |S|</code> écritures). Comptez les deux sens.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q1-h2">
+            <strong>Phase 2 (sondage) :</strong> chaque partition Rᵢ et Sᵢ est relue depuis le disque.
+            Total phase 2 = <code>|R| + |S|</code>. Additionnez phases 1 et 2 pour obtenir le coût total.
+            Pour la condition mémoire : k partitions impliquent k tampons simultanés en phase 1,
+            plus 1 tampon d'entrée et 1 de sortie.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Détaillez les deux phases et calculez le coût total…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+
+            <p><strong>Hypothèse :</strong> R ne tient pas en mémoire ; on utilise l'algorithme de hachage en deux passes (Grace Hash Join).</p>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Phase 1 — Partitionnement</span></p>
+                <ul>
+                    <li>Lecture de R et S : <code>|R| + |S|</code> E/S</li>
+                    <li>Écriture des k partitions de R et S sur disque : <code>|R| + |S|</code> E/S</li>
+                    <li><strong>Sous-total phase 1 : <code>2(|R| + |S|)</code></strong></li>
+                </ul>
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Phase 2 — Sondage (Build & Probe)</span></p>
+                <ul>
+                    <li>Pour chaque partition i (de 1 à k) : lire Rᵢ puis Sᵢ</li>
+                    <li>Total des lectures : <code>|R| + |S|</code> E/S</li>
+                    <li><strong>Sous-total phase 2 : <code>|R| + |S|</code></strong></li>
+                </ul>
+            </div>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Phase</th><th>Opération</th><th>Coût</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Phase 1</td><td>Lecture R + S</td><td><code>|R| + |S|</code></td></tr>
+                        <tr><td>Phase 1</td><td>Écriture des partitions</td><td><code>|R| + |S|</code></td></tr>
+                        <tr><td>Phase 2</td><td>Relecture des partitions</td><td><code>|R| + |S|</code></td></tr>
+                        <tr><td colspan="2"><strong>Total</strong></td><td><strong><code>3(|R| + |S|)</code></strong></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p><strong>Condition de faisabilité :</strong></p>
+            <ul>
+                <li>En phase 1, on utilise k tampons de sortie (un par partition) + 1 tampon d'entrée → <code>M ≥ k + 1</code></li>
+                <li>En phase 2, chaque partition Rᵢ doit tenir en mémoire : <code>|R|/k ≤ M − 2</code></li>
+                <li>En combinant : <code>k ≥ |R|/(M−2)</code> et <code>k ≤ M−1</code></li>
+                <li>Condition suffisante (approximation) : <strong><code>M ≥ √|R| + 1</code></strong></li>
+            </ul>
+
+            <div class="callout-info">
+                <strong>Cas particulier — R tient en mémoire (<code>|R| ≤ M</code>) :</strong>
+                <ul>
+                    <li>On charge R dans une table de hachage en mémoire.</li>
+                    <li>On scanne S une seule fois pour sonder.</li>
+                    <li>Coût réduit : <strong><code>|R| + |S|</code></strong> (une seule passe, sans écriture intermédiaire).</li>
+                </ul>
+            </div>
+
+            <p class="inline-note">Le coût <code>3(|R| + |S|)</code> suppose que les partitions sont de taille égale et qu'il n'y a pas de débordement (skew). En cas de skew, certaines partitions peuvent nécessiter une troisième passe.</p>
+        </div>
+    </div>
+
+    <div class="bareme">
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">Phase 1 correcte</span>
+        <span class="bareme-desc">Lecture + écriture des deux relations (2(|R|+|S|))</span>
+
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">Phase 2 correcte</span>
+        <span class="bareme-desc">Relecture des partitions (|R|+|S|)</span>
+
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">Condition mémoire</span>
+        <span class="bareme-desc">M ≥ √|R| ou formulation équivalente justifiée</span>
+
+        <div class="bareme-total">Total : <strong>6 pts</strong></div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Que se passe-t-il si k est mal choisi (trop petit ou trop grand) ? Quel est l'impact sur le coût ?</li>
+            <li>Comparer le coût du hash join avec celui du sort-merge join (<code>3(|R| + |S|)</code> également en deux passes) : quand préférer l'un ou l'autre ?</li>
+            <li>Que devient le coût si les attributs de jointure ne sont pas uniformément distribués (problème de <em>skew</em>) ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>

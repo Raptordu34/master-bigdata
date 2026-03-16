@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 4 — Estimation de coût de requête</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-points">◎ 8 pts</span>
+            <span class="exo-time">⏱ 20–30 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Calculer le coût d'une requête de jointure en nombre de pages lues</li>
+                <li>Déterminer la taille mémoire minimale pour un coût optimal en Nested Loop</li>
+                <li>Appliquer la formule du Block Nested Loop Join</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> Cours — <em>Modèles de coût</em> · Cours — <em>Algorithmes de jointure</em></p>
+    </div>
+
+    <div class="context-block">
+        <h3>Données du problème</h3>
+
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Relation</th><th>Attributs</th><th>Nombre de tuples</th><th>Tuples par page</th><th>Nombre de pages</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>R1</strong></td>
+                        <td><code>A</code>, <code>B</code></td>
+                        <td>1 000</td>
+                        <td>10</td>
+                        <td><strong>100 pages</strong></td>
+                    </tr>
+                    <tr>
+                        <td><strong>R2</strong></td>
+                        <td><code>B</code>, <code>C</code></td>
+                        <td>10 000</td>
+                        <td>10</td>
+                        <td><strong>1 000 pages</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p><strong>Requête :</strong></p>
+        <pre><code>SELECT *
+FROM   R1, R2
+WHERE  R1.B = R2.B</code></pre>
+
+        <div class="callout-info">
+            <strong>Rappel de notation :</strong> on note <code>|R1| = 100</code> et <code>|R2| = 1000</code>
+            (nombre de pages). Le coût est mesuré en nombre de pages lues sur disque (entrées/sorties).
+        </div>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-bnlj" data-label="Rappel — Block Nested Loop Join" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel — Block Nested Loop Join</span>
+    </button>
+    <div class="hint" id="rappel-bnlj">
+        <p>Le <strong>Block Nested Loop Join</strong> charge en mémoire le maximum de pages de la relation
+        externe (R1) à la fois, puis scanne la relation interne (R2) une seule fois par chunk :</p>
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Formule</span></p>
+            <p><code>Coût = |R1| + ⌈|R1| / (M − 2)⌉ × |R2|</code></p>
+            <ul>
+                <li><code>M</code> : pages mémoire disponibles</li>
+                <li><code>M − 2</code> : pages utilisées pour R1 (on réserve 1 pour lire R2 et 1 pour la sortie)</li>
+                <li>Si <code>M − 2 ≥ |R1|</code> : un seul chunk → coût = <code>|R1| + |R2|</code></li>
+            </ul>
+        </div>
+        <p><strong>Coût minimal :</strong> atteint quand <code>⌈|R1| / (M − 2)⌉ = 1</code>,
+        c'est-à-dire <code>M − 2 ≥ |R1|</code>, soit <code>M ≥ |R1| + 2</code>.</p>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">4 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Quel est le coût (nombre de pages) de cette requête, <strong>quel que soit l'algorithme
+            de jointure utilisé</strong> ? Justifier.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Donner directement le coût d'un algorithme spécifique
+            (ex : Nested Loop). La question porte sur le <em>coût minimal incompressible</em>
+            de tout algorithme de jointure — c'est-à-dire les lectures obligatoires, peu importe
+            la stratégie choisie.
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Pour calculer R1 ⋈ R2, tout algorithme doit au minimum lire une fois les données de R1
+            et une fois les données de R2. C'est le <em>lower bound</em> du coût.
+            Combien de pages cela représente-t-il ?
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q1-h2">
+            Borne inférieure = <code>|R1| + |R2| = 100 + 1000 = 1100 pages</code>.
+            Aucun algorithme de jointure ne peut faire mieux que lire les deux tables au moins une fois.
+            Certains algorithmes (Nested Loop naïf sans mémoire suffisante) lisent davantage.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Calculez le coût minimal et justifiez pourquoi c'est une borne inférieure…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+
+            <p><strong>Coût minimal incompressible :</strong></p>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Borne inférieure</span></p>
+                <p>Tout algorithme de jointure doit nécessairement lire chaque relation au moins une fois.
+                Le coût minimum est donc :</p>
+                <p><code>Coût<sub>min</sub> = |R1| + |R2| = 100 + 1000 = <strong>1 100 pages</strong></code></p>
+            </div>
+
+            <p><strong>Justification :</strong> pour calculer la jointure R1.B = R2.B, le moteur
+            doit inspecter tous les tuples de R1 (pour trouver leurs valeurs de B)
+            et tous les tuples de R2 (pour trouver les correspondances). Sans lire l'intégralité
+            des deux relations, certains tuples participants pourraient être manqués.</p>
+
+            <p><strong>Coût de quelques algorithmes concrets :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Algorithme</th><th>Coût (pages)</th><th>Condition</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Hash Join (2 passes)</td>
+                            <td><code>3(100 + 1000) = 3 300</code></td>
+                            <td>M ≥ √100 = 10 pages</td>
+                        </tr>
+                        <tr>
+                            <td>Sort-Merge Join (2 passes)</td>
+                            <td><code>3(100 + 1000) = 3 300</code></td>
+                            <td>M suffisante pour le tri</td>
+                        </tr>
+                        <tr>
+                            <td>Block NL Join (optimal)</td>
+                            <td><code>100 + 1000 = 1 100</code></td>
+                            <td>M ≥ 102 pages (R1 tient en mémoire)</td>
+                        </tr>
+                        <tr>
+                            <td>Block NL Join (M = 3)</td>
+                            <td><code>100 + ⌈100/1⌉ × 1000 = 100 100</code></td>
+                            <td>Cas défavorable (très peu de mémoire)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="inline-note">La borne inférieure de 1 100 pages est atteinte par le Block Nested Loop
+            dès que R1 tient entièrement en mémoire.</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="question-pts">4 pts</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Supposons que l'algorithme de jointure utilisé est le <strong>nested-loop</strong>.
+            Quelle est la <strong>taille mémoire minimale</strong> permettant d'obtenir un coût optimal ?
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Répondre <code>M = 100</code> (exactement le nombre de pages de R1).
+            Il faut aussi compter les tampons pour lire R2 page par page et pour écrire le résultat :
+            <code>M = |R1| + 2 = 102</code>, pas 100.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Le Block Nested Loop Joint charge <code>M − 2</code> pages de R1 par chunk
+            (on réserve 1 page pour lire R2 et 1 page pour le résultat).
+            Pour n'avoir qu'un seul chunk (= coût optimal), il faut que R1 tienne entièrement en mémoire :
+            <code>M − 2 ≥ |R1|</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q2-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q2-h2">
+            <code>M − 2 ≥ 100</code> → <code>M ≥ 102</code> pages.
+            Vérifiez que le coût avec M = 102 est bien 1 100 pages en appliquant la formule :
+            <code>|R1| + ⌈|R1|/(M−2)⌉ × |R2| = 100 + ⌈100/100⌉ × 1000 = 100 + 1000 = 1100</code>.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Calculez M minimal et vérifiez le coût obtenu…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+
+            <p><strong>Formule du Block Nested Loop Join :</strong></p>
+            <div class="highlight-box">
+                <p><code>Coût = |R1| + ⌈|R1| / (M − 2)⌉ × |R2|</code></p>
+                <p>avec R1 comme table externe (plus petite) et R2 comme table interne.</p>
+            </div>
+
+            <p><strong>Condition de coût optimal :</strong></p>
+            <ul>
+                <li>On veut <code>⌈|R1| / (M − 2)⌉ = 1</code> (un seul chunk pour R1)</li>
+                <li>Condition : <code>M − 2 ≥ |R1| = 100</code></li>
+                <li>Donc : <code>M ≥ 102 pages</code></li>
+            </ul>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Résultat</span></p>
+                <p><strong>Taille mémoire minimale : M = 102 pages</strong></p>
+                <ul>
+                    <li>100 pages pour charger R1 entièrement</li>
+                    <li>1 page tampon pour lire R2 page par page</li>
+                    <li>1 page tampon pour écrire le résultat</li>
+                </ul>
+            </div>
+
+            <p><strong>Vérification du coût optimal :</strong></p>
+            <pre><code>Coût = |R1| + ⌈|R1| / (M − 2)⌉ × |R2|
+     = 100 + ⌈100 / (102 − 2)⌉ × 1000
+     = 100 + ⌈100 / 100⌉ × 1000
+     = 100 + 1 × 1000
+     = 1 100 pages  ✓</code></pre>
+
+            <p><strong>Impact de la mémoire sur le coût :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Mémoire M (pages)</th><th>Chunks de R1</th><th>Coût total (pages)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>3</td><td>100 chunks</td><td>100 + 100 × 1000 = <strong>100 100</strong></td></tr>
+                        <tr><td>12</td><td>10 chunks</td><td>100 + 10 × 1000 = <strong>10 100</strong></td></tr>
+                        <tr><td>52</td><td>2 chunks</td><td>100 + 2 × 1000 = <strong>2 100</strong></td></tr>
+                        <tr><td>102</td><td>1 chunk</td><td>100 + 1 × 1000 = <strong>1 100</strong> ✓ optimal</td></tr>
+                        <tr><td>&gt; 102</td><td>1 chunk</td><td>1 100 (idem — au-delà, pas de gain)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout-info">
+                <strong>Observation :</strong> au-delà de M = 102, augmenter la mémoire n'améliore plus
+                le coût du Nested Loop. Pour profiter de plus de mémoire, il faudrait changer d'algorithme
+                (ex : Hash Join ou Sort-Merge qui amortissent mieux de grandes mémoires).
+            </div>
+
+            <p class="inline-note">Dans ce problème, on prend R1 comme table externe car c'est la plus petite
+            (100 pages vs 1000 pour R2). Inverser les rôles donnerait un coût optimal pour M ≥ 1002 pages,
+            beaucoup plus coûteux en mémoire.</p>
+        </div>
+    </div>
+
+    <div class="bareme">
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">Q1 — Coût minimal</span>
+        <span class="bareme-desc">2 pts calcul correct (1100 pages) · 2 pts justification borne inférieure</span>
+
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">Q2 — Mémoire minimale</span>
+        <span class="bareme-desc">1 pt formule BNLJ · 1 pt condition M−2 ≥ |R1| · 1 pt M = 102 · 1 pt vérification</span>
+
+        <div class="bareme-total">Total : <strong>8 pts</strong></div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Comparer le coût du Hash Join et du Block Nested Loop pour M = 50 pages : lequel est préférable ?</li>
+            <li>Si R1 et R2 étaient échangées (R1 = 10 000 tuples, R2 = 1 000 tuples), quelle serait la taille mémoire minimale pour un Nested Loop optimal ?</li>
+            <li>Quelle est la mémoire minimale pour un Hash Join en deux passes sur ce même jeu de données ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 3 — Optimisation de la jointure</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-points">◎ 12 pts</span>
+            <span class="exo-time">⏱ 25–35 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Recenser les stratégies classiques d'implémentation d'une jointure</li>
+                <li>Proposer une optimisation par restructuration de la requête (semi-jointure)</li>
+                <li>Calculer le coût d'une semi-jointure et le généraliser à n relations</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> Cours — <em>Algorithmes de jointure</em> · Cours — <em>Optimisation de requêtes distribuées</em></p>
+    </div>
+
+    <div class="context-block">
+        <h3>Contexte</h3>
+        <p>
+            On considère l'opération de jointure <strong>R join S</strong> sur un attribut commun.
+            L'objectif est d'abord d'identifier les stratégies standards, puis d'explorer
+            une approche différente pour réduire le coût de la jointure.
+        </p>
+        <div class="callout-info">
+            <strong>Notation :</strong> on note <code>|R|</code> et <code>|S|</code> le nombre de pages
+            (blocs) de R et S, et <code>M</code> le nombre de pages mémoire disponibles.
+            Le coût est exprimé en nombre d'entrées/sorties disque.
+        </div>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-join-strategies" data-label="Rappel — Stratégies de jointure" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel — Stratégies de jointure</span>
+    </button>
+    <div class="hint" id="rappel-join-strategies">
+        <p>Les trois familles d'algorithmes de jointure :</p>
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Algorithme</th><th>Principe</th><th>Coût (pages)</th><th>Condition favorable</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Nested Loop</strong></td>
+                        <td>Pour chaque page de R, lire toutes les pages de S</td>
+                        <td><code>|R| + |R|/M × |S|</code></td>
+                        <td>Une relation tient en mémoire</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sort-Merge</strong></td>
+                        <td>Trier R et S sur l'attribut de jointure, puis fusionner</td>
+                        <td><code>3(|R| + |S|)</code></td>
+                        <td>Données déjà triées ou tri rentable</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Hash Join</strong></td>
+                        <td>Hacher R et S en partitions, joindre partition par partition</td>
+                        <td><code>3(|R| + |S|)</code></td>
+                        <td>Jointure d'équi-jointure sur gros volumes</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Quelles sont les stratégies pour implémenter la jointure R join S ?
+            Pour chaque stratégie, indiquer brièvement le principe et les conditions d'utilisation optimale.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Citer seulement le Nested Loop. Il existe au moins
+            trois familles d'algorithmes de jointure — chacune adaptée à un contexte différent
+            (taille des relations, disponibilité d'index, mémoire disponible).
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Pensez aux trois familles : (1) boucles imbriquées, (2) tri puis fusion, (3) hachage.
+            Pour chacune : quel est le coût en E/S ? Quand est-elle préférable aux deux autres ?
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Décrivez les stratégies de jointure et leurs conditions d'utilisation…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+
+            <p><strong>1. Nested Loop Join (boucles imbriquées) :</strong></p>
+            <ul>
+                <li>Pour chaque bloc de R, on charge les blocs de S et on cherche les correspondances.</li>
+                <li>Coût optimal (Block Nested Loop) : <code>|R| + ⌈|R|/(M−2)⌉ × |S|</code></li>
+                <li>Si R tient en mémoire : coût = <code>|R| + |S|</code></li>
+                <li><strong>Favorable :</strong> l'une des deux relations est petite (tient en mémoire).</li>
+            </ul>
+
+            <p><strong>2. Sort-Merge Join (tri-fusion) :</strong></p>
+            <ul>
+                <li>Tri de R et S sur l'attribut de jointure, puis parcours simultané pour fusionner.</li>
+                <li>Coût (2 passes) : <code>3(|R| + |S|)</code></li>
+                <li><strong>Favorable :</strong> données déjà partiellement triées, ou jointure suivie d'un ORDER BY.</li>
+            </ul>
+
+            <p><strong>3. Hash Join :</strong></p>
+            <ul>
+                <li>Phase 1 : partitionner R et S avec la même fonction de hachage sur l'attribut de jointure.</li>
+                <li>Phase 2 : joindre chaque paire de partitions (Rᵢ, Sᵢ) en mémoire.</li>
+                <li>Coût (2 passes) : <code>3(|R| + |S|)</code></li>
+                <li><strong>Favorable :</strong> équi-jointure sur de gros volumes sans ordre requis en sortie.</li>
+            </ul>
+
+            <p><strong>4. Index Join :</strong></p>
+            <ul>
+                <li>Si un index existe sur l'attribut de jointure d'une des tables, l'utiliser pour accéder directement aux tuples correspondants.</li>
+                <li>Coût : <code>|R| + |R_tuples| × coût_accès_index(S)</code></li>
+                <li><strong>Favorable :</strong> index disponible ET forte sélectivité de la jointure.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Que ferez-vous pour optimiser cette jointure <strong>sans utiliser</strong> les stratégies
+            citées dans Q1 ? Décrivez l'approche proposée.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Chercher une quatrième variante de Nested Loop ou Hash Join.
+            La question invite à sortir du cadre des algorithmes classiques de jointure :
+            il s'agit d'une restructuration de la <em>requête</em> elle-même, pas de l'algorithme.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Le coût d'une jointure R ⋈ S est souvent dominé par le <em>transfert de données</em>
+            inutiles. Existe-t-il un moyen de ne transférer que les attributs de jointure
+            dans un premier temps, puis de compléter avec les données utiles seulement ?
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q2-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q2-h2">
+            La <strong>semi-jointure</strong> (⋉) : on commence par envoyer à S uniquement
+            les valeurs de l'attribut de jointure de R. S filtre ses tuples pour ne garder que ceux
+            qui participent à la jointure, puis on effectue la jointure finale avec ce sous-ensemble réduit.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Décrivez l'approche de semi-jointure et son principe…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+
+            <p><strong>Approche : la semi-jointure (⋉)</strong></p>
+
+            <p>L'idée est de <em>réduire S avant la jointure</em> en ne conservant que les tuples
+            de S qui participent effectivement à la jointure avec R. On procède en 3 étapes :</p>
+
+            <ul class="steps">
+                <li><strong>Étape 1 :</strong> projeter R sur l'attribut de jointure →
+                    <code>π<sub>A</sub>(R)</code> (petit volume : uniquement les valeurs de l'attribut)</li>
+                <li><strong>Étape 2 :</strong> semi-joindre S avec cette projection →
+                    <code>S' = S ⋉ π<sub>A</sub>(R)</code> — ne garder que les tuples de S qui ont une correspondance</li>
+                <li><strong>Étape 3 :</strong> effectuer la jointure finale complète →
+                    <code>R ⋈ S'</code> — S' est plus petit que S</li>
+            </ul>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Analogie</span></p>
+                <p><strong>Intuition :</strong> au lieu de comparer tous les employés de deux entreprises,
+                on envoie d'abord une liste de noms à la deuxième entreprise.
+                Elle répond uniquement avec les employés concernés.
+                On évite de transférer les dossiers complets inutilement.</p>
+            </div>
+
+            <p><strong>Condition d'efficacité :</strong> la semi-jointure est rentable si
+            <code>|π<sub>A</sub>(R)| + |S'| &lt; |S|</code>, c'est-à-dire si beaucoup de tuples
+            de S sont éliminés à l'étape 2 (<em>taux de réduction élevé</em>).</p>
+
+            <p class="inline-note">La semi-jointure est particulièrement efficace dans les systèmes distribués,
+            où le coût de transfert réseau est dominant. Oracle et d'autres SGBD utilisent ce mécanisme
+            sous le nom de <em>Bloom filter join</em> ou <em>Adaptive Serial Filtering</em>.</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 3                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Quel est le coût de la solution proposée en Q2 ?
+            Exprimer ce coût en nombre d'entrées/sorties et comparer à une jointure directe.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Oublier le coût de l'étape 1 (projection de R et écriture
+            de <code>π<sub>A</sub>(R)</code>). La semi-jointure a un coût en 3 étapes ;
+            chacune doit être comptée.
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Étape 1 : lire R, écrire <code>π<sub>A</sub>(R)</code> (petit). Étape 2 : lire S et
+            <code>π<sub>A</sub>(R)</code>, écrire S'. Étape 3 : jointure R ⋈ S' avec coût classique
+            mais sur S' réduit. Posez <code>f</code> = taux de réduction de S (fraction des tuples conservés).
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Calculez le coût des 3 étapes et comparez avec une jointure directe…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+
+            <p>Posons <strong>f</strong> le facteur de réduction de S (0 &lt; f ≤ 1).
+            Après semi-jointure : <code>|S'| = f × |S|</code>.</p>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Étape</th><th>Opération</th><th>Coût (E/S)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td>Lire R, projeter sur A, écrire <code>π<sub>A</sub>(R)</code></td>
+                            <td><code>|R| + |π<sub>A</sub>(R)|</code> ≈ <code>|R|</code> (projection petite)</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>Lire S + <code>π<sub>A</sub>(R)</code>, écrire S'</td>
+                            <td><code>|S| + |π<sub>A</sub>(R)| + f·|S|</code> ≈ <code>|S|(1+f)</code></td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>Jointure R ⋈ S' (ex : hash join)</td>
+                            <td><code>3(|R| + f·|S|)</code></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2"><strong>Total semi-jointure</strong></td>
+                            <td><strong><code>|R| + |S|(1+f) + 3(|R| + f·|S|)</code></strong></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">Jointure directe (hash join)</td>
+                            <td><code>3(|R| + |S|)</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p><strong>La semi-jointure est avantageuse si :</strong></p>
+            <pre><code>|R| + |S|(1+f) + 3(|R| + f·|S|) < 3(|R| + |S|)
+→ 4|R| + |S|(1+4f) < 3|R| + 3|S|
+→ |R| < |S|(2 − 4f)
+→ f < (2|S| − |R|) / (4|S|)</code></pre>
+
+            <p>Si <code>f</code> est petit (beaucoup de tuples éliminés de S) et <code>|S| >> |R|</code>,
+            la semi-jointure est très intéressante. Si <code>f ≈ 1</code> (peu d'éliminations),
+            la jointure directe reste préférable.</p>
+
+            <p class="inline-note">Dans un contexte distribué, le coût de transfert réseau de
+            <code>π<sub>A</sub>(R)</code> (très petit) remplace souvent un transfert complet de S,
+            ce qui rend la semi-jointure particulièrement attractive.</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 4                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Généraliser la solution proposée en Q2 au cas d'une jointure entre <strong>n relations</strong>
+            R₁ ⋈ R₂ ⋈ … ⋈ Rₙ.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Appliquer les semi-jointures dans un ordre quelconque.
+            L'ordre dans lequel on réduit les relations impacte fortement l'efficacité.
+            Il faut choisir un ordre qui minimise les tailles intermédiaires.
+        </div>
+
+        <button class="hint-btn" data-hint="q4-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            Pensez à un programme de semi-jointures : une séquence d'opérations R₁ ⋉ R₂, R₂ ⋉ R₁, R₁ ⋉ R₃…
+            L'algorithme de <em>semi-join reduction</em> (ou <em>full reducer</em>) garantit que
+            chaque relation est réduite à ses seuls tuples participant à la jointure finale.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Décrivez la généralisation à n relations…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+
+            <p><strong>Programme de semi-jointures (Full Reducer)</strong></p>
+
+            <p>Pour n relations R₁ ⋈ R₂ ⋈ … ⋈ Rₙ, on construit un <em>programme de semi-jointures</em>
+            qui réduit chaque relation avant la jointure finale. L'algorithme procède en deux passes :</p>
+
+            <ul class="steps">
+                <li><strong>Passe aller (i = 1 → n-1) :</strong> semi-joindre chaque relation avec la suivante.
+                    <code>R₂ ← R₂ ⋉ R₁</code>, puis <code>R₃ ← R₃ ⋉ R₂</code>, …, <code>Rₙ ← Rₙ ⋉ Rₙ₋₁</code></li>
+                <li><strong>Passe retour (i = n → 2) :</strong> propager les réductions dans l'autre sens.
+                    <code>Rₙ₋₁ ← Rₙ₋₁ ⋉ Rₙ</code>, …, <code>R₁ ← R₁ ⋉ R₂</code></li>
+                <li><strong>Jointure finale :</strong> joindre les relations réduites R₁' ⋈ R₂' ⋈ … ⋈ Rₙ'
+                    (toutes petites si le facteur de réduction est important)</li>
+            </ul>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Propriété clé</span></p>
+                <p>Après les deux passes, chaque Rᵢ' ne contient que les tuples qui participent
+                effectivement à la jointure totale. On appelle ce résultat le
+                <strong>full reducer</strong> ou <em>réducteur complet</em>.</p>
+            </div>
+
+            <p><strong>Coût total :</strong></p>
+            <ul>
+                <li>Passe aller : <code>(n−1)</code> semi-jointures</li>
+                <li>Passe retour : <code>(n−1)</code> semi-jointures</li>
+                <li>Jointure finale sur les relations réduites</li>
+                <li>Coût total des semi-jointures : <code>O(n × (|R₁| + … + |Rₙ|))</code></li>
+            </ul>
+
+            <div class="callout-info">
+                <strong>Optimisation de l'ordre :</strong> dans un contexte général (pas une chaîne),
+                l'ordre optimal de jointure est un problème NP-difficile. En pratique, les optimiseurs
+                utilisent la programmation dynamique ou des heuristiques (ex : joindre d'abord les tables
+                les plus sélectives).
+            </div>
+
+            <p class="inline-note">Pour n = 2 (cas de Q2), on retrouve bien la séquence :
+            <code>S' = S ⋉ R</code> (passe aller), <code>R' = R ⋉ S'</code> (passe retour), puis <code>R' ⋈ S'</code>.</p>
+        </div>
+    </div>
+
+    <div class="bareme">
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q1 — Stratégies de jointure</span>
+        <span class="bareme-desc">1 pt par famille (Nested Loop, Sort-Merge, Hash Join) avec condition d'usage</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q2 — Semi-jointure</span>
+        <span class="bareme-desc">1 pt principe · 1 pt description des 3 étapes · 1 pt condition d'efficacité</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q3 — Coût de la semi-jointure</span>
+        <span class="bareme-desc">1 pt par étape correctement évaluée · 1 pt comparaison avec jointure directe</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q4 — Généralisation à n relations</span>
+        <span class="bareme-desc">1 pt passe aller · 1 pt passe retour · 1 pt propriété du full reducer</span>
+
+        <div class="bareme-total">Total : <strong>12 pts</strong></div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Le Full Reducer garantit-il toujours l'optimalité de la jointure finale ? Dans quels cas échoue-t-il ?</li>
+            <li>Comment les SGBD distribués modernes (ex : Spark, BigQuery) implémentent-ils la réduction par semi-jointure via les <em>Bloom joins</em> ?</li>
+            <li>Pour n = 3 relations R₁ ⋈ R₂ ⋈ R₃ avec des cardinalités données, comparer le coût du programme de semi-jointures avec celui du hash join direct.</li>
+        </ul>
+    </div>
+
+</body>
+</html>

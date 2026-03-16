@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 2 — Plan d'exécution de requêtes</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 10 pts</span>
+            <span class="exo-time">⏱ 25–35 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Construire l'expression algébrique d'une requête SQL multi-tables</li>
+                <li>Lire et interpréter un plan EXPLAIN Oracle (structures d'accès, types de jointure)</li>
+                <li>Réécrire une requête avec et sans structures redondantes (index)</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> Cours — <em>Algèbre relationnelle</em> · Cours — <em>Plans d'exécution</em></p>
+    </div>
+
+    <div class="context-block">
+        <h3>Contexte — Films d'Hitchcock</h3>
+        <p>
+            La base contient trois tables : <code>FILM</code>, <code>ARTISTE</code> et <code>SEANCE</code>.
+            La requête suivante retourne les titres des films réalisés par Hitchcock projetés après 20h00 :
+        </p>
+
+        <pre><code>SELECT F.TITRE
+FROM   SEANCE S, FILM F, ARTISTE A
+WHERE  A.NOM = 'Hitchcock'
+  AND  F.IDREALISATEUR = A.IDREALISATEUR
+  AND  S.IDFILM = F.IDFILM
+  AND  S.HEURE_DEBUT > '20:00'</code></pre>
+
+        <p>Sous Oracle, l'outil EXPLAIN produit le plan d'exécution suivant :</p>
+
+        <pre><code>0  SELECT STATEMENT
+  1  MERGE JOIN
+    2  SORT Join
+      3  NESTED LOOPS
+        4  TABLE ACCESS FULL ARTISTE
+        5  TABLE ACCESS BY ROWID FILM
+          6  INDEX RANGE SCAN IDX-ARTISTE-ID
+    7  SORT Join
+      8  TABLE ACCESS FULL SEANCE</code></pre>
+
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Table</th><th>Colonnes clés</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>ARTISTE</strong></td><td><code>IDREALISATEUR</code>, <code>NOM</code></td></tr>
+                    <tr><td><strong>FILM</strong></td><td><code>IDFILM</code>, <code>TITRE</code>, <code>IDREALISATEUR</code></td></tr>
+                    <tr><td><strong>SEANCE</strong></td><td><code>IDSEANCE</code>, <code>IDFILM</code>, <code>HEURE_DEBUT</code></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-algebre" data-label="Rappel — Algèbre relationnelle" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel — Algèbre relationnelle</span>
+    </button>
+    <div class="hint" id="rappel-algebre">
+        <p><strong>Opérateurs de base :</strong></p>
+        <ul>
+            <li><strong>σ (sélection) :</strong> filtre les lignes selon un prédicat — <code>σ_{condition}(R)</code></li>
+            <li><strong>π (projection) :</strong> garde certaines colonnes — <code>π_{cols}(R)</code></li>
+            <li><strong>⋈ (jointure naturelle / θ-jointure) :</strong> combine deux relations — <code>R ⋈_{condition} S</code></li>
+        </ul>
+        <p><strong>Règle d'or :</strong> pousser les sélections le plus bas possible dans l'arbre (<em>push-down</em>)
+        pour réduire la taille des relations intermédiaires avant les jointures.</p>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-plan-oracle" data-label="Rappel — Lecture d'un plan Oracle" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel — Lecture d'un plan Oracle</span>
+    </button>
+    <div class="hint" id="rappel-plan-oracle">
+        <p>Un plan Oracle se lit <strong>des feuilles vers la racine</strong> (de bas en haut, de droite à gauche) :</p>
+        <ul>
+            <li>Les nœuds feuilles (ex : nœuds 4, 6, 8) sont les opérations d'accès aux données brutes.</li>
+            <li>Les nœuds parents combinent ou transforment ces données (SORT, NESTED LOOPS, MERGE JOIN).</li>
+            <li>La racine (nœud 0) est le résultat final retourné au client.</li>
+        </ul>
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Nœud Oracle</th><th>Signification</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>TABLE ACCESS FULL</code></td><td>Parcours séquentiel complet (scan)</td></tr>
+                    <tr><td><code>INDEX RANGE SCAN</code></td><td>Parcours d'une plage d'un index B-tree</td></tr>
+                    <tr><td><code>TABLE ACCESS BY ROWID</code></td><td>Accès à la ligne via son adresse physique (ROWID)</td></tr>
+                    <tr><td><code>NESTED LOOPS</code></td><td>Jointure par boucles imbriquées</td></tr>
+                    <tr><td><code>MERGE JOIN</code></td><td>Jointure par fusion (les deux côtés doivent être triés)</td></tr>
+                    <tr><td><code>SORT Join</code></td><td>Tri préalable d'une relation pour le Merge Join</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Donner l'expression algébrique correspondante à la requête SQL et proposer
+            un <strong>arbre algébrique optimal</strong>.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Écrire les sélections au sommet de l'arbre (comme en SQL).
+            En algèbre, l'optimisation consiste à les descendre au plus près des feuilles
+            pour limiter le volume des résultats intermédiaires.
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Identifiez d'abord les sélections : <code>A.NOM = 'Hitchcock'</code> (très sélectif — une seule ligne ?)
+            et <code>S.HEURE_DEBUT &gt; '20:00'</code> (filtre une partie de SEANCE). Appliquez-les en premier
+            sur chaque table concernée avant toute jointure.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q1-h2">
+            Ordre recommandé pour les jointures : commencer par le résultat le plus petit
+            (<code>σ(ARTISTE)</code> — très sélectif sur NOM), puis joindre FILM, puis SEANCE.
+            La projection π sur TITRE se place au sommet.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Écrivez l'expression algébrique et décrivez l'arbre optimal…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+
+            <p><strong>Expression algébrique (non optimisée) :</strong></p>
+            <div class="highlight-box">
+                <code>π<sub>F.TITRE</sub>(
+  σ<sub>A.NOM='Hitchcock' ∧ S.HEURE_DEBUT&gt;'20:00'</sub>(
+    SEANCE ⋈<sub>S.IDFILM=F.IDFILM</sub> FILM ⋈<sub>F.IDREALISATEUR=A.IDREALISATEUR</sub> ARTISTE
+  )
+)</code>
+            </div>
+
+            <p><strong>Arbre algébrique optimal</strong> (sélections poussées vers les feuilles) :</p>
+
+            <pre><code>                     π F.TITRE
+                         │
+                    ⋈ S.IDFILM = F.IDFILM
+                   ╱                    ╲
+    σ HEURE_DEBUT > '20:00'      ⋈ F.IDREALISATEUR = A.IDREALISATEUR
+              │                 ╱                              ╲
+           SEANCE           FILM                    σ NOM = 'Hitchcock'
+                                                           │
+                                                        ARTISTE</code></pre>
+
+            <p><strong>Justification de l'ordre des jointures :</strong></p>
+            <ul>
+                <li><code>σ_{NOM='Hitchcock'}(ARTISTE)</code> — sélection très sélective, produit probablement 1 ligne.</li>
+                <li>Jointure avec FILM via <code>IDREALISATEUR</code> — résultat réduit (films d'Hitchcock seulement).</li>
+                <li><code>σ_{HEURE_DEBUT&gt;'20:00'}(SEANCE)</code> — réduit SEANCE avant la jointure finale.</li>
+                <li>Jointure finale SEANCE ⋈ (FILM ⋈ ARTISTE) sur <code>IDFILM</code>.</li>
+            </ul>
+
+            <p class="inline-note">L'arbre optimal minimise la taille des résultats intermédiaires en appliquant
+            les sélections le plus tôt possible (<em>early selection</em>).</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Commenter le plan EXPLAIN Oracle en identifiant les
+            <strong>structures d'accès aux tables</strong> et le <strong>type de jointure</strong> utilisé.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Lire le plan de haut en bas. Oracle EXPLAIN se lit
+            <em>de bas en haut</em> et <em>de droite à gauche</em> — les nœuds les plus indentés
+            s'exécutent en premier.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Identifiez d'abord les feuilles (nœuds 4, 6, 8) : comment chaque table est-elle accédée
+            (scan séquentiel ou index) ? Puis remontez vers les nœuds 3 et 1 pour identifier les types de jointure.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Commentez chaque nœud du plan : structure d'accès et type de jointure…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+
+            <p><strong>Structures d'accès aux tables :</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Nœud</th><th>Table</th><th>Structure d'accès</th><th>Commentaire</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>4</td>
+                            <td>ARTISTE</td>
+                            <td>TABLE ACCESS FULL</td>
+                            <td>Parcours séquentiel complet — pas d'index sur NOM utilisé ici</td>
+                        </tr>
+                        <tr>
+                            <td>6</td>
+                            <td>FILM (index)</td>
+                            <td>INDEX RANGE SCAN IDX-ARTISTE-ID</td>
+                            <td>Parcours de l'index sur FILM.IDREALISATEUR pour chaque tuple ARTISTE</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td>FILM (données)</td>
+                            <td>TABLE ACCESS BY ROWID</td>
+                            <td>Accès aux lignes FILM via leur adresse physique (ROWID) obtenue par l'index</td>
+                        </tr>
+                        <tr>
+                            <td>8</td>
+                            <td>SEANCE</td>
+                            <td>TABLE ACCESS FULL</td>
+                            <td>Parcours séquentiel complet — pas d'index sur HEURE_DEBUT</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p><strong>Types de jointure :</strong></p>
+            <ul>
+                <li>
+                    <strong>Nœud 3 — NESTED LOOPS (ARTISTE ⋈ FILM) :</strong>
+                    pour chaque ligne d'ARTISTE (boucle externe), Oracle utilise l'index <code>IDX-ARTISTE-ID</code>
+                    pour trouver les films correspondants (boucle interne). Efficace si ARTISTE retourne peu de lignes.
+                </li>
+                <li>
+                    <strong>Nœuds 2 et 7 — SORT Join :</strong>
+                    les deux côtés (résultat du NESTED LOOPS et SEANCE) sont triés sur l'attribut de jointure
+                    <code>IDFILM</code> avant le MERGE JOIN.
+                </li>
+                <li>
+                    <strong>Nœud 1 — MERGE JOIN ((ARTISTE⋈FILM) ⋈ SEANCE) :</strong>
+                    fusion de deux flots triés. Efficace sur de gros volumes si les données sont déjà ordonnées
+                    ou si le coût de tri est amorti.
+                </li>
+            </ul>
+
+            <p class="inline-note">Le plan Oracle n'applique pas la sélection <code>A.NOM = 'Hitchcock'</code>
+            en premier (il fait un FULL SCAN d'ARTISTE) car il n'y a pas d'index sur <code>ARTISTE.NOM</code>.</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 3                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Réécrire la requête dans les deux cas suivants :
+        </p>
+        <div class="sub-question">
+            <strong>a)</strong> Avec structures redondantes (en exploitant des index existants).
+        </div>
+        <div class="sub-question">
+            <strong>b)</strong> Sans structures redondantes (accès séquentiels uniquement).
+        </div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Confondre "réécriture SQL" et "modification sémantique".
+            Les deux versions doivent retourner <em>exactement</em> le même résultat.
+            Seule la façon d'orienter l'optimiseur change (via des hints Oracle).
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Oracle permet de forcer le comportement de l'optimiseur avec des <em>hints</em> :
+            <code>/*+ INDEX(alias nom_index) */</code> force l'utilisation d'un index,
+            <code>/*+ FULL(alias) */</code> force un accès séquentiel.
+            Pour 3a, guidez Oracle vers les index ; pour 3b, forcez le FULL SCAN sur toutes les tables.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Réponses 3a) et 3b) avec hints Oracle…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+
+            <p><strong>3a) Avec structures redondantes (utilisation des index) :</strong></p>
+            <pre><code>SELECT /*+ INDEX(A IDX_NOM_ARTISTE)
+           INDEX(F IDX_ARTISTE_ID)
+           INDEX(S IDX_HEURE_SEANCE) */
+       F.TITRE
+FROM   SEANCE S, FILM F, ARTISTE A
+WHERE  A.NOM = 'Hitchcock'
+  AND  F.IDREALISATEUR = A.IDREALISATEUR
+  AND  S.IDFILM = F.IDFILM
+  AND  S.HEURE_DEBUT > '20:00'</code></pre>
+
+            <p>Les hints indiquent à Oracle d'utiliser :</p>
+            <ul>
+                <li><code>IDX_NOM_ARTISTE</code> sur ARTISTE.NOM → accès direct à Hitchcock</li>
+                <li><code>IDX_ARTISTE_ID</code> sur FILM.IDREALISATEUR → trouve les films par réalisateur</li>
+                <li><code>IDX_HEURE_SEANCE</code> sur SEANCE.HEURE_DEBUT → filtre les séances après 20h</li>
+            </ul>
+
+            <p><strong>3b) Sans structures redondantes (accès séquentiels forcés) :</strong></p>
+            <pre><code>SELECT /*+ FULL(A) FULL(F) FULL(S) */
+       F.TITRE
+FROM   SEANCE S, FILM F, ARTISTE A
+WHERE  A.NOM = 'Hitchcock'
+  AND  F.IDREALISATEUR = A.IDREALISATEUR
+  AND  S.IDFILM = F.IDFILM
+  AND  S.HEURE_DEBUT > '20:00'</code></pre>
+
+            <p>Oracle lit l'intégralité des trois tables séquentiellement, sans utiliser aucun index.</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 4                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="question-pts">1 pt</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Dire laquelle des deux écritures (3a ou 3b) est plus performante et justifier.
+        </p>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Indiquer laquelle est performante et pourquoi…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+
+            <p><strong>La version 3a (avec structures redondantes / index) est plus performante.</strong></p>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Raison principale</span></p>
+                <ul>
+                    <li>L'index sur <code>ARTISTE.NOM</code> permet d'accéder directement au réalisateur
+                    "Hitchcock" sans lire toute la table ARTISTE.</li>
+                    <li>L'index sur <code>FILM.IDREALISATEUR</code> évite un parcours complet de FILM :
+                    seuls les films d'Hitchcock sont lus.</li>
+                    <li>L'index sur <code>SEANCE.HEURE_DEBUT</code> filtre efficacement les séances tardives.</li>
+                </ul>
+            </div>
+
+            <p>En termes d'E/S : la version 3b lit l'intégralité des trois tables
+            (coût proportionnel au volume total), tandis que 3a lit uniquement les pages utiles
+            (coût proportionnel au résultat + log(n) pour les accès index).</p>
+
+            <p class="inline-note">Exception : si les tables sont très petites ou si la sélectivité est faible
+            (beaucoup de films d'Hitchcock, beaucoup de séances tardives), le scan séquentiel peut
+            être compétitif en évitant les accès aléatoires induits par les index.</p>
+        </div>
+    </div>
+
+    <div class="bareme">
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q1 — Expression algébrique et arbre optimal</span>
+        <span class="bareme-desc">1 pt expression · 2 pts arbre avec push-down des sélections justifié</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q2 — Commentaire du plan</span>
+        <span class="bareme-desc">1 pt par structure d'accès correctement identifiée · 1 pt types de jointure</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q3 — Réécriture avec/sans index</span>
+        <span class="bareme-desc">1,5 pt par version (syntaxe correcte + hints appropriés)</span>
+
+        <span class="bareme-pts">1</span>
+        <span class="bareme-label">Q4 — Comparaison de performance</span>
+        <span class="bareme-desc">Réponse correcte avec justification</span>
+
+        <div class="bareme-total">Total : <strong>10 pts</strong></div>
+    </div>
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Que se passerait-il si l'on ajoutait un index sur <code>ARTISTE.NOM</code> — le plan Oracle changerait-il ?</li>
+            <li>Comparer la stratégie NESTED LOOPS vs HASH JOIN pour la jointure ARTISTE ⋈ FILM dans ce contexte.</li>
+            <li>Quel serait l'arbre algébrique si SEANCE était beaucoup plus petite que FILM ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>
