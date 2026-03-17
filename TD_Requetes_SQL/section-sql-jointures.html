@@ -1,0 +1,655 @@
+<!DOCTYPE html><html lang="fr"><head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <link rel="stylesheet" href="./sql-components.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+    <script src="./sql-engine.js"></script>
+    <script src="./section-utils.js" defer></script>
+    <script src="./sql-algebra.js" defer></script>
+    <script src="./sql-ui.js" defer></script>
+</head><body>
+
+    <h2>Niveau 3 — Jointures</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire → Avancé</span>
+            <span class="exo-time">⏱ 40–50 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Comprendre et distinguer <code>INNER JOIN</code>, <code>LEFT JOIN</code>, <code>RIGHT JOIN</code> et <code>CROSS JOIN</code></li>
+                <li>Utiliser des alias de table pour lever l'ambiguïté sur les colonnes</li>
+                <li>Enchaîner des jointures sur 3 tables ou plus</li>
+                <li>Combiner jointures avec <code>GROUP BY</code>, <code>COUNT</code> et <code>SUM</code></li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- RAPPEL DE COURS                                -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="context-block">
+        <h3>Rappel de cours — Les jointures SQL</h3>
+
+        <p>Une <strong>jointure</strong> combine des lignes de deux tables (ou plus) en se basant sur une condition logique,
+        généralement l'égalité entre une clé étrangère et une clé primaire. Le schéma de notre base :</p>
+
+        <pre><code>employes     (id, nom, prenom, salaire, departement_id, date_embauche, poste)
+departements (id, nom, budget, localisation)
+projets      (id, nom, budget, date_debut, date_fin, departement_id)
+affectations (employe_id, projet_id, role, heures)</code></pre>
+
+        <h4>Tableau des types de jointures</h4>
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><span class="badge badge-green">INNER JOIN</span> — Intersection</p>
+                <p>Retourne uniquement les lignes qui ont une <strong>correspondance dans les deux tables</strong>.
+                Toute ligne sans correspondance de l'un ou l'autre côté est exclue.</p>
+                <pre><code>SELECT e.nom, d.nom AS dept
+FROM employes e
+INNER JOIN departements d ON e.departement_id = d.id;</code></pre>
+                <p class="inline-note">Résultat : seuls les employés ayant un département existant.</p>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-blue">LEFT JOIN</span> — Tout A + correspondances B</p>
+                <p>Retourne <strong>toutes les lignes de la table de gauche</strong> (A), et les colonnes de la table de droite (B)
+                valent <code>NULL</code> quand il n'y a pas de correspondance.</p>
+                <pre><code>SELECT e.nom, d.nom AS dept
+FROM employes e
+LEFT JOIN departements d ON e.departement_id = d.id;</code></pre>
+                <p class="inline-note">Résultat : tous les employés, même sans département.</p>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">RIGHT JOIN</span> — Tout B + correspondances A</p>
+                <p>Symétrique du LEFT JOIN : retourne <strong>toutes les lignes de la table de droite</strong> (B),
+                les colonnes de A valent <code>NULL</code> si pas de correspondance.</p>
+                <pre><code>SELECT e.nom, d.nom AS dept
+FROM employes e
+RIGHT JOIN departements d ON e.departement_id = d.id;</code></pre>
+                <p class="inline-note">Résultat : tous les départements, même sans employés. Équivalent à un LEFT JOIN en inversant les tables.</p>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-red">CROSS JOIN</span> — Produit cartésien</p>
+                <p>Combine <strong>chaque ligne de A avec chaque ligne de B</strong> sans condition.
+                Si A a n lignes et B m lignes, le résultat a n × m lignes.</p>
+                <pre><code>SELECT e.nom, d.nom AS dept
+FROM employes e
+CROSS JOIN departements d;</code></pre>
+                <p class="inline-note">Rarement utile en pratique sauf pour générer des combinaisons exhaustives.</p>
+            </div>
+        </div>
+
+        <h4>La règle de la clé de jointure</h4>
+        <p>La condition <code>ON</code> relie généralement une <strong>clé étrangère</strong> d'une table à la <strong>clé primaire</strong> de l'autre :</p>
+        <pre><code>-- Syntaxe générale
+FROM table1 t1
+JOIN table2 t2 ON t1.cle_etrangere = t2.cle_primaire
+
+-- Exemple concret
+FROM employes e
+JOIN departements d ON e.departement_id = d.id
+--                     ^^^^^^^^^^^^^^^^^   ^^^^
+--                     clé étrangère       clé primaire</code></pre>
+
+        <h4>Alias de table : indispensables</h4>
+        <p>Les alias (<code>e</code>, <code>d</code>, <code>p</code>, <code>a</code>) sont déclarés juste après le nom de table
+        et permettent de préfixer toute référence à une colonne :</p>
+        <pre><code>FROM employes e          -- e = alias pour employes
+JOIN departements d ...  -- d = alias pour departements
+JOIN projets p ...       -- p = alias pour projets
+JOIN affectations a ...  -- a = alias pour affectations</code></pre>
+
+        <div class="callout-info">
+            <strong>INNER est implicite :</strong> <code>JOIN</code> seul est équivalent à <code>INNER JOIN</code>.
+            Ces deux requêtes sont identiques :
+            <pre><code>FROM employes e INNER JOIN departements d ON e.departement_id = d.id
+FROM employes e JOIN departements d ON e.departement_id = d.id</code></pre>
+            Par convention, on écrit souvent <code>JOIN</code> pour l'inner join et on est explicite pour les autres (<code>LEFT JOIN</code>, <code>RIGHT JOIN</code>).
+        </div>
+
+        <div class="erreur-freq">
+            <strong>Erreur classique — Jointure sans condition ON :</strong>
+            Oublier la clause <code>ON</code> produit un produit cartésien silencieux.
+            Avec 100 employés et 10 départements, vous obtiendrez 1 000 lignes au lieu de 100 !
+            <pre><code>-- MAUVAIS : produit cartésien explosif
+SELECT * FROM employes, departements;
+
+-- CORRECT : toujours spécifier la condition de jointure
+SELECT * FROM employes e JOIN departements d ON e.departement_id = d.id;</code></pre>
+        </div>
+
+        <div class="callout-info">
+            <strong>Colonnes ambiguës :</strong> Quand deux tables ont une colonne avec le même nom (ex. <code>nom</code>
+            dans <code>employes</code> et <code>departements</code>), il est obligatoire de la préfixer avec l'alias.
+            Sans préfixe, SQL renvoie une erreur <em>"ambiguous column name"</em>.
+            <pre><code>-- MAUVAIS
+SELECT nom FROM employes e JOIN departements d ON e.departement_id = d.id;
+-- Erreur : nom est ambigu !
+
+-- CORRECT
+SELECT e.nom, d.nom AS nom_departement
+FROM employes e JOIN departements d ON e.departement_id = d.id;</code></pre>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q1                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Affichez le <strong>nom</strong> et le <strong>prénom</strong> de chaque employé ainsi que le
+        <strong>nom de son département</strong>. N'affichez que les employés qui ont un département.</p>
+
+        <button class="hint-btn" data-hint="q1-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Joignez <code>employes</code> et <code>departements</code> sur <code>employes.departement_id = departements.id</code>.
+            Utilisez des alias de table (<code>e</code> et <code>d</code>) et renommez la colonne <code>d.nom</code>
+            avec <code>AS departement</code> pour éviter l'ambiguïté.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici… (Ctrl+Entrée pour exécuter)"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+            <pre><code>SELECT e.nom, e.prenom, d.nom AS departement
+FROM employes e
+INNER JOIN departements d ON e.departement_id = d.id
+ORDER BY e.nom;</code></pre>
+            <p class="inline-note">Les alias <code>e</code> et <code>d</code> sont indispensables ici : les deux tables ont une colonne <code>nom</code>.
+            Sans préfixe, SQL ne saurait pas laquelle choisir et renverrait une erreur.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q2                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Affichez <strong>tous les employés</strong> avec le nom de leur département.
+        Les employés sans département doivent aussi apparaître, avec <code>NULL</code> pour le nom du département.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Un <code>INNER JOIN</code> exclut silencieusement les lignes sans correspondance.
+            Si vous attendez N lignes (autant que d'employés) et n'en obtenez que moins, c'est probablement parce que
+            certains employés n'ont pas de département — l'INNER JOIN les a supprimés sans avertissement.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Remplacez <code>INNER JOIN</code> par <code>LEFT JOIN</code>. La table <em>de gauche</em> doit être
+            <code>employes</code> pour que tous les employés soient conservés, même ceux sans département.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+            <pre><code>SELECT e.nom, e.prenom, d.nom AS departement
+FROM employes e
+LEFT JOIN departements d ON e.departement_id = d.id
+ORDER BY e.nom;</code></pre>
+            <p class="inline-note">Dans notre base de données de démonstration, tous les employés ont un département,
+            donc le résultat est identique à Q1. Mais en contexte réel, le <code>LEFT JOIN</code> révèle les lignes "orphelines" —
+            précieux pour auditer la qualité des données.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q3                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Affichez <strong>tous les départements</strong> avec le nom et prénom de leurs employés.
+        Les départements sans aucun employé doivent aussi apparaître (avec <code>NULL</code> pour les colonnes de l'employé).
+        Triez par nom de département.</p>
+
+        <button class="hint-btn" data-hint="q3-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Cette fois, c'est <code>departements</code> qui doit être la table <em>de gauche</em> dans le <code>LEFT JOIN</code>.
+            Comparez avec Q2 : on a inversé les rôles des deux tables.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+            <pre><code>SELECT d.nom AS departement, e.nom, e.prenom
+FROM departements d
+LEFT JOIN employes e ON e.departement_id = d.id
+ORDER BY d.nom;</code></pre>
+            <p class="inline-note">Ici <code>departements</code> est la table de gauche — on garde tous les départements, même vides.
+            C'est l'exact symétrique de Q2 : on a simplement échangé quelle table est "protégée" par le <code>LEFT JOIN</code>.
+            Un département vide apparaîtra avec <code>NULL</code> dans les colonnes <code>e.nom</code> et <code>e.prenom</code>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q4                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Affichez le <strong>nom et prénom de chaque employé</strong>, le <strong>nom du projet</strong> auquel il est affecté
+        et le <strong>nombre d'heures</strong> d'affectation — en joignant <strong>3 tables</strong> :
+        <code>employes</code>, <code>affectations</code> et <code>projets</code>.</p>
+
+        <button class="hint-btn" data-hint="q4-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1 / 2</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            La table de liaison est <code>affectations</code> : elle contient <code>employe_id</code> (lien vers
+            <code>employes</code>) et <code>projet_id</code> (lien vers <code>projets</code>).
+            Partez de <code>employes</code>, puis joignez <code>affectations</code>, puis <code>projets</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q4-h2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2 / 2</span>
+        </button>
+        <div class="hint" id="q4-h2">
+            Structure de la clause <code>FROM</code> :
+            <pre><code>FROM employes e
+JOIN affectations a ON a.employe_id = e.id
+JOIN projets p      ON p.id = a.projet_id</code></pre>
+            Il ne reste qu'à compléter le <code>SELECT</code> avec les colonnes voulues.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+            <pre><code>SELECT e.nom, e.prenom, p.nom AS projet, a.heures
+FROM employes e
+JOIN affectations a ON a.employe_id = e.id
+JOIN projets p      ON p.id = a.projet_id
+ORDER BY e.nom, p.nom;</code></pre>
+            <p class="inline-note">On enchaîne deux <code>JOIN</code> : SQL traite le résultat de la première jointure
+            comme une table intermédiaire, sur laquelle on applique le second <code>JOIN</code>.
+            Les alias (<code>e</code>, <code>a</code>, <code>p</code>) sont essentiels pour distinguer les colonnes
+            homonymes entre les 3 tables.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q5                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q5</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Pour chaque département, affichez son <strong>nom</strong>, son <strong>budget</strong>
+        et le <strong>nombre d'employés</strong> qu'il contient. Tous les départements doivent apparaître,
+        y compris ceux sans aucun employé (qui afficheront <code>0</code>). Triez par nombre d'employés décroissant.</p>
+
+        <button class="hint-btn" data-hint="q5-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q5-h1">
+            Utilisez un <code>LEFT JOIN</code> (pour garder les départements sans employés) + <code>GROUP BY</code>
+            sur le département + <code>COUNT(e.id)</code>. Attention : <code>COUNT(e.id)</code> renvoie <code>0</code>
+            quand <code>e.id</code> est <code>NULL</code>, ce qui n'est pas le cas de <code>COUNT(*)</code>.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q5</h4>
+            <pre><code>SELECT d.nom, d.budget, COUNT(e.id) AS nb_employes
+FROM departements d
+LEFT JOIN employes e ON e.departement_id = d.id
+GROUP BY d.id, d.nom, d.budget
+ORDER BY nb_employes DESC;</code></pre>
+            <p class="inline-note"><code>COUNT(e.id)</code> compte les valeurs non-NULL de <code>e.id</code> :
+            pour un département sans employés, toutes les valeurs <code>e.id</code> seront <code>NULL</code>
+            (issues du <code>LEFT JOIN</code>), donc <code>COUNT</code> retourne <code>0</code>.
+            Avec <code>COUNT(*)</code>, on obtiendrait <code>1</code> (la ligne NULL est quand même comptée).</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q6                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q6</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Affichez le <strong>nom de chaque projet</strong>, son <strong>budget</strong>, sa <strong>date de début</strong>
+        et le <strong>nom du département porteur</strong>. Tous les projets doivent apparaître, même ceux sans département associé.
+        Triez par budget de projet décroissant.</p>
+
+        <button class="hint-btn" data-hint="q6-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q6-h1">
+            La table <code>projets</code> possède une colonne <code>departement_id</code> qui référence <code>departements.id</code>.
+            Joignez ces deux tables. Pour garder tous les projets (même sans département), utilisez un <code>LEFT JOIN</code>
+            depuis <code>projets</code>.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q6</h4>
+            <pre><code>SELECT p.nom AS projet, p.budget, p.date_debut,
+       d.nom AS departement_porteur
+FROM projets p
+LEFT JOIN departements d ON p.departement_id = d.id
+ORDER BY p.budget DESC;</code></pre>
+            <p class="inline-note">Même schéma que Q2/Q3 : <code>projets</code> est la table de gauche, donc tous les projets
+            apparaissent. Si un projet n'a pas de département associé, <code>departement_porteur</code> sera <code>NULL</code>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q7                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q7</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Affichez le <strong>nom, prénom</strong> de chaque employé et son <strong>nombre de projets affectés</strong>
+        (<code>nb_projets</code>). Les employés sans aucune affectation doivent apparaître avec <code>0</code>.
+        Triez par nombre de projets décroissant, puis par nom.</p>
+
+        <button class="hint-btn" data-hint="q7-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1 / 2</span>
+        </button>
+        <div class="hint" id="q7-h1">
+            Pour garder les employés sans affectation, utilisez un <code>LEFT JOIN</code> depuis <code>employes</code>
+            vers <code>affectations</code>. Ensuite, un <code>GROUP BY</code> sur l'employé + <code>COUNT</code>
+            sur les affectations permettra de compter les projets.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q7-h2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2 / 2</span>
+        </button>
+        <div class="hint" id="q7-h2">
+            Utilisez <code>COUNT(a.projet_id)</code> et non <code>COUNT(*)</code> pour obtenir <code>0</code>
+            pour les employés sans affectation. Groupez sur <code>e.id, e.nom, e.prenom</code>.
+            <pre><code>FROM employes e
+LEFT JOIN affectations a ON a.employe_id = e.id
+GROUP BY e.id, e.nom, e.prenom</code></pre>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q7</h4>
+            <pre><code>SELECT e.nom, e.prenom, COUNT(a.projet_id) AS nb_projets
+FROM employes e
+LEFT JOIN affectations a ON a.employe_id = e.id
+GROUP BY e.id, e.nom, e.prenom
+ORDER BY nb_projets DESC, e.nom;</code></pre>
+            <p class="inline-note">Le <code>LEFT JOIN</code> garantit que les employés sans affectation apparaissent
+            dans le résultat. Pour ces employés, <code>a.projet_id</code> est <code>NULL</code> et
+            <code>COUNT(a.projet_id)</code> retourne <code>0</code>.
+            On groupe sur <code>e.id</code> en plus de <code>e.nom</code> et <code>e.prenom</code>
+            pour distinguer deux employés qui auraient le même nom et prénom.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q8                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q8</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Affichez le <strong>top 3 des employés</strong> ayant le plus grand nombre d'<strong>heures totales</strong>
+        affectées à des projets. Affichez leur nom, prénom et la somme de leurs heures (<code>total_heures</code>).
+        Seuls les employés ayant au moins une affectation doivent apparaître.</p>
+
+        <button class="hint-btn" data-hint="q8-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1 / 3</span>
+        </button>
+        <div class="hint" id="q8-h1">
+            Pour sommer les heures, utilisez <code>SUM(a.heures)</code> après un <code>JOIN</code> entre
+            <code>employes</code> et <code>affectations</code>. Ici, un <code>INNER JOIN</code> suffit
+            puisqu'on ne veut que les employés avec affectations.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q8-h2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2 / 3</span>
+        </button>
+        <div class="hint" id="q8-h2">
+            Après le <code>JOIN</code>, groupez par employé (<code>GROUP BY e.id, e.nom, e.prenom</code>)
+            et calculez <code>SUM(a.heures) AS total_heures</code>. Triez ensuite par <code>total_heures DESC</code>.
+        </div>
+
+        <button class="hint-locked hint-btn" data-hint="q8-h3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 3 / 3</span>
+        </button>
+        <div class="hint" id="q8-h3">
+            Pour limiter à 3 résultats, ajoutez <code>LIMIT 3</code> à la fin de la requête.
+            <pre><code>...
+ORDER BY total_heures DESC
+LIMIT 3;</code></pre>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q8</h4>
+            <pre><code>SELECT e.nom, e.prenom, SUM(a.heures) AS total_heures
+FROM employes e
+JOIN affectations a ON a.employe_id = e.id
+GROUP BY e.id, e.nom, e.prenom
+ORDER BY total_heures DESC
+LIMIT 3;</code></pre>
+            <p class="inline-note">L'ordre des clauses est essentiel : <code>JOIN</code> → <code>GROUP BY</code> → <code>ORDER BY</code> → <code>LIMIT</code>.
+            SQL évalue d'abord la jointure (toutes les lignes d'affectations par employé), puis agrège par employé avec <code>SUM</code>,
+            puis trie, puis coupe à 3 résultats. Un <code>INNER JOIN</code> est ici correct car
+            les employés sans aucune affectation ne peuvent pas figurer dans le classement.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- POUR ALLER PLUS LOIN                           -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>
+                <strong>SELF JOIN :</strong> Listez les paires d'employés travaillant dans le <em>même département</em>.
+                Un SELF JOIN joint une table avec elle-même en utilisant deux alias différents :
+                <code>FROM employes e1 JOIN employes e2 ON e1.departement_id = e2.departement_id AND e1.id &lt; e2.id</code>.
+                La condition <code>e1.id &lt; e2.id</code> évite les doublons (A-B et B-A) et les paires avec soi-même.
+            </li>
+            <li>
+                <strong>CROSS JOIN illustratif :</strong> Générez toutes les combinaisons possibles entre employés et projets
+                (même ceux sans affectation réelle) pour construire une matrice de disponibilité :
+                <code>FROM employes e CROSS JOIN projets p</code>. Attention au volume : n employés × m projets lignes.
+            </li>
+            <li>
+                <strong>Jointure + agrégat + filtre HAVING :</strong> Trouvez les employés affectés à <em>plus de 2 projets</em>
+                en ajoutant <code>HAVING COUNT(a.projet_id) &gt; 2</code> après le <code>GROUP BY</code> de Q7.
+            </li>
+            <li>
+                <strong>Jointure sur 4 tables :</strong> Affichez le nom de l'employé, le nom de son département,
+                le nom du projet et ses heures en enchaînant 4 tables :
+                <code>employes</code> → <code>affectations</code> → <code>projets</code> → <code>departements</code>
+                (via <code>projets.departement_id</code>).
+            </li>
+            <li>
+                <strong>Budget moyen par département :</strong> Quel département porte les projets les plus coûteux en moyenne ?
+                Joignez <code>projets</code> et <code>departements</code>, groupez par département et calculez
+                <code>AVG(p.budget) AS budget_moyen_projets</code>, puis triez par ordre décroissant.
+            </li>
+        </ul>
+    </div>
+
+</body></html>

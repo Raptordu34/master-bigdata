@@ -1,0 +1,485 @@
+/* sql-components.css — Composants SQL Editor (extension du design system) */
+
+/* ═══════════════════════════════════════════════════
+   SQL EDITOR ZONE
+   ═══════════════════════════════════════════════════ */
+
+.sql-editor-zone {
+    position: relative;
+    margin: 0.9rem 0;
+    border: 1.5px dashed rgba(96,165,250,0.3);
+    border-radius: 12px;
+    overflow: visible;
+    background: rgba(14, 20, 35, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.sql-editor-zone:focus-within {
+    border-color: rgba(96,165,250,0.55);
+    border-style: solid;
+    box-shadow: 0 0 0 3px rgba(96,165,250,0.08);
+}
+
+.sql-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #dda080;
+    font-family: 'Courier New', 'Fira Code', monospace;
+    font-size: 0.9rem;
+    line-height: 1.65;
+    padding: 1rem 1.25rem;
+    resize: vertical;
+    min-height: 80px;
+    caret-color: #93c5fd;
+    display: block;
+}
+
+.sql-input::placeholder {
+    color: rgba(255,255,255,0.18);
+    font-style: italic;
+}
+
+/* Barre d'outils */
+.sql-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.45rem 0.9rem;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    background: rgba(0,0,0,0.2);
+    border-radius: 0 0 10px 10px;
+}
+
+.sql-run-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 5px 16px;
+    background: linear-gradient(135deg, rgba(96,165,250,0.2) 0%, rgba(96,165,250,0.1) 100%);
+    border: 1px solid rgba(96,165,250,0.4);
+    border-radius: 20px;
+    color: #93c5fd;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+}
+
+.sql-run-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(96,165,250,0.3) 0%, rgba(96,165,250,0.15) 100%);
+    border-color: rgba(96,165,250,0.65);
+    box-shadow: 0 0 12px rgba(96,165,250,0.2);
+}
+
+.sql-run-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.sql-status {
+    font-size: 0.75rem;
+    font-family: 'Courier New', monospace;
+    transition: color 0.2s;
+    min-width: 4rem;
+}
+
+.sql-status-ok    { color: #6ee7b7; }
+.sql-status-error { color: #fca5a5; }
+
+.sql-shortcut-hint {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.2);
+    font-style: italic;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/* Zone de résultats */
+.sql-result-area {
+    padding: 0;
+}
+
+.sql-result-area:not(:empty) {
+    padding: 0 0.9rem 0.8rem;
+}
+
+.sql-result-meta {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 0.4rem;
+    font-style: italic;
+    padding-top: 0.5rem;
+}
+
+.sql-table-wrap {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.09);
+}
+
+.sql-result-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+    margin: 0;
+}
+
+.sql-result-table thead th {
+    background: rgba(96,165,250,0.1);
+    color: #93c5fd;
+    font-weight: 700;
+    font-size: 0.76rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(96,165,250,0.18);
+}
+
+.sql-result-table tbody tr {
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.12s;
+}
+
+.sql-result-table tbody tr:last-child { border-bottom: none; }
+.sql-result-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+.sql-result-table tbody td {
+    padding: 5px 12px;
+    color: var(--text-body, #c8c4be);
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.sql-null {
+    color: rgba(255,255,255,0.22);
+    font-style: italic;
+    font-size: 0.78rem;
+}
+
+.sql-no-rows {
+    font-size: 0.84rem;
+    color: rgba(255,255,255,0.32);
+    font-style: italic;
+    padding: 0.6rem 0 0.2rem;
+    margin: 0;
+}
+
+.sql-loading {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.3);
+    font-style: italic;
+    padding: 0.5rem 0;
+    animation: sql-pulse 1s ease-in-out infinite;
+}
+
+@keyframes sql-pulse {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 1; }
+}
+
+.sql-error {
+    background: rgba(248,113,113,0.07);
+    border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    color: #fca5a5;
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    margin-top: 0.5rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ═══════════════════════════════════════════════════
+   AUTOCOMPLÉTION
+   ═══════════════════════════════════════════════════ */
+
+.sql-autocomplete {
+    position: absolute;
+    z-index: 999;
+    background: rgba(18, 22, 38, 0.98);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(96,165,250,0.25);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(96,165,250,0.08);
+    min-width: 200px;
+    max-width: 320px;
+    overflow: hidden;
+}
+
+.sql-ac-item {
+    padding: 6px 14px;
+    font-size: 0.84rem;
+    font-family: 'Courier New', monospace;
+    color: rgba(255,255,255,0.65);
+    cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sql-ac-item:last-child { border-bottom: none; }
+
+.sql-ac-item:hover,
+.sql-ac-item.selected {
+    background: rgba(96,165,250,0.15);
+    color: #93c5fd;
+}
+
+.sql-ac-match {
+    color: #93c5fd;
+    font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════
+   SCHÉMA DB (contexte dans les sections)
+   ═══════════════════════════════════════════════════ */
+
+.schema-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.schema-table-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-top: 2px solid rgba(96,165,250,0.4);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    font-size: 0.83rem;
+}
+
+.schema-table-name {
+    color: #93c5fd;
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.02em;
+}
+
+.schema-col {
+    color: var(--text-secondary, #9e9a94);
+    padding: 1px 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.78rem;
+}
+
+.schema-col-pk { color: #fcd34d; }
+.schema-col-fk { color: #86efac; }
+
+/* ═══════════════════════════════════════════════════
+   ONGLETS RÉSULTAT / ARBRE ALGÉBRIQUE
+   ═══════════════════════════════════════════════════ */
+
+.sql-tabs {
+    margin-top: 0.1rem;
+}
+
+.sql-tabs-header {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0 0.9rem;
+}
+
+.sql-tab-btn {
+    padding: 6px 16px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.78rem;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+    white-space: nowrap;
+}
+
+.sql-tab-btn:hover {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.sql-tab-btn--active {
+    color: #93c5fd;
+    border-bottom-color: #93c5fd;
+}
+
+.sql-tab-panel {
+    padding: 0 0.9rem 0.8rem;
+}
+
+.sql-tab-panel[data-panel="algebra"] {
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.sql-tab-panel[data-panel="algebra"]::-webkit-scrollbar {
+    display: none;
+}
+
+/* Arbre */
+.alg-tree {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    min-width: 100%;
+}
+
+.alg-tree--error {
+    font-size: 0.8rem;
+    color: rgba(252, 165, 165, 0.7);
+    font-style: italic;
+    padding: 0.5rem 0;
+}
+
+/* Nœud wrapper (colonne) */
+.alg-node-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Boîte du nœud */
+.alg-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 14px;
+    border-radius: 10px;
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    min-width: 90px;
+    max-width: 240px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.alg-node--leaf      { background: rgba(147, 197, 253, 0.12); border-color: rgba(147, 197, 253, 0.35); }
+.alg-node--select    { background: rgba(251, 191,  36, 0.10); border-color: rgba(251, 191,  36, 0.35); }
+.alg-node--project   { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.18); }
+.alg-node--join      { background: rgba(110, 231, 183, 0.10); border-color: rgba(110, 231, 183, 0.35); }
+.alg-node--aggregate { background: rgba(196, 181, 253, 0.12); border-color: rgba(196, 181, 253, 0.35); }
+.alg-node--sort      { background: rgba(148, 163, 184, 0.10); border-color: rgba(148, 163, 184, 0.30); }
+.alg-node--distinct  { background: rgba( 34, 211, 238, 0.10); border-color: rgba( 34, 211, 238, 0.35); }
+.alg-node--limit     { background: rgba(148, 163, 184, 0.08); border-color: rgba(148, 163, 184, 0.25); }
+.alg-node--setop     { background: rgba(221, 160, 128, 0.12); border-color: rgba(221, 160, 128, 0.35); }
+
+.alg-op {
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    font-family: 'Georgia', serif;
+}
+
+.alg-node--leaf      .alg-op { display: none; }
+.alg-node--leaf              { font-family: 'Courier New', monospace; font-size: 0.82rem; color: #93c5fd; font-weight: 600; }
+
+.alg-node--select    .alg-op { color: #fbbf24; }
+.alg-node--project   .alg-op { color: #e2e8f0; }
+.alg-node--join      .alg-op { color: #6ee7b7; }
+.alg-node--aggregate .alg-op { color: #c4b5fd; }
+.alg-node--sort      .alg-op { color: #94a3b8; }
+.alg-node--distinct  .alg-op { color: #22d3ee; }
+.alg-node--limit     .alg-op { color: #94a3b8; }
+.alg-node--setop     .alg-op { color: #dda080; }
+
+.alg-label {
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 1px;
+}
+
+.alg-subscript {
+    font-size: 0.72rem;
+    font-family: 'Courier New', monospace;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 3px;
+    word-break: break-word;
+    max-width: 200px;
+}
+
+/* Connecteur vertical (nœud → enfants) */
+.alg-connector {
+    width: 2px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.18);
+    flex-shrink: 0;
+}
+
+/* Conteneur enfants */
+.alg-children {
+    display: flex;
+    gap: 2rem;
+    position: relative;
+}
+
+/* Barre horizontale reliant les deux branches */
+.alg-children--binary {
+    padding-top: 18px;
+    position: relative;
+}
+
+/* Barre horizontale — supprimée du conteneur, redessinée via les enfants */
+.alg-children--binary::before { display: none; }
+.alg-children--binary::after  { display: none; }
+
+/* Chaque enfant direct en mode binaire */
+.alg-children--binary > .alg-node-wrap {
+    position: relative;
+}
+
+/* Ligne verticale : monte de -18px depuis le haut du nœud jusqu'à la barre */
+.alg-children--binary > .alg-node-wrap::before {
+    content: '';
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.18);
+}
+
+/* Demi-barre gauche : du centre du 1er enfant jusqu'au milieu du gap */
+.alg-children--binary > .alg-node-wrap:first-child::after {
+    content: '';
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    right: -1rem;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.18);
+}
+
+/* Demi-barre droite : du milieu du gap jusqu'au centre du 2e enfant */
+.alg-children--binary > .alg-node-wrap:last-child::after {
+    content: '';
+    position: absolute;
+    top: -18px;
+    right: 50%;
+    left: -1rem;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.18);
+}

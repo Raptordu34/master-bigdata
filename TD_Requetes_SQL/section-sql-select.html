@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <link rel="stylesheet" href="./sql-components.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+    <script src="./sql-engine.js"></script>
+    <script src="./section-utils.js" defer></script>
+    <script src="./sql-algebra.js" defer></script>
+    <script src="./sql-ui.js" defer></script>
+</head>
+<body>
+
+    <h2>Niveau 1 — SELECT de base</h2>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- EN-TÊTE DE SECTION                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+            <span class="exo-time">⏱ 30–40 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Sélectionner toutes les colonnes ou un sous-ensemble avec <code>SELECT</code> et <code>SELECT *</code></li>
+                <li>Filtrer des lignes avec <code>WHERE</code> et ses opérateurs de comparaison</li>
+                <li>Trier les résultats avec <code>ORDER BY</code> (<code>ASC</code> / <code>DESC</code>) et paginer avec <code>LIMIT</code></li>
+                <li>Éliminer les doublons avec <code>DISTINCT</code></li>
+                <li>Combiner plusieurs conditions avec <code>AND</code>, <code>OR</code> et <code>IN</code></li>
+                <li>Comprendre le comportement de <code>NULL</code> dans les filtres</li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- RAPPEL DE COURS                                -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="context-block">
+        <h3>Rappel de cours — Syntaxe générale SELECT</h3>
+
+        <p>Une requête SQL de sélection suit toujours cet <strong>ordre obligatoire</strong> de clauses :</p>
+
+        <div class="highlight-box">
+            <pre><code>SELECT  colonnes | *
+FROM    table
+WHERE   condition
+ORDER BY colonne [ASC | DESC]
+LIMIT   n;</code></pre>
+            <p class="inline-note">Seules <code>SELECT</code> et <code>FROM</code> sont obligatoires. Les autres clauses sont optionnelles mais doivent respecter cet ordre si elles sont présentes.</p>
+        </div>
+
+        <h3 style="margin-top:1.75rem;">Opérateurs utilisables dans WHERE</h3>
+
+        <div class="two-col">
+            <div>
+                <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:0.5rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Comparaison</p>
+                <table style="width:100%; font-size:0.88rem; border-collapse:collapse;">
+                    <thead>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                            <th style="text-align:left; padding:4px 8px; color:var(--text-secondary);">Opérateur</th>
+                            <th style="text-align:left; padding:4px 8px; color:var(--text-secondary);">Signification</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:4px 8px;"><code>=</code></td><td style="padding:4px 8px; color:var(--text-secondary);">Égal à</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>!=</code> ou <code>&lt;&gt;</code></td><td style="padding:4px 8px; color:var(--text-secondary);">Différent de</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>&gt;</code> <code>&lt;</code> <code>&gt;=</code> <code>&lt;=</code></td><td style="padding:4px 8px; color:var(--text-secondary);">Comparaisons numériques / dates</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>BETWEEN a AND b</code></td><td style="padding:4px 8px; color:var(--text-secondary);">Intervalle inclus [a, b]</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:0.5rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Chaînes &amp; NULL</p>
+                <table style="width:100%; font-size:0.88rem; border-collapse:collapse;">
+                    <thead>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                            <th style="text-align:left; padding:4px 8px; color:var(--text-secondary);">Opérateur</th>
+                            <th style="text-align:left; padding:4px 8px; color:var(--text-secondary);">Signification</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:4px 8px;"><code>IN (v1, v2, …)</code></td><td style="padding:4px 8px; color:var(--text-secondary);">Appartient à la liste</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>LIKE 'pattern'</code></td><td style="padding:4px 8px; color:var(--text-secondary);">Correspondance de motif (<code>%</code> = n'importe quoi)</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>IS NULL</code></td><td style="padding:4px 8px; color:var(--text-secondary);">La valeur est absente</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>IS NOT NULL</code></td><td style="padding:4px 8px; color:var(--text-secondary);">La valeur est présente</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Callout NULL vs chaîne vide -->
+        <div class="callout-info" style="margin-top:1.5rem;">
+            <strong>NULL vs chaîne vide <code>''</code></strong> — <code>NULL</code> signifie <em>valeur inconnue ou absente</em>.
+            Une chaîne vide <code>''</code> est une valeur définie, elle vaut zéro caractère.
+            Pour tester <code>NULL</code>, on n'écrit <strong>jamais</strong> <code>= NULL</code> — on écrit toujours <code>IS NULL</code> ou <code>IS NOT NULL</code>.
+            En effet, <code>NULL = NULL</code> retourne <code>NULL</code> (inconnu), pas <code>TRUE</code>.
+        </div>
+
+        <!-- Astuce autocomplétion -->
+        <div class="callout-info" style="margin-top:1rem;">
+            <strong>Astuce :</strong> L'autocomplétion est active dans chaque éditeur.
+            Commencez à taper <code>SEL</code>, <code>emp</code>, etc. — une liste de suggestions apparaît.
+            Naviguez avec <kbd>↑↓</kbd> et validez avec <kbd>Entrée</kbd> ou <kbd>Tab</kbd>.
+        </div>
+
+        <!-- Schéma de la base -->
+        <h3 style="margin-top:1.75rem;">Schéma de la base</h3>
+        <p>Toutes les sections utilisent la même base. Consultez ce schéma en cas de doute sur les noms de colonnes.</p>
+        <div class="schema-grid">
+            <div class="schema-table-card">
+                <div class="schema-table-name">employes</div>
+                <div class="schema-col schema-col-pk">id (PK)</div>
+                <div class="schema-col">nom · prenom</div>
+                <div class="schema-col">salaire</div>
+                <div class="schema-col schema-col-fk">departement_id (FK)</div>
+                <div class="schema-col">date_embauche · poste</div>
+            </div>
+            <div class="schema-table-card">
+                <div class="schema-table-name">departements</div>
+                <div class="schema-col schema-col-pk">id (PK)</div>
+                <div class="schema-col">nom</div>
+                <div class="schema-col">budget</div>
+                <div class="schema-col">localisation</div>
+            </div>
+            <div class="schema-table-card">
+                <div class="schema-table-name">projets</div>
+                <div class="schema-col schema-col-pk">id (PK)</div>
+                <div class="schema-col">nom · budget</div>
+                <div class="schema-col">date_debut · date_fin</div>
+                <div class="schema-col schema-col-fk">departement_id (FK)</div>
+            </div>
+            <div class="schema-table-card">
+                <div class="schema-table-name">affectations</div>
+                <div class="schema-col schema-col-fk">employe_id (FK)</div>
+                <div class="schema-col schema-col-fk">projet_id (FK)</div>
+                <div class="schema-col">role · heures</div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q1 — SELECT *                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Listez <strong>tous les employés</strong> avec <strong>toutes leurs colonnes</strong>.</p>
+
+        <div class="callout-info">
+            <strong>Rappel :</strong> Le joker <code>*</code> dans <code>SELECT</code> sélectionne l'ensemble des colonnes de la table.
+            C'est pratique pour explorer une table, mais en production on préfère nommer explicitement les colonnes.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici… (Ctrl+Entrée pour exécuter)"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+            <pre><code>SELECT * FROM employes;</code></pre>
+            <p class="inline-note"><code>SELECT *</code> retourne toutes les colonnes dans l'ordre où elles ont été définies à la création de la table. Vous devriez obtenir 15 lignes avec les colonnes <code>id</code>, <code>nom</code>, <code>prenom</code>, <code>salaire</code>, <code>departement_id</code>, <code>date_embauche</code> et <code>poste</code>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q2 — Colonnes explicites + ORDER BY            -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Listez uniquement le <strong>nom</strong>, le <strong>prénom</strong> et le <strong>salaire</strong> de tous les employés,
+        triés par salaire <strong>décroissant</strong> (du plus élevé au plus bas).</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Par défaut, <code>ORDER BY</code> trie dans l'ordre <strong>ascendant</strong> (<code>ASC</code>).
+            Pour inverser l'ordre, il faut explicitement écrire <code>DESC</code> après le nom de la colonne.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+            <pre><code>SELECT nom, prenom, salaire
+FROM employes
+ORDER BY salaire DESC;</code></pre>
+            <p class="inline-note">On nomme explicitement les 3 colonnes souhaitées dans <code>SELECT</code>. <code>ORDER BY salaire DESC</code> trie du salaire le plus élevé (≈ 80 000 €) au plus bas (≈ 38 000 €). Sans <code>DESC</code>, l'ordre serait ascendant.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q3 — WHERE = (filtre sur FK)                   -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Listez <strong>tous les employés</strong> appartenant au <strong>département 2</strong> (Ressources Humaines).
+        Affichez toutes leurs colonnes.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> En SQL, l'opérateur d'égalité est <code>=</code> (un seul signe égal).
+            Le double <code>==</code> des langages de programmation comme Python ou JavaScript n'existe pas en SQL
+            et provoquera une erreur de syntaxe.
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Utilisez la clause <code>WHERE</code> avec la colonne <code>departement_id</code> et l'opérateur <code>=</code>.
+            La valeur numérique 2 ne nécessite pas de guillemets.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+            <pre><code>SELECT *
+FROM employes
+WHERE departement_id = 2;</code></pre>
+            <p class="inline-note">La condition <code>WHERE departement_id = 2</code> ne conserve que les lignes dont la clé étrangère pointe vers le département RH. Les entiers ne prennent pas de guillemets ; seules les chaînes de caractères en ont besoin (<code>'texte'</code>).</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q4 — WHERE > (filtre numérique)                -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Listez le <strong>nom</strong>, le <strong>prénom</strong>, le <strong>poste</strong> et le <strong>salaire</strong>
+        de tous les employés dont le salaire est <strong>strictement supérieur à 50 000 €</strong>,
+        triés par salaire décroissant.</p>
+
+        <div class="callout-info">
+            <strong>Astuce :</strong> Les opérateurs de comparaison <code>&gt;</code>, <code>&lt;</code>, <code>&gt;=</code>, <code>&lt;=</code>
+            fonctionnent aussi bien sur les nombres que sur les dates et les chaînes (ordre alphabétique pour les chaînes).
+        </div>
+
+        <button class="hint-btn" data-hint="q4-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            Utilisez <code>WHERE salaire &gt; 50000</code>. N'oubliez pas d'ajouter <code>ORDER BY salaire DESC</code> pour trier.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q4-h2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2</span>
+        </button>
+        <div class="hint" id="q4-h2">
+            Structure complète : <code>SELECT nom, prenom, poste, salaire FROM employes WHERE salaire &gt; 50000 ORDER BY salaire DESC;</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+            <pre><code>SELECT nom, prenom, poste, salaire
+FROM employes
+WHERE salaire > 50000
+ORDER BY salaire DESC;</code></pre>
+            <p class="inline-note">L'opérateur <code>&gt;</code> exclut la valeur 50 000 elle-même. Pour inclure 50 000, on utiliserait <code>&gt;= 50000</code>. Le tri final permet de lire immédiatement les profils les mieux rémunérés.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q5 — DISTINCT                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q5</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Listez tous les <strong>postes distincts</strong> existants dans l'entreprise (sans doublons),
+        triés par ordre alphabétique.</p>
+
+        <div class="callout-info">
+            <strong>À noter :</strong> <code>DISTINCT</code> s'applique à la <em>combinaison</em> de toutes les colonnes sélectionnées.
+            Si vous écrivez <code>SELECT DISTINCT poste, departement_id</code>, deux lignes avec le même poste mais des départements différents seront toutes deux conservées.
+        </div>
+
+        <button class="hint-btn" data-hint="q5-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q5-h1">
+            Placez le mot-clé <code>DISTINCT</code> immédiatement après <code>SELECT</code>, avant le nom de la colonne :
+            <code>SELECT DISTINCT poste FROM …</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q5</h4>
+            <pre><code>SELECT DISTINCT poste
+FROM employes
+ORDER BY poste;</code></pre>
+            <p class="inline-note"><code>DISTINCT</code> élimine les valeurs en doublon. Sans lui, chaque ligne de la table serait retournée. L'ajout de <code>ORDER BY poste</code> produit une liste alphabétique facile à parcourir.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q6 — LIMIT + ORDER BY (top-N)                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q6</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Affichez le <strong>nom</strong>, le <strong>prénom</strong> et le <strong>salaire</strong>
+        des <strong>3 employés les mieux payés</strong> de l'entreprise.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> <code>LIMIT</code> doit toujours apparaître <em>après</em> <code>ORDER BY</code>.
+            Écrire <code>LIMIT 3</code> sans <code>ORDER BY</code> renvoie 3 lignes <em>arbitraires</em> — pas forcément les 3 meilleures.
+        </div>
+
+        <button class="hint-btn" data-hint="q6-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q6-h1">
+            Combinez <code>ORDER BY salaire DESC</code> pour trier du plus élevé au plus bas,
+            puis <code>LIMIT 3</code> pour ne garder que les 3 premières lignes.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q6</h4>
+            <pre><code>SELECT nom, prenom, salaire
+FROM employes
+ORDER BY salaire DESC
+LIMIT 3;</code></pre>
+            <p class="inline-note">L'ordre des clauses est obligatoire : <code>SELECT → FROM → WHERE → ORDER BY → LIMIT</code>. Ici <code>WHERE</code> est absent mais <code>ORDER BY</code> précède toujours <code>LIMIT</code>. Pour obtenir les rangs 4 à 6, on ajouterait <code>OFFSET 3</code> après <code>LIMIT 3</code>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q7 — WHERE sur date                            -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q7</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Listez le <strong>nom</strong>, le <strong>prénom</strong> et la <strong>date d'embauche</strong>
+        des employés embauchés <strong>après le 1er janvier 2020</strong>,
+        triés par date d'embauche croissante (du plus récent au moins récent).</p>
+
+        <div class="callout-info">
+            <strong>Format des dates en SQLite :</strong> Les dates sont stockées sous forme de chaîne au format
+            <code>'YYYY-MM-DD'</code> (ISO 8601). Les guillemets simples sont obligatoires.
+            La comparaison lexicographique fonctionne correctement pour ce format.
+        </div>
+
+        <button class="hint-btn" data-hint="q7-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1</span>
+        </button>
+        <div class="hint" id="q7-h1">
+            Utilisez <code>WHERE date_embauche &gt; '2020-01-01'</code>. N'oubliez pas les guillemets simples autour de la date.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q7-h2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2</span>
+        </button>
+        <div class="hint" id="q7-h2">
+            Pour trier du plus ancien au plus récent, utilisez <code>ORDER BY date_embauche ASC</code> (ou simplement <code>ORDER BY date_embauche</code> car <code>ASC</code> est la valeur par défaut).
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q7</h4>
+            <pre><code>SELECT nom, prenom, date_embauche
+FROM employes
+WHERE date_embauche > '2020-01-01'
+ORDER BY date_embauche ASC;</code></pre>
+            <p class="inline-note">L'opérateur <code>&gt;</code> sur une chaîne ISO 8601 fonctionne comme une comparaison chronologique car le format <code>YYYY-MM-DD</code> est triable lexicographiquement. <code>ASC</code> est optionnel ici (c'est le comportement par défaut) mais le rendre explicite améliore la lisibilité.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q8 — Jointure + WHERE OR / IN (Avancé)         -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q8</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Listez le <strong>nom</strong>, le <strong>prénom</strong>, le <strong>poste</strong> et le <strong>salaire</strong>
+        de tous les employés dont le département a pour <strong>localisation <code>'Paris'</code></strong>
+        <em>ou</em> dont le <strong>département est Finance</strong> (id = 3).</p>
+
+        <p>Triez les résultats par département, puis par salaire décroissant.</p>
+
+        <div class="callout-info">
+            <strong>Pourquoi une jointure ?</strong> La colonne <code>localisation</code> se trouve dans la table
+            <code>departements</code>, pas dans <code>employes</code>. Pour filtrer les employés en fonction d'une
+            propriété de leur département, il faut <em>joindre</em> les deux tables sur la clé étrangère
+            <code>employes.departement_id = departements.id</code>.
+        </div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Quand on joint deux tables, les colonnes de même nom (ici <code>id</code>, <code>nom</code>)
+            deviennent ambiguës. Préfixez-les toujours avec l'alias de table : <code>e.nom</code>, <code>d.nom</code>.
+        </div>
+
+        <button class="hint-btn" data-hint="q8-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1 — Structure générale</span>
+        </button>
+        <div class="hint" id="q8-h1">
+            Utilisez un <code>JOIN</code> entre <code>employes e</code> et <code>departements d</code> sur
+            <code>e.departement_id = d.id</code>, puis filtrez avec
+            <code>WHERE d.localisation = 'Paris' OR e.departement_id = 3</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q8-h2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2 — Alternative avec IN</span>
+        </button>
+        <div class="hint" id="q8-h2">
+            Une variante élégante : récupérez d'abord les <code>id</code> des départements concernés dans une sous-requête,
+            puis utilisez <code>WHERE e.departement_id IN (SELECT id FROM departements WHERE localisation = 'Paris' OR id = 3)</code>.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q8</h4>
+
+            <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:0.25rem;">
+                <span class="badge badge-blue">Approche 1</span> Jointure + WHERE OR
+            </p>
+            <pre><code>SELECT e.nom, e.prenom, e.poste, e.salaire, d.nom AS departement
+FROM employes e
+JOIN departements d ON e.departement_id = d.id
+WHERE d.localisation = 'Paris'
+   OR e.departement_id = 3
+ORDER BY e.departement_id, e.salaire DESC;</code></pre>
+            <p class="inline-note">Les alias <code>e</code> et <code>d</code> rendent les références de colonnes non ambiguës. <code>d.nom AS departement</code> renomme la colonne dans le résultat pour la distinguer de <code>e.nom</code>.</p>
+
+            <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:0.25rem; margin-top:1.25rem;">
+                <span class="badge badge-green">Approche 2</span> Sous-requête + IN
+            </p>
+            <pre><code>SELECT nom, prenom, poste, salaire
+FROM employes
+WHERE departement_id IN (
+    SELECT id
+    FROM departements
+    WHERE localisation = 'Paris'
+       OR id = 3
+)
+ORDER BY departement_id, salaire DESC;</code></pre>
+            <p class="inline-note">La sous-requête retourne la liste des <code>id</code> des départements satisfaisant la condition. <code>IN (…)</code> filtre ensuite les employés dont l'<code>id</code> de département figure dans cette liste. Les deux approches donnent le même résultat : les employés des départements <strong>Informatique</strong> (Paris), <strong>Finance</strong> (Paris/id=3).</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- POUR ALLER PLUS LOIN                           -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Listez les employés dont le salaire est compris entre 45 000 et 65 000 € en utilisant
+                <code>BETWEEN 45000 AND 65000</code> — les bornes sont incluses.</li>
+            <li>Trouvez tous les employés occupant un poste contenant le mot "Senior" en utilisant
+                <code>LIKE '%Senior%'</code> (le <code>%</code> représente n'importe quelle suite de caractères).</li>
+            <li>Triez les employés d'abord par département croissant, puis par salaire décroissant :
+                <code>ORDER BY departement_id ASC, salaire DESC</code> — le tri multi-colonnes permet des classements composés.</li>
+            <li>Affichez les employés dont le <code>departement_id</code> est 1, 3 ou 4 en une seule condition avec
+                <code>WHERE departement_id IN (1, 3, 4)</code> — plus lisible que trois conditions <code>OR</code>.</li>
+            <li>Trouvez les employés embauchés entre le 1er janvier 2018 et le 31 décembre 2021 en utilisant
+                <code>WHERE date_embauche BETWEEN '2018-01-01' AND '2021-12-31'</code>.</li>
+        </ul>
+    </div>
+
+</body>
+</html>

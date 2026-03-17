@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <link rel="stylesheet" href="./sql-components.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+    <script src="./sql-engine.js"></script>
+    <script src="./section-utils.js" defer></script>
+    <script src="./sql-algebra.js" defer></script>
+    <script src="./sql-ui.js" defer></script>
+    <style>
+        /* ── Onglets de tables ─────────────────────────────────── */
+        .table-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .table-tab {
+            padding: 6px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            color: var(--text-secondary, #9e9a94);
+            font-size: 0.83rem;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .table-tab:hover {
+            background: rgba(96, 165, 250, 0.1);
+            color: #93c5fd;
+            border-color: rgba(96, 165, 250, 0.3);
+        }
+
+        .table-tab.active {
+            background: rgba(96, 165, 250, 0.15);
+            color: #93c5fd;
+            border-color: rgba(96, 165, 250, 0.45);
+        }
+
+        .tab-count {
+            margin-left: 0.4rem;
+            font-size: 0.72rem;
+            opacity: 0.6;
+        }
+
+        /* ── Zone d'aperçu de la table ────────────────────────── */
+        .table-preview-wrapper {
+            background: rgba(14, 20, 35, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 0.9rem 1rem;
+            min-height: 120px;
+        }
+
+        #table-preview-area {
+            overflow-x: auto;
+        }
+
+        .table-preview-loading {
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.3);
+            font-style: italic;
+            padding: 0.5rem 0;
+            animation: sql-pulse 1s ease-in-out infinite;
+        }
+
+        /* ── Bandeau d'info de la table ───────────────────────── */
+        .table-info-banner {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .table-info-name {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #93c5fd;
+        }
+
+        .table-info-stat {
+            font-size: 0.76rem;
+            color: rgba(255, 255, 255, 0.35);
+            font-style: italic;
+        }
+
+        .table-info-cols {
+            font-size: 0.74rem;
+            color: rgba(255, 255, 255, 0.28);
+            font-family: 'Courier New', monospace;
+        }
+
+        /* ── Schéma ASCII des relations ───────────────────────── */
+        .relations-ascii {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+            color: rgba(255, 255, 255, 0.55);
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-top: 0.75rem;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .relations-ascii .rel-table { color: #93c5fd; font-weight: 700; }
+        .relations-ascii .rel-link  { color: rgba(255, 255, 255, 0.3); }
+
+        /* ── Clés étrangères ──────────────────────────────────── */
+        .fk-list {
+            list-style: none;
+            padding: 0;
+            margin: 0.5rem 0 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .fk-list li {
+            font-size: 0.82rem;
+            font-family: 'Courier New', monospace;
+            color: var(--text-secondary, #9e9a94);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .fk-arrow {
+            color: #86efac;
+            font-size: 0.75rem;
+        }
+
+        .fk-from { color: #fcd34d; }
+        .fk-to   { color: #93c5fd; }
+
+        /* ── Requêtes exemples ────────────────────────────────── */
+        .example-queries {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 0.6rem;
+            margin-top: 0.75rem;
+        }
+
+        .example-query-btn {
+            text-align: left;
+            padding: 0.7rem 1rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+            color: var(--text-secondary, #9e9a94);
+        }
+
+        .example-query-btn:hover {
+            background: rgba(96, 165, 250, 0.07);
+            border-color: rgba(96, 165, 250, 0.2);
+            color: var(--text-body, #c8c4be);
+        }
+
+        .example-query-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-primary, #e8e4de);
+            margin-bottom: 0.25rem;
+        }
+
+        .example-query-sql {
+            font-family: 'Courier New', monospace;
+            font-size: 0.74rem;
+            color: rgba(255, 255, 255, 0.35);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ── Section label ────────────────────────────────────── */
+        .explorer-section-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.28);
+            margin: 1.5rem 0 0.6rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- EN-TÊTE                                        -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <h2>Explorateur de données</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-fondamental">Référence</span>
+        </div>
+        <div class="objectifs">
+            <strong>À quoi sert cette section ?</strong>
+            <ul>
+                <li>Visualisez les données brutes de la base et testez librement vos requêtes.</li>
+                <li>Naviguez entre les quatre tables avec les onglets ci-dessous.</li>
+                <li>Utilisez le playground pour expérimenter avant de répondre aux exercices.</li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- ONGLETS DE TABLES + APERÇU                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <p class="explorer-section-label">Contenu des tables</p>
+
+    <div class="table-tabs" role="tablist" aria-label="Tables de la base de données">
+        <button class="table-tab active" data-table="employes"
+                role="tab" aria-selected="true"
+                onclick="loadTable('employes')">
+            employes<span class="tab-count">…</span>
+        </button>
+        <button class="table-tab" data-table="departements"
+                role="tab" aria-selected="false"
+                onclick="loadTable('departements')">
+            departements<span class="tab-count">…</span>
+        </button>
+        <button class="table-tab" data-table="projets"
+                role="tab" aria-selected="false"
+                onclick="loadTable('projets')">
+            projets<span class="tab-count">…</span>
+        </button>
+        <button class="table-tab" data-table="affectations"
+                role="tab" aria-selected="false"
+                onclick="loadTable('affectations')">
+            affectations<span class="tab-count">…</span>
+        </button>
+    </div>
+
+    <div class="table-preview-wrapper">
+        <div id="table-preview-area">
+            <p class="table-preview-loading">Chargement de la base de données…</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- SCHÉMA DES RELATIONS                           -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <p class="explorer-section-label">Schéma des relations</p>
+
+    <div class="context-block">
+        <h3>Clés étrangères</h3>
+
+        <ul class="fk-list">
+            <li>
+                <span class="fk-from">employes.departement_id</span>
+                <span class="fk-arrow">──FK──▶</span>
+                <span class="fk-to">departements.id</span>
+            </li>
+            <li>
+                <span class="fk-from">projets.departement_id</span>
+                <span class="fk-arrow">──FK──▶</span>
+                <span class="fk-to">departements.id</span>
+            </li>
+            <li>
+                <span class="fk-from">affectations.employe_id</span>
+                <span class="fk-arrow">──FK──▶</span>
+                <span class="fk-to">employes.id</span>
+            </li>
+            <li>
+                <span class="fk-from">affectations.projet_id</span>
+                <span class="fk-arrow">──FK──▶</span>
+                <span class="fk-to">projets.id</span>
+            </li>
+        </ul>
+
+        <div class="relations-ascii" aria-label="Diagramme textuel des relations entre tables"><span class="rel-table">employes</span><span class="rel-link"> ──────────── </span><span class="rel-table">affectations</span><span class="rel-link"> ──────────── </span><span class="rel-table">projets</span>
+<span class="rel-link">   │                                          │
+   └──────────── </span><span class="rel-table">departements</span><span class="rel-link"> ──────────────────┘</span></div>
+
+        <div class="callout-info" style="margin-top: 1rem;">
+            <strong>Lecture :</strong> <code>affectations</code> est la table de liaison entre
+            <code>employes</code> et <code>projets</code>. Elle stocke le rôle et le nombre
+            d'heures par affectation. Les deux tables <code>employes</code> et <code>projets</code>
+            sont rattachées à un <code>departement</code>.
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- PLAYGROUND SQL LIBRE                           -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <p class="explorer-section-label">Playground — requêtes libres</p>
+
+    <div class="sql-editor-zone" id="playground-zone">
+        <textarea class="sql-input"
+                  style="min-height: 120px;"
+                  placeholder="Explorez librement — essayez : SELECT * FROM employes LIMIT 5"
+                  spellcheck="false"
+                  autocomplete="off"
+                  aria-label="Éditeur SQL libre"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn" type="button" aria-label="Exécuter la requête">
+                ▶ Exécuter
+            </button>
+            <span class="sql-status" aria-live="polite"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area" id="playground-result"></div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- REQUÊTES EXEMPLES                              -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <p class="explorer-section-label">Requêtes prêtes à l'emploi</p>
+
+    <div class="callout-info">
+        Cliquez sur une carte pour pré-remplir le playground, puis appuyez sur
+        <strong>▶ Exécuter</strong> ou <kbd>Ctrl+Entrée</kbd>.
+    </div>
+
+    <div class="example-queries">
+
+        <button class="example-query-btn" type="button"
+                onclick="fillPlayground('SELECT * FROM employes')">
+            <div class="example-query-title">Tous les employés</div>
+            <div class="example-query-sql">SELECT * FROM employes</div>
+        </button>
+
+        <button class="example-query-btn" type="button"
+                onclick="fillPlayground('SELECT * FROM departements')">
+            <div class="example-query-title">Tous les départements</div>
+            <div class="example-query-sql">SELECT * FROM departements</div>
+        </button>
+
+        <button class="example-query-btn" type="button"
+                onclick="fillPlayground('SELECT COUNT(*), MIN(salaire), MAX(salaire), ROUND(AVG(salaire),0) FROM employes')">
+            <div class="example-query-title">Statistiques salaires</div>
+            <div class="example-query-sql">SELECT COUNT(*), MIN(salaire), MAX(salaire), ROUND(AVG(salaire),0) FROM employes</div>
+        </button>
+
+        <button class="example-query-btn" type="button"
+                onclick="fillPlayground('SELECT e.nom, e.prenom, d.nom AS dept\nFROM employes e\nJOIN departements d ON e.departement_id = d.id')">
+            <div class="example-query-title">Employés + départements</div>
+            <div class="example-query-sql">SELECT e.nom, e.prenom, d.nom AS dept FROM employes e JOIN departements d …</div>
+        </button>
+
+        <button class="example-query-btn" type="button"
+                onclick="fillPlayground('SELECT p.nom, COUNT(a.employe_id) AS nb, SUM(a.heures) AS heures\nFROM projets p\nLEFT JOIN affectations a ON a.projet_id = p.id\nGROUP BY p.id')">
+            <div class="example-query-title">Statistiques projets</div>
+            <div class="example-query-sql">SELECT p.nom, COUNT(a.employe_id) AS nb, SUM(a.heures) … GROUP BY p.id</div>
+        </button>
+
+        <button class="example-query-btn" type="button"
+                onclick="fillPlayground('SELECT * FROM affectations ORDER BY heures DESC')">
+            <div class="example-query-title">Affectations triées par heures</div>
+            <div class="example-query-sql">SELECT * FROM affectations ORDER BY heures DESC</div>
+        </button>
+
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- SCRIPT INLINE                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <script>
+        /* Métadonnées des colonnes par table — pour le bandeau d'info */
+        var TABLE_COLUMNS = {
+            employes:     'id, nom, prenom, salaire, departement_id, date_embauche, poste',
+            departements: 'id, nom, budget, localisation',
+            projets:      'id, nom, budget, date_debut, date_fin, departement_id',
+            affectations: 'employe_id, projet_id, role, heures'
+        };
+
+        /* ── Utilitaire d'échappement HTML ─────────────────── */
+        function escHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        /* ── Construit le HTML d'un tableau résultat ───────── */
+        function buildPreviewTable(tableName, results) {
+            if (!results || !results.length) {
+                return '<p style="font-size:0.84rem;color:rgba(255,255,255,0.3);font-style:italic;">Table vide.</p>';
+            }
+
+            var cols = results[0].columns;
+            var rows = results[0].values;
+
+            /* Bandeau d'info */
+            var html = '<div class="table-info-banner">';
+            html += '<span class="table-info-name">' + escHtml(tableName) + '</span>';
+            html += '<span class="table-info-stat">' + rows.length + ' ligne' + (rows.length > 1 ? 's' : '') + ' · ' + cols.length + ' colonne' + (cols.length > 1 ? 's' : '') + '</span>';
+            html += '<span class="table-info-cols">' + escHtml(TABLE_COLUMNS[tableName] || cols.join(', ')) + '</span>';
+            html += '</div>';
+
+            /* Tableau */
+            html += '<div class="sql-result-meta">' + rows.length + ' ligne' + (rows.length > 1 ? 's' : '') + ' · ' + cols.length + ' colonnes</div>';
+            html += '<div class="sql-table-wrap"><table class="sql-result-table"><thead><tr>';
+            cols.forEach(function (c) {
+                html += '<th>' + escHtml(c) + '</th>';
+            });
+            html += '</tr></thead><tbody>';
+            rows.forEach(function (row) {
+                html += '<tr>';
+                row.forEach(function (cell) {
+                    html += '<td>' + (cell === null ? '<span class="sql-null">NULL</span>' : escHtml(cell)) + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+
+            return html;
+        }
+
+        /* ── Charge et affiche une table ───────────────────── */
+        function loadTable(tableName) {
+            /* Mise à jour de l'onglet actif */
+            document.querySelectorAll('.table-tab').forEach(function (btn) {
+                var isActive = btn.dataset.table === tableName;
+                btn.classList.toggle('active', isActive);
+                btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+
+            var area = document.getElementById('table-preview-area');
+
+            try {
+                var results = window.runSQL('SELECT * FROM ' + tableName);
+                area.innerHTML = buildPreviewTable(tableName, results);
+            } catch (e) {
+                area.innerHTML = '<div class="sql-error">' + escHtml(e.message) + '</div>';
+            }
+        }
+
+        /* ── Pré-remplit le playground ─────────────────────── */
+        function fillPlayground(query) {
+            var textarea = document.querySelector('#playground-zone .sql-input');
+            if (textarea) {
+                textarea.value = query;
+                textarea.focus();
+                /* Réinitialise le statut et le résultat */
+                var status = document.querySelector('#playground-zone .sql-status');
+                var result = document.getElementById('playground-result');
+                if (status) { status.textContent = ''; status.className = 'sql-status'; }
+                if (result) { result.innerHTML = ''; }
+            }
+        }
+
+        /* ── Initialisation au démarrage ───────────────────── */
+        window.onSQLReady(function () {
+            /* Charge la table employes par défaut */
+            loadTable('employes');
+
+            /* Met à jour les compteurs de chaque onglet */
+            ['employes', 'departements', 'projets', 'affectations'].forEach(function (t) {
+                try {
+                    var res   = window.runSQL('SELECT COUNT(*) FROM ' + t);
+                    var count = res[0].values[0][0];
+                    var badge = document.querySelector('[data-table="' + t + '"] .tab-count');
+                    if (badge) {
+                        badge.textContent = count;
+                    }
+                } catch (e) {
+                    /* silencieux — compteur reste à "…" */
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>

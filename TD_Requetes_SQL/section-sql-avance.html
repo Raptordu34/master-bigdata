@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <link rel="stylesheet" href="./sql-components.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+    <script src="./sql-engine.js"></script>
+    <script src="./section-utils.js" defer></script>
+    <script src="./sql-algebra.js" defer></script>
+    <script src="./sql-ui.js" defer></script>
+</head>
+<body>
+
+    <h2>Niveau 5 — SQL Avancé</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-time">⏱ 50–70 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Combiner des résultats avec <code>UNION</code>, <code>UNION ALL</code>, <code>EXCEPT</code>, <code>INTERSECT</code></li>
+                <li>Créer des colonnes et des tris conditionnels avec <code>CASE WHEN</code></li>
+                <li>Calculer des rangs et des agrégats par fenêtre : <code>RANK()</code>, <code>ROW_NUMBER()</code>, <code>SUM() OVER</code></li>
+                <li>Structurer une requête complexe avec une CTE (<code>WITH … AS</code>)</li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- CONTEXT BLOCK — Rappels                                    -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+
+    <div class="context-block">
+        <h3>Rappel — Opérateurs ensemblistes</h3>
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><span class="badge badge-green">UNION / UNION ALL</span></p>
+                <p>Empile les résultats de deux <code>SELECT</code>. Les colonnes doivent être <strong>en même nombre et de types compatibles</strong>.</p>
+                <ul>
+                    <li><code>UNION</code> — élimine les doublons (coût supplémentaire)</li>
+                    <li><code>UNION ALL</code> — conserve tous les doublons, plus rapide</li>
+                </ul>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-blue">EXCEPT / INTERSECT</span></p>
+                <p><code>EXCEPT</code> retourne les lignes du premier <code>SELECT</code> absentes du second.<br>
+                <code>INTERSECT</code> retourne les lignes communes aux deux.</p>
+                <pre><code>SELECT ville FROM clients
+EXCEPT
+SELECT ville FROM fournisseurs</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="context-block">
+        <h3>Rappel — CASE WHEN</h3>
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Syntaxe</span></p>
+                <pre><code>CASE
+    WHEN condition1 THEN valeur1
+    WHEN condition2 THEN valeur2
+    ELSE valeur_defaut
+END AS alias</code></pre>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-blue">Usages</span></p>
+                <ul>
+                    <li>Dans <code>SELECT</code> — créer une colonne calculée</li>
+                    <li>Dans <code>ORDER BY</code> — trier selon une logique personnalisée</li>
+                    <li>Dans <code>WHERE</code> — filtre conditionnel</li>
+                </ul>
+                <p>Les conditions sont évaluées <strong>dans l'ordre</strong> ; la première vraie gagne.</p>
+            </div>
+        </div>
+        <div class="erreur-freq">
+            <strong>Erreur fréquente :</strong> oublier le mot-clé <code>END</code> à la fin du bloc <code>CASE</code> provoque une erreur de syntaxe. Si tous les cas possibles ne sont pas couverts et qu'il n'y a pas de <code>ELSE</code>, les lignes non correspondantes retournent <code>NULL</code>.
+        </div>
+    </div>
+
+    <div class="context-block">
+        <h3>Rappel — Fonctions de fenêtre</h3>
+        <p>Les fonctions de fenêtre (<em>window functions</em>) calculent une valeur pour chaque ligne en tenant compte d'un ensemble de lignes voisines — <strong>sans réduire le nombre de lignes</strong> (contrairement à <code>GROUP BY</code>).</p>
+        <pre><code>fonction() OVER (PARTITION BY colonne ORDER BY colonne2)</code></pre>
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Fonctions de rang</span></p>
+                <table style="width:100%; font-size:0.85em; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; padding:4px 8px;">Fonction</th>
+                            <th style="text-align:left; padding:4px 8px;">Comportement ex-aequo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:4px 8px;"><code>RANK()</code></td><td style="padding:4px 8px;">1, 1, 3 — saute le rang suivant</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>DENSE_RANK()</code></td><td style="padding:4px 8px;">1, 1, 2 — ne saute pas</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>ROW_NUMBER()</code></td><td style="padding:4px 8px;">1, 2, 3 — toujours unique</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-blue">Fonctions d'accès et d'agrégat</span></p>
+                <table style="width:100%; font-size:0.85em; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; padding:4px 8px;">Fonction</th>
+                            <th style="text-align:left; padding:4px 8px;">Usage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:4px 8px;"><code>LAG(col)</code></td><td style="padding:4px 8px;">Valeur de la ligne précédente</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>LEAD(col)</code></td><td style="padding:4px 8px;">Valeur de la ligne suivante</td></tr>
+                        <tr><td style="padding:4px 8px;"><code>SUM/AVG() OVER</code></td><td style="padding:4px 8px;">Agrégat cumulatif (avec ORDER BY)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="callout-info">
+            <strong>ORDER BY dans OVER vs ORDER BY final :</strong> le <code>ORDER BY</code> placé à l'intérieur de <code>OVER(…)</code> contrôle l'ordre de calcul <em>de la fenêtre</em> (ex. pour un cumul). Il est indépendant du <code>ORDER BY</code> de fin de requête qui contrôle l'ordre d'affichage des lignes dans le résultat.
+        </div>
+    </div>
+
+    <div class="context-block">
+        <h3>Rappel — CTE (Common Table Expression)</h3>
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Syntaxe</span></p>
+                <pre><code>WITH nom_cte AS (
+    SELECT ...
+    FROM ...
+)
+SELECT *
+FROM nom_cte
+WHERE ...;</code></pre>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-blue">Avantages</span></p>
+                <ul>
+                    <li>Améliore la <strong>lisibilité</strong> en nommant les étapes intermédiaires</li>
+                    <li>Permet de <strong>réutiliser</strong> un sous-résultat plusieurs fois dans la même requête</li>
+                    <li>Équivalent à une sous-requête dans <code>FROM</code>, mais plus clair</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q1 — UNION                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Créez une liste unifiée en une seule colonne <code>valeur</code> contenant, <strong>sans doublons</strong>,
+        les <strong>noms des employés</strong> et les <strong>localisations des départements</strong>.
+        Triez le résultat par ordre alphabétique.</p>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici… (Ctrl+Entrée pour exécuter)"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+            <pre><code>SELECT nom AS valeur FROM employes
+UNION
+SELECT localisation AS valeur FROM departements
+ORDER BY valeur;</code></pre>
+            <p class="inline-note"><code>UNION</code> déduplique automatiquement. Si "Paris" apparaît dans plusieurs départements, il n'apparaît qu'une fois dans le résultat. L'alias de colonne (<code>AS valeur</code>) se définit dans le premier <code>SELECT</code> ; le second n'a pas besoin d'alias.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q2 — UNION ALL                                 -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Reprenez la même liste unifiée, mais cette fois <strong>avec <code>UNION ALL</code></strong>
+        pour conserver les doublons. Comptez ensuite le nombre total de lignes retournées dans chaque cas
+        et comparez avec <code>UNION</code>.</p>
+        <p class="inline-note">Astuce : encapsulez la requête dans un <code>SELECT COUNT(*) FROM (…)</code> pour compter.</p>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+            <pre><code>-- Avec doublons
+SELECT nom AS valeur FROM employes
+UNION ALL
+SELECT localisation AS valeur FROM departements
+ORDER BY valeur;
+
+-- Compter avec UNION ALL
+SELECT COUNT(*) AS total_union_all FROM (
+    SELECT nom AS valeur FROM employes
+    UNION ALL
+    SELECT localisation AS valeur FROM departements
+);
+
+-- Compter avec UNION (sans doublons)
+SELECT COUNT(*) AS total_union FROM (
+    SELECT nom AS valeur FROM employes
+    UNION
+    SELECT localisation AS valeur FROM departements
+);</code></pre>
+            <p class="inline-note"><code>UNION ALL</code> est systématiquement plus rapide que <code>UNION</code> car il ne réalise pas de tri pour dédupliquer. À préférer quand les doublons sont impossibles ou sans importance.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q3 — CASE WHEN (catégoriser salaires)          -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Affichez le nom, prénom et salaire de chaque employé avec une colonne <code>categorie</code>
+        calculée selon les règles suivantes :</p>
+        <ul>
+            <li>Salaire ≥ 65 000 → <code>'Senior'</code></li>
+            <li>Salaire ≥ 45 000 → <code>'Confirmé'</code></li>
+            <li>Sinon → <code>'Junior'</code></li>
+        </ul>
+        <p>Triez par salaire décroissant.</p>
+        <div class="erreur-freq">
+            <strong>Erreur fréquente :</strong> inverser l'ordre des conditions dans <code>CASE WHEN</code>. Si vous mettez <code>WHEN salaire >= 45000</code> avant <code>WHEN salaire >= 65000</code>, tous les salaires ≥ 65 000 seront classés "Confirmé" et jamais "Senior", car la première condition vraie s'applique.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+            <pre><code>SELECT
+    nom,
+    prenom,
+    salaire,
+    CASE
+        WHEN salaire >= 65000 THEN 'Senior'
+        WHEN salaire >= 45000 THEN 'Confirmé'
+        ELSE 'Junior'
+    END AS categorie
+FROM employes
+ORDER BY salaire DESC;</code></pre>
+            <p class="inline-note">Les conditions sont évaluées de haut en bas. Dès qu'une est vraie, les suivantes sont ignorées. Le <code>END</code> ferme obligatoirement le bloc <code>CASE</code>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q4 — CASE WHEN dans ORDER BY                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Affichez tous les employés (nom, prénom, salaire) triés d'abord par <strong>catégorie de salaire</strong>
+        (Senior en premier, puis Confirmé, puis Junior), puis par <strong>nom alphabétique</strong> au sein de chaque catégorie.
+        Utilisez un <code>CASE WHEN</code> directement dans la clause <code>ORDER BY</code>.</p>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+            <pre><code>SELECT nom, prenom, salaire
+FROM employes
+ORDER BY
+    CASE
+        WHEN salaire >= 65000 THEN 1
+        WHEN salaire >= 45000 THEN 2
+        ELSE 3
+    END,
+    nom ASC;</code></pre>
+            <p class="inline-note">On attribue une valeur numérique à chaque catégorie pour piloter l'ordre. Le tri alphabétique secondaire (<code>nom ASC</code>) s'applique au sein de chaque groupe numérique.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q5 — RANK() OVER                               -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q5</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Pour chaque employé, calculez son <strong>rang par salaire décroissant au sein de son département</strong>
+        (colonne <code>rang</code>). Affichez le nom, prénom, <code>departement_id</code>, salaire et rang,
+        trié par département puis par rang.</p>
+
+        <div class="erreur-freq">
+            <strong>Erreur fréquente :</strong> confondre <code>RANK()</code> et <code>ROW_NUMBER()</code>. Si deux employés ont le même salaire, <code>RANK()</code> leur attribue le même rang (1, 1, 3), tandis que <code>ROW_NUMBER()</code> attribue un numéro arbitraire unique (1, 2, 3).
+        </div>
+
+        <button class="hint-btn" data-hint="q5-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q5-h1">
+            La fonction de fenêtre se place dans le <code>SELECT</code> :
+            <code>RANK() OVER (PARTITION BY … ORDER BY …) AS rang</code>
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q5-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q5-h2">
+            Syntaxe complète : <code>RANK() OVER (PARTITION BY departement_id ORDER BY salaire DESC) AS rang</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q5</h4>
+            <pre><code>SELECT
+    nom,
+    prenom,
+    departement_id,
+    salaire,
+    RANK() OVER (
+        PARTITION BY departement_id
+        ORDER BY salaire DESC
+    ) AS rang
+FROM employes
+ORDER BY departement_id, rang;</code></pre>
+            <p class="inline-note"><code>PARTITION BY departement_id</code> remet le compteur à 1 pour chaque département. Le <code>ORDER BY</code> final trie l'affichage ; le <code>ORDER BY</code> dans <code>OVER</code> détermine le calcul du rang.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q6 — ROW_NUMBER() OVER                        -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q6</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Numérotez les employés <strong>par date d'embauche croissante au sein de chaque département</strong>
+        (colonne <code>num_embauche</code>). Affichez le nom, prénom, <code>departement_id</code>,
+        <code>date_embauche</code> et ce numéro.</p>
+
+        <button class="hint-btn" data-hint="q6-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q6-h1">
+            <code>ROW_NUMBER()</code> ne prend pas d'argument, contrairement à <code>SUM(col)</code>. Utilisez <code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q6-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q6-h2">
+            <code>ROW_NUMBER() OVER (PARTITION BY departement_id ORDER BY date_embauche ASC) AS num_embauche</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q6</h4>
+            <pre><code>SELECT
+    nom,
+    prenom,
+    departement_id,
+    date_embauche,
+    ROW_NUMBER() OVER (
+        PARTITION BY departement_id
+        ORDER BY date_embauche ASC
+    ) AS num_embauche
+FROM employes
+ORDER BY departement_id, num_embauche;</code></pre>
+            <p class="inline-note"><code>ROW_NUMBER()</code> garantit un numéro unique même en cas d'ex-aequo sur <code>date_embauche</code>. Le premier employé embauché dans chaque département reçoit le numéro 1.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q7 — SUM() OVER (cumul heures par projet)     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q7</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Pour chaque affectation, affichez le <code>projet_id</code>, l'<code>employe_id</code>,
+        les <code>heures</code> et le <strong>cumul des heures par projet</strong>
+        (somme courante, triée par <code>employe_id</code> croissant au sein de chaque projet).
+        Nommez cette colonne <code>cumul_heures</code>.</p>
+
+        <div class="callout-info">
+            Avec <code>ORDER BY</code> dans <code>OVER</code>, <code>SUM()</code> devient une <strong>somme cumulée</strong> ligne par ligne. Sans <code>ORDER BY</code>, elle retourne le total complet de la partition.
+        </div>
+
+        <button class="hint-btn" data-hint="q7-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q7-h1">
+            Commencez par <code>SUM(heures) OVER (PARTITION BY projet_id …) AS cumul_heures</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q7-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q7-h2">
+            Syntaxe complète : <code>SUM(heures) OVER (PARTITION BY projet_id ORDER BY employe_id ASC) AS cumul_heures</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q7</h4>
+            <pre><code>SELECT
+    projet_id,
+    employe_id,
+    heures,
+    SUM(heures) OVER (
+        PARTITION BY projet_id
+        ORDER BY employe_id ASC
+    ) AS cumul_heures
+FROM affectations
+ORDER BY projet_id, employe_id;</code></pre>
+            <p class="inline-note">La dernière ligne de chaque projet affiche le total de toutes les heures du projet. On peut vérifier avec un <code>SELECT projet_id, SUM(heures) FROM affectations GROUP BY projet_id</code>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q8 — CTE                                      -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q8</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Utilisez une <strong>CTE</strong> pour calculer d'abord le <strong>salaire moyen par département</strong>,
+        puis sélectionnez les employés dont le salaire est <strong>strictement supérieur à la moyenne de leur propre département</strong>.
+        Affichez le nom, prénom, salaire, <code>departement_id</code> et le salaire moyen du département.</p>
+
+        <button class="hint-btn" data-hint="q8-h1" data-label="Indice 1/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/3</span>
+        </button>
+        <div class="hint" id="q8-h1">
+            Structurez votre requête avec <code>WITH moy_dept AS (SELECT departement_id, AVG(salaire) AS salaire_moyen FROM employes GROUP BY departement_id)</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q8-h2" data-label="Indice 2/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/3</span>
+        </button>
+        <div class="hint" id="q8-h2">
+            Après la CTE, faites une jointure : <code>SELECT e.nom, … FROM employes e JOIN moy_dept m ON e.departement_id = m.departement_id WHERE …</code>
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q8-h3" data-label="Indice 3/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 3/3</span>
+        </button>
+        <div class="hint" id="q8-h3">
+            Condition de filtre : <code>WHERE e.salaire > m.salaire_moyen</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q8</h4>
+            <pre><code>WITH moy_dept AS (
+    SELECT
+        departement_id,
+        AVG(salaire) AS salaire_moyen
+    FROM employes
+    GROUP BY departement_id
+)
+SELECT
+    e.nom,
+    e.prenom,
+    e.salaire,
+    e.departement_id,
+    ROUND(m.salaire_moyen, 2) AS salaire_moyen_dept
+FROM employes e
+JOIN moy_dept m ON e.departement_id = m.departement_id
+WHERE e.salaire > m.salaire_moyen
+ORDER BY e.departement_id, e.salaire DESC;</code></pre>
+            <p class="inline-note">La CTE <code>moy_dept</code> est évaluée une seule fois, puis réutilisée comme une table virtuelle. Sans CTE, il faudrait une sous-requête dans le <code>FROM</code> ou une sous-requête corrélée dans le <code>WHERE</code>, moins lisibles.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- POUR ALLER PLUS LOIN                          -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Utilisez <code>LAG(salaire, 1) OVER (PARTITION BY departement_id ORDER BY salaire DESC)</code> pour afficher, à côté de chaque employé, le salaire de l'employé mieux payé juste au-dessus dans son département.</li>
+            <li>Utilisez <code>LEAD(salaire, 1) OVER (…)</code> pour afficher le salaire de l'employé juste en dessous.</li>
+            <li>Répartissez les employés en quartiles de salaire avec <code>NTILE(4) OVER (ORDER BY salaire DESC) AS quartile</code>.</li>
+            <li>Explorez la clause <code>ROWS BETWEEN</code> pour contrôler précisément la fenêtre de calcul : par exemple <code>SUM(heures) OVER (PARTITION BY projet_id ORDER BY employe_id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)</code> calcule la somme glissante sur les 3 dernières lignes.</li>
+        </ul>
+    </div>
+
+</body>
+</html>
