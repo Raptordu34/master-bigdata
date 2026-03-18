@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mémento Révision — SQL & Optimisation CBA</title>
+    <style>
+        /* --- CONFIGURATION A4 LANDSCAPE --- */
+        @page {
+            size: A4 landscape;
+            margin: 5mm;
+        }
+
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --section-bg: #f2f2f2;
+            --border-color: #e0e0e0;
+            --font-main: 'Segoe UI', Calibri, sans-serif;
+            --font-size: 8.5pt;
+        }
+
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            font-size: var(--font-size);
+            line-height: 1.15;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* --- LAYOUT GRID --- */
+        .page {
+            width: 287mm; /* A4 Landscape minus margins */
+            height: 200mm;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: auto 1fr;
+            gap: 10px;
+            page-break-after: always;
+        }
+
+        .header {
+            grid-column: span 3;
+            border-bottom: 1.5pt solid black;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-bottom: 2px;
+            margin-bottom: 5px;
+        }
+
+        .header h1 { margin: 0; font-size: 14pt; text-transform: uppercase; }
+        .header-meta { font-weight: bold; }
+
+        /* --- SECTIONS BLOCKS --- */
+        .section {
+            border: 0.5pt solid var(--border-color);
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            background-color: var(--section-bg);
+            padding: 2px 5px;
+            font-weight: bold;
+            font-size: 9pt;
+            border-bottom: 0.5pt solid var(--border-color);
+            text-transform: uppercase;
+        }
+
+        .section-content {
+            padding: 4px;
+        }
+
+        /* --- CONTENT STYLES --- */
+        ul { margin: 2px 0; padding-left: 15px; }
+        li { margin-bottom: 2px; }
+        code { font-family: 'Consolas', monospace; font-size: 8pt; background: #f9f9f9; padding: 0 2px; }
+        .formula { font-weight: bold; text-align: center; display: block; margin: 4px 0; border: 0.5pt dashed #ccc; padding: 3px; }
+        .highlight { border-left: 2px solid black; padding-left: 5px; margin: 5px 0; font-style: italic; }
+        table { width: 100%; border-collapse: collapse; margin-top: 3px; }
+        th, td { border: 0.2pt solid #ccc; padding: 2px 4px; text-align: left; font-size: 7.5pt; }
+        th { background: #f9f9f9; }
+
+        /* --- UTILS --- */
+        .no-print { position: fixed; bottom: 10mm; right: 10mm; z-index: 100; }
+        .btn-print { 
+            background: #333; color: white; border: none; padding: 8px 15px; 
+            border-radius: 20px; cursor: pointer; font-family: sans-serif; 
+        }
+
+        @media print {
+            .no-print { display: none; }
+            body { background: white; }
+        }
+
+        .algebra { font-family: serif; font-size: 10pt; font-weight: bold; }
+        .compact-list { column-count: 2; gap: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <button class="btn-print" onclick="window.print()">Imprimer (PDF)</button>
+    </div>
+
+    <!-- PAGE 1 : FONDAMENTAUX & CBA BASICS -->
+    <div class="page">
+        <div class="header">
+            <h1>SQL & Optimization (CBA) — Page 1</h1>
+            <div class="header-meta">MEMENTO REVISION EXAMEN</div>
+        </div>
+
+        <div class="column">
+            <!-- ALGEBRE RELATIONNELLE -->
+            <div class="section">
+                <div class="section-title">Algèbre Relationnelle (fondations)</div>
+                <div class="section-content">
+                    <ul>
+                        <li><span class="algebra">σ<sub>C</sub>(R)</span> : <strong>Sélection</strong> (filtre lignes).</li>
+                        <li><span class="algebra">π<sub>A,B</sub>(R)</span> : <strong>Projection</strong> (garde colonnes).</li>
+                        <li><span class="algebra">R ⋈<sub>C</sub> S</span> : <strong>Jointure</strong> (produit + filtre).</li>
+                        <li><span class="algebra">ρ<sub>S(A,B)</sub>(R)</span> : <strong>Renommage</strong>.</li>
+                        <li><span class="algebra">R ⋉ S</span> : <strong>Semi-jointure</strong> (tuples de R ayant correspondance dans S).</li>
+                    </ul>
+                    <div class="highlight"><strong>Règle d'or :</strong> <em>Early Selection</em>. Toujours pousser les sélections (σ) vers le bas de l'arbre pour réduire les tailles intermédiaires.</div>
+                </div>
+            </div>
+
+            <!-- ORDRE EXECUTION SQL -->
+            <div class="section">
+                <div class="section-title">Ordre Logique d'Exécution SQL</div>
+                <div class="section-content">
+                    <ol>
+                        <li><code>FROM / JOIN</code> (Accès données)</li>
+                        <li><code>WHERE</code> (Filtrage tuples)</li>
+                        <li><code>GROUP BY</code> (Regroupement)</li>
+                        <li><code>HAVING</code> (Filtrage groupes)</li>
+                        <li><code>SELECT</code> (Projection & Calculs)</li>
+                        <li><code>DISTINCT / ORDER BY / LIMIT</code></li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- STRUCTURES D'ACCÈS -->
+            <div class="section">
+                <div class="section-title">Accès & Modèles de Coût</div>
+                <div class="section-content">
+                    <ul>
+                        <li><strong>Full Table Scan (FTS) :</strong> Lit 100% des blocs. Efficace pour gros volumes (>10% table).</li>
+                        <li><strong>Index Range Scan :</strong> Parcours B-Tree pour plage de valeurs.</li>
+                        <li><strong>Table Access by ROWID :</strong> Récupère la ligne physique après accès index.</li>
+                    </ul>
+                    <table>
+                        <tr><th>Notation</th><th>Signification</th></tr>
+                        <tr><td><code>|R|</code></td><td>Nb de pages (blocs) disque de R</td></tr>
+                        <tr><td><code>M</code></td><td>Nb de pages mémoire RAM (buffers)</td></tr>
+                        <tr><td><code>f</code></td><td>Sélectivité (0 < f &le; 1)</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="column">
+            <!-- HACHAGE -->
+            <div class="section">
+                <div class="section-title">Hachage (Hashing)</div>
+                <div class="section-content">
+                    <strong>Hachage Statique :</strong> k seaux fixes. Risque de collisions/débordements.
+                    <strong>Hachage Dynamique :</strong> Utilise un répertoire/arbre pour gérer la croissance.
+                    <div class="highlight">Coût insertion : lit répertoire + lit bloc + écrit bloc.</div>
+                    <strong>Linear Hashing :</strong> Division graduelle des seaux sans répertoire global.
+                </div>
+            </div>
+
+            <!-- FONCTIONS SQL -->
+            <div class="section">
+                <div class="section-title">Mots-clés & Fonctions Fondamentaux</div>
+                <div class="section-content">
+                    <ul class="compact-list">
+                        <li><code>COALESCE(x, 0)</code></li>
+                        <li><code>NULLIF(x, y)</code></li>
+                        <li><code>TRIM / SUBSTR</code></li>
+                        <li><code>ROUND / TRUNC</code></li>
+                        <li><code>EXTRACT(YEAR FROM d)</code></li>
+                        <li><code>CASE WHEN ... THEN</code></li>
+                        <li><code>UNION ALL</code> (Pas de tri)</li>
+                        <li><code>LIKE '%_abc'</code> (Gare index)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- AGREGATS -->
+            <div class="section">
+                <div class="section-title">Agrégats & Filtrage</div>
+                <div class="section-content">
+                    <ul>
+                        <li><code>COUNT(*)</code> compte tout (null inclus).</li>
+                        <li><code>COUNT(col)</code> ignore les NULL.</li>
+                        <li><code>WHERE</code> vs <code>HAVING</code> : WHERE filtre avant l'agrégation, HAVING après.</li>
+                    </ul>
+                    <code>SELECT dpt, AVG(sal) FROM emp GROUP BY dpt HAVING AVG(sal) > 2000;</code>
+                </div>
+            </div>
+        </div>
+
+        <div class="column">
+            <!-- ANALYSE DE PLANS -->
+            <div class="section">
+                <div class="section-title">Lecture Plan Oracle (EXPLAIN)</div>
+                <div class="section-content">
+                    <ul>
+                        <li><strong>Lecture :</strong> Du bas vers le haut, de droite à gauche (les plus indentés d'abord).</li>
+                        <li><strong>NESTED LOOPS :</strong> Boucle externe (petite) et boucle interne (indexée).</li>
+                        <li><strong>SORT JOIN :</strong> Tri nécessaire avant MERGE JOIN.</li>
+                        <li><strong>INDEX UNIQUE SCAN :</strong> 1 seule ligne (recherche PK).</li>
+                    </ul>
+                    <div class="highlight"><strong>Performance :</strong> Préférer les index si la requête est sélective (<5-10% de la table). Sinon, préférer le Full Scan (E/S séquentielles).</div>
+                </div>
+            </div>
+
+            <!-- PIEGES -->
+            <div class="section">
+                <div class="section-title">Pièges & Règles CBA</div>
+                <div class="section-content">
+                    <ul>
+                        <li><strong>Sargability :</strong> <code>WHERE YEAR(date) = 2024</code> tue l'index. Utiliser <code>date >= '01/01/2024'</code>.</li>
+                        <li><strong>Nulls :</strong> Un index standard ne stocke pas les valeurs NULL (attention aux `NOT IN`).</li>
+                        <li><strong>Sélectivité :</strong> Nb valeurs distinctes / Nb tuples total. Plus elle est faible (proche de 0), mieux c'est pour l'index.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 2 : ALGORITHMES AVANCÉS & ESTIMATIONS -->
+    <div class="page">
+        <div class="header">
+            <h1>SQL & Optimization (CBA) — Page 2</h1>
+            <div class="header-meta">MEMENTO REVISION EXAMEN</div>
+        </div>
+
+        <div class="column">
+            <!-- ALGORITHMES DE JOINTURE -->
+            <div class="section">
+                <div class="section-title">Algorithmes de Jointure (Crucial)</div>
+                <div class="section-content">
+                    <strong>1. Nested Loops (NLJ) :</strong>
+                    <div class="formula">Coût = |R| + (|R| / (M-2)) × |S|</div>
+                    <ul>
+                        <li>Optimal si R tient en RAM : <code>|R| + |S|</code></li>
+                        <li>Mémoire min : <code>M ≥ 3</code> (1 R, 1 S, 1 Out).</li>
+                        <li>Usage : Petites relations ou index interne.</li>
+                    </ul>
+                    <strong>2. Sort-Merge Join (SMJ) :</strong>
+                    <div class="formula">Coût = 3(|R| + |S|) [si 2 passes]</div>
+                    <ul>
+                        <li>Usage : Données déjà triées ou opérateur non équi-jointure (<, >).</li>
+                    </ul>
+                    <strong>3. Grace Hash Join (HJ) :</strong>
+                    <div class="formula">Coût = 3(|R| + |S|) [si 2 passes]</div>
+                    <ul>
+                        <li>Phase 1 : Partitionnement (2(|R|+|S|)).</li>
+                        <li>Phase 2 : Sondage/Join (|R|+|S|).</li>
+                        <li>Condition : <code>M ≥ √|R| + 1</code>.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="column">
+            <!-- SEMI-JOINTURES -->
+            <div class="section">
+                <div class="section-title">Semi-Jointure & Full Reducer</div>
+                <div class="section-content">
+                    <strong>Principe (⋉) :</strong> Réduire S avant le Join.
+                    <ol>
+                        <li>Projeter R sur l'attribut de join : <code>π<sub>A</sub>(R)</code></li>
+                        <li>Envoyer à S, filtrer : <code>S' = S ⋉ π<sub>A</sub>(R)</code></li>
+                        <li>Joindre final : <code>R ⋈ S'</code></li>
+                    </ol>
+                    <div class="highlight">Rentable si : <code>|π<sub>A</sub>(R)| + |S'| < |S|</code>.</div>
+                    <strong>Full Reducer (n relations) :</strong> 
+                    Une passe aller (R1→Rn) + une passe retour (Rn→R1) de semi-jointures. Garanti de ne garder que les tuples participants.
+                </div>
+            </div>
+
+            <!-- CARDINALITE -->
+            <div class="section">
+                <div class="section-title">Estimations de Cardinalité</div>
+                <div class="section-content">
+                    <ul>
+                        <li><code>f(Col = val) = 1 / NDV(Col)</code></li>
+                        <li><code>f(Col > val) = (Max - val) / (Max - Min)</code></li>
+                        <li><code>f(A AND B) = f(A) × f(B)</code></li>
+                        <li><code>f(A OR B) = f(A) + f(B) - (f(A)×f(B))</code></li>
+                        <li><code>|R ⋈ S| = (|R| × |S|) / MAX(NDV(R.A), NDV(S.A))</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="column">
+            <!-- FONCTIONS FENÊTRAGE -->
+            <div class="section">
+                <div class="section-title">Fonctions de Fenêtrage (OLAP)</div>
+                <div class="section-content">
+                    <code>F(...) OVER (PARTITION BY ... ORDER BY ...)</code>
+                    <ul>
+                        <li><code>ROW_NUMBER()</code> : 1, 2, 3, 4 (unique)</li>
+                        <li><code>RANK()</code> : 1, 1, 3, 4 (saute si ex-æquo)</li>
+                        <li><code>DENSE_RANK()</code> : 1, 1, 2, 3 (ne saute pas)</li>
+                        <li><code>LAG(col, 1) / LEAD</code> : Accès ligne préc/suiv.</li>
+                        <li><code>SUM(x) OVER(ORDER BY t)</code> : Somme mobile.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- OPTIMISEURS -->
+            <div class="section">
+                <div class="section-title">RBO vs CBO</div>
+                <div class="section-content">
+                    <ul>
+                        <li><strong>RBO (Rule-Based) :</strong> Utilise des priorités fixes (ex: Index > Full Scan). Obsolète.</li>
+                        <li><strong>CBO (Cost-Based) :</strong> Calcule le coût I/O et CPU via les statistiques.</li>
+                        <li><strong>Statistiques :</strong> <code>Min, Max, NDV, Histogrammes</code>. Nécessitent des `ANALYZE` réguliers.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- EXEMPLE COMPLEXE -->
+            <div class="section">
+                <div class="section-title">Exemple CASE & Window</div>
+                <div class="section-content">
+<pre style="font-size: 7pt; margin: 0;">
+SELECT nom, sal,
+  CASE WHEN sal > 3000 THEN 'H' ELSE 'L' END,
+  RANK() OVER(PARTITION BY dpt ORDER BY sal DESC)
+FROM emp;
+</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

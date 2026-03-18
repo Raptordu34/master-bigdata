@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 1 — Sélection d'index</h2>
+
+    <!-- ── EN-TÊTE DE L'EXERCICE ── -->
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 12 pts</span>
+            <span class="exo-time">⏱ 25–40 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Identifier les attributs candidats à l'indexation à partir d'un ensemble de requêtes</li>
+                <li>Distinguer les types d'index B-tree, Bitmap et Hash selon les prédicats et la cardinalité</li>
+                <li>Sélectionner et prioriser les 3 meilleurs index à créer sur un schéma donné</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> Cours — <em>Structures d'accès physique et index</em> · Cours — <em>Optimisation de requêtes</em></p>
+    </div>
+
+    <!-- ── CONTEXTE ── -->
+    <div class="context-block">
+        <h3>Contexte — Base de données RH d'entreprise</h3>
+        <p>
+            Vous travaillez sur la base de données d'une entreprise. Le DBA constate que plusieurs
+            requêtes fréquentes sont lentes, et vous demande d'identifier les index à créer pour
+            améliorer les performances. Le schéma logique est le suivant (le préfixe <code>#</code>
+            désigne une clé étrangère) :
+        </p>
+
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Table</th><th>Attributs</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Employe</strong></td>
+                        <td>
+                            <code>NSS</code> (PK), <code>Nom</code>, <code>Prénom</code>,
+                            <code>DateNaissance</code>, <code>Adresse</code>, <code>Salaire</code>,
+                            <code>#N°Dep</code>, <code>#Supérieur</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Projet</strong></td>
+                        <td>
+                            <code>N°Pro</code> (PK), <code>NomP</code>,
+                            <code>#N°Dep</code>, <code>Directeur</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Travaille</strong></td>
+                        <td>
+                            <code>#NSS</code>, <code>#N°Pro</code> (PK composite),
+                            <code>Heures</code>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>Les 7 requêtes suivantes sont exécutées régulièrement :</p>
+
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>#</th><th>Description de la requête</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>R1</strong></td><td>Nom et adresse de Juliette Rochat</td></tr>
+                    <tr><td><strong>R2</strong></td><td>Nom et adresse des employés qui travaillent au département de recherche</td></tr>
+                    <tr><td><strong>R3</strong></td><td>Nom et prénom des employés dont le supérieur est Juliette Rochat</td></tr>
+                    <tr><td><strong>R4</strong></td><td>Nom des projets sur lesquels travaillent, plus de 10 heures, les employés habitant à Genève</td></tr>
+                    <tr><td><strong>R5</strong></td><td>Nom et prénom des employés qui travaillent sur le même projet que Jean Müller et Annie Grandjean</td></tr>
+                    <tr><td><strong>R6</strong></td><td>Nom des projets sur lesquels travaillent à la fois Jean Müller et Annie Grandjean</td></tr>
+                    <tr><td><strong>R7</strong></td><td>Nom et prénom des employés qui ne travaillent sur aucun projet</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout-info">
+            <strong>Note :</strong> Aucun index secondaire n'existe pour l'instant — seules les clés primaires
+            sont indexées automatiquement par le SGBD. Toutes les requêtes reposent donc actuellement sur
+            des parcours séquentiels (<code>Seq Scan</code>) sur les tables concernées.
+        </div>
+    </div>
+
+    <!-- ── RAPPEL DE COURS COURT ── -->
+    <button class="hint-btn" data-hint="rappel-index-def" data-label="Rappel de cours — Qu'est-ce qu'un index ?" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Qu'est-ce qu'un index ?</span>
+    </button>
+    <div class="hint" id="rappel-index-def">
+        Un <strong>index</strong> est une structure de données auxiliaire construite sur un ou plusieurs
+        attributs d'une table. Il permet au moteur de localiser les tuples correspondant à un prédicat
+        en O(log n) au lieu de O(n), sans parcourir toutes les lignes.
+        <ul>
+            <li>Un index sur <code>Employe(Nom)</code> permet de trouver "Rochat" en quelques comparaisons, quelle que soit la taille de la table.</li>
+            <li>Un index a un <strong>coût en écriture</strong> : chaque <code>INSERT</code>, <code>UPDATE</code> ou <code>DELETE</code> doit mettre à jour toutes les structures d'index associées à la table.</li>
+            <li>Les clés primaires sont <em>automatiquement</em> indexées — il est inutile de recréer un index dessus.</li>
+        </ul>
+    </div>
+
+    <!-- ── RAPPEL DE COURS LONG ── -->
+    <button class="hint-btn" data-hint="rappel-types-index" data-label="Rappel de cours — Types d'index (B-tree, Bitmap, Hash)" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Types d'index (B-tree, Bitmap, Hash)</span>
+    </button>
+    <div class="hint" id="rappel-types-index">
+        <p><strong>B-tree (arbre B+) :</strong> structure arborescente équilibrée, type par défaut dans presque tous les SGBD. Efficace pour les filtres d'égalité (<code>=</code>), d'intervalle (<code>&lt;</code>, <code>&gt;</code>, <code>BETWEEN</code>) et les tris (<code>ORDER BY</code>). Convient à tout type de cardinalité.</p>
+        <p><strong>Bitmap :</strong> représente chaque valeur distincte par un vecteur de bits — un bit par tuple indique si ce tuple possède cette valeur. Très compact et efficace pour les attributs à <em>faible cardinalité</em> (peu de valeurs distinctes : département, ville, statut). Peu adapté aux mises à jour fréquentes car reconstruire un bitmap est coûteux.</p>
+        <p><strong>Hash :</strong> calcule une fonction de hachage sur la valeur clé et stocke le résultat dans des buckets. Optimal <em>uniquement</em> pour les tests d'égalité stricte (<code>=</code>). Complètement inutilisable pour les plages (<code>&gt;</code>, <code>BETWEEN</code>) ou les tris.</p>
+
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Type</th><th>Égalité <code>=</code></th><th>Intervalle <code>&lt; &gt;</code></th><th>Tri <code>ORDER BY</code></th><th>Faible cardinalité</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>B-tree</strong></td><td>✓</td><td>✓</td><td>✓</td><td>Possible mais sous-optimal</td></tr>
+                    <tr><td><strong>Bitmap</strong></td><td>✓</td><td>Partiel</td><td>✗</td><td>✓ Idéal</td></tr>
+                    <tr><td><strong>Hash</strong></td><td>✓ Seul cas utile</td><td>✗</td><td>✗</td><td>✗</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Règle de décision</span></p>
+            <p>Pour choisir le type, posez deux questions : <em>(1) Quel prédicat porte sur cet attribut ?</em> — égalité seule → Hash ou B-tree ; plage ou tri → B-tree obligatoire. <em>(2) Quelle est la cardinalité ?</em> — peu de valeurs distinctes → Bitmap avantageux.</p>
+        </div>
+    </div>
+
+    <!-- ── SCAFFOLDING PÉDAGOGIQUE ── -->
+    <div class="two-col">
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Exemple</span></p>
+            <p>
+                Pour R1 (<em>"Nom et adresse de Juliette Rochat"</em>), sans index, le moteur parcourt
+                chaque ligne de <code>Employe</code>. Un index sur <code>(Nom, Prénom)</code> réduit
+                l'accès à quelques nœuds d'un arbre B+, indépendamment du volume.
+            </p>
+        </div>
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie</span></p>
+            <p><strong>Intuition :</strong> un index sur <code>Employe(Nom)</code> ressemble à un annuaire
+            téléphonique trié par nom. Sans annuaire, il faut appeler tous les abonnés un par un.
+            Avec l'annuaire, on ouvre directement à la lettre R.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">4 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Pour chacune des requêtes R1 à R7, identifiez les <strong>attributs candidats à l'indexation</strong>.
+            Pour chaque candidat, précisez la ou les requêtes qui en bénéficieraient et le type de prédicat
+            impliqué (égalité, intervalle, jointure, existence).
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Proposer un index sur <em>tous</em> les attributs de toutes les tables.
+            Un index ralentit les <code>INSERT</code>, <code>UPDATE</code> et <code>DELETE</code>
+            (la structure doit être mise à jour à chaque modification). Ne retenir que les attributs
+            réellement utilisés dans <code>WHERE</code>, <code>JOIN … ON</code>, <code>ORDER BY</code>
+            ou dans un test d'existence (<code>NOT EXISTS</code>).
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Analysez chaque requête une par une et notez l'attribut impliqué dans le prédicat :
+            <ul>
+                <li>R1 filtre sur <code>Nom</code> et <code>Prénom</code> dans <code>Employe</code>.</li>
+                <li>R2 fait une jointure entre <code>Employe</code> et un département via <code>N°Dep</code>.</li>
+                <li>R3 filtre sur <code>Supérieur</code> dans <code>Employe</code> (auto-jointure ou sous-requête).</li>
+                <li>R7 vérifie l'<em>absence</em> de tuple dans <code>Travaille</code> pour un employé donné —
+                    un index sur <code>Travaille(NSS)</code> accélère cette vérification (<code>NOT EXISTS</code>).</li>
+            </ul>
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q1-h2">
+            Synthèse des candidats les plus fréquents :
+            <ul>
+                <li><code>Employe(Nom, Prénom)</code> → R1, R3, R5</li>
+                <li><code>Employe(N°Dep)</code> → R2</li>
+                <li><code>Employe(Supérieur)</code> → R3 (FK vers <code>NSS</code> du supérieur)</li>
+                <li><code>Employe(Adresse)</code> → R4 (filtre sur ville)</li>
+                <li><code>Travaille(NSS)</code> → R5, R6, R7 (jointure et NOT EXISTS)</li>
+                <li><code>Travaille(N°Pro)</code> → R4, R5, R6 (jointure)</li>
+                <li><code>Travaille(Heures)</code> → R4 (filtre d'intervalle &gt; 10)</li>
+                <li><code>Projet(N°Dep)</code> → R2 (jointure côté Projet)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Listez les attributs candidats, la requête correspondante et le type de prédicat…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Attribut candidat</th><th>Requêtes concernées</th><th>Type de prédicat</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Employe(Nom, Prénom)</code></td>
+                            <td>R1, R3, R5</td>
+                            <td>Égalité — recherche par nom complet</td>
+                        </tr>
+                        <tr>
+                            <td><code>Employe(N°Dep)</code></td>
+                            <td>R2</td>
+                            <td>Égalité / jointure avec Département</td>
+                        </tr>
+                        <tr>
+                            <td><code>Employe(Supérieur)</code></td>
+                            <td>R3</td>
+                            <td>Égalité — FK vers NSS du supérieur</td>
+                        </tr>
+                        <tr>
+                            <td><code>Employe(Adresse)</code></td>
+                            <td>R4</td>
+                            <td>Égalité — filtre sur la ville</td>
+                        </tr>
+                        <tr>
+                            <td><code>Travaille(NSS)</code></td>
+                            <td>R5, R6, R7</td>
+                            <td>Jointure + existence (NOT EXISTS pour R7)</td>
+                        </tr>
+                        <tr>
+                            <td><code>Travaille(N°Pro)</code></td>
+                            <td>R4, R5, R6</td>
+                            <td>Jointure avec Projet</td>
+                        </tr>
+                        <tr>
+                            <td><code>Travaille(Heures)</code></td>
+                            <td>R4</td>
+                            <td>Intervalle — filtre <code>&gt; 10</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>Projet(N°Dep)</code></td>
+                            <td>R2</td>
+                            <td>Jointure côté Projet</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="inline-note">Les clés primaires (<code>NSS</code>, <code>N°Pro</code>, la PK composite de <code>Travaille</code>) sont déjà indexées automatiquement — inutile de les recréer explicitement.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Parmi les candidats identifiés en Q1, précisez pour chacun le type d'index le plus adapté :
+            <strong>B-tree</strong>, <strong>Bitmap</strong> ou <strong>Hash</strong>.
+            Justifiez votre choix en vous appuyant sur le type de prédicat et la cardinalité estimée de l'attribut.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Choisir Bitmap pour un attribut à haute cardinalité (comme <code>Nom</code>
+            ou <code>NSS</code>). Un index Bitmap est efficace uniquement si le nombre de valeurs distinctes est faible
+            (généralement moins de quelques centaines). Pour <code>Nom</code>, chaque employé a un nom différent : un
+            Bitmap générerait autant de vecteurs que d'individus, occupant plus d'espace que la table elle-même.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Deux questions suffisent pour décider :
+            <ol>
+                <li><strong>Prédicat :</strong> le filtre est-il un intervalle ou utilisé dans un tri ?
+                    Si oui, B-tree obligatoire (<code>Heures &gt; 10</code> → B-tree).</li>
+                <li><strong>Cardinalité :</strong> combien de valeurs distinctes ?
+                    Peu de valeurs (quelques dizaines de départements, quelques villes) → Bitmap possible.
+                    Beaucoup de valeurs (noms, NSS, heures continues) → B-tree.</li>
+            </ol>
+            <code>Employe(N°Dep)</code> a peu de valeurs distinctes → Bitmap.
+            <code>Employe(Nom, Prénom)</code> a une cardinalité très haute → B-tree.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Pour chaque attribut candidat, indiquez le type d'index recommandé et justifiez…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Attribut</th><th>Cardinalité estimée</th><th>Type recommandé</th><th>Justification</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Employe(Nom, Prénom)</code></td>
+                            <td>Haute (quasi-unique)</td>
+                            <td><strong>B-tree</strong></td>
+                            <td>Égalité sur valeurs quasi-uniques ; B-tree optimal</td>
+                        </tr>
+                        <tr>
+                            <td><code>Employe(N°Dep)</code></td>
+                            <td>Faible (peu de départements)</td>
+                            <td><strong>Bitmap</strong></td>
+                            <td>Faible cardinalité, jointure OLAP — Bitmap compact et rapide</td>
+                        </tr>
+                        <tr>
+                            <td><code>Employe(Supérieur)</code></td>
+                            <td>Haute (autant de valeurs que d'employés)</td>
+                            <td><strong>B-tree</strong></td>
+                            <td>Clé étrangère à haute cardinalité → B-tree</td>
+                        </tr>
+                        <tr>
+                            <td><code>Employe(Adresse)</code></td>
+                            <td>Faible (quelques villes)</td>
+                            <td><strong>Bitmap</strong></td>
+                            <td>Peu de villes distinctes → Bitmap compact</td>
+                        </tr>
+                        <tr>
+                            <td><code>Travaille(NSS)</code></td>
+                            <td>Haute</td>
+                            <td><strong>B-tree</strong></td>
+                            <td>Clé étrangère à haute cardinalité, jointure et NOT EXISTS</td>
+                        </tr>
+                        <tr>
+                            <td><code>Travaille(N°Pro)</code></td>
+                            <td>Haute</td>
+                            <td><strong>B-tree</strong></td>
+                            <td>Clé étrangère à haute cardinalité, jointure fréquente</td>
+                        </tr>
+                        <tr>
+                            <td><code>Travaille(Heures)</code></td>
+                            <td>Haute (valeurs continues)</td>
+                            <td><strong>B-tree</strong></td>
+                            <td>Filtre d'intervalle (<code>&gt; 10</code>) → B-tree obligatoire</td>
+                        </tr>
+                        <tr>
+                            <td><code>Projet(N°Dep)</code></td>
+                            <td>Faible</td>
+                            <td><strong>Bitmap</strong></td>
+                            <td>Jointure sur clé de faible cardinalité → Bitmap</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout-info">
+                <strong>Note moteur :</strong> PostgreSQL ne supporte pas les index Bitmap créables explicitement —
+                il les utilise <em>en interne</em> lors de la combinaison de plusieurs index B-tree (Bitmap AND/OR).
+                En Oracle ou dans les entrepôts de données (Redshift, Hive, Teradata), les <code>BITMAP INDEX</code>
+                sont explicitement disponibles et très utilisés.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 3                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="question-pts">5 pts</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Parmi tous les candidats identifiés, sélectionnez les <strong>3 meilleurs index</strong> à créer
+            en priorité. Pour chaque index retenu, justifiez le choix en indiquant :
+        </p>
+        <ul>
+            <li>le nombre de requêtes couvertes (R1–R7),</li>
+            <li>la sélectivité estimée (proportion de tuples conservés après filtrage),</li>
+            <li>la commande DDL <code>CREATE INDEX</code> correspondante.</li>
+        </ul>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Retenir un index parce qu'il intervient dans une seule requête
+            peu fréquente, au détriment d'un autre candidat couvrant plus de requêtes.
+            La priorité va aux index à <em>fort impact global</em> : un index qui accélère 3 requêtes
+            sur 7 est presque toujours préférable à un index qui n'accélère qu'une seule requête rare.
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Comptez pour chaque candidat le nombre de requêtes (R1–R7) dans lesquelles il intervient :
+            <ul>
+                <li><code>Employe(Nom, Prénom)</code> : R1, R3, R5 → <strong>3 requêtes</strong></li>
+                <li><code>Travaille(NSS)</code> : R5, R6, R7 → <strong>3 requêtes</strong></li>
+                <li><code>Travaille(N°Pro)</code> : R4, R5, R6 → <strong>3 requêtes</strong></li>
+            </ul>
+            Ces trois candidats couvrent chacun 3 requêtes — c'est le maximum observable ici.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q3-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q3-h2">
+            La sélectivité affine le classement entre candidats de même couverture :
+            <ul>
+                <li><code>Employe(Nom, Prénom)</code> : très sélectif — une recherche par nom retourne
+                    1 ou 2 tuples sur des milliers d'employés.</li>
+                <li><code>Travaille(NSS)</code> : sélectif si on cherche les projets d'un employé précis ;
+                    indispensable pour R7 (test <code>NOT EXISTS</code> par employé).</li>
+                <li>Pour R4, un index composite <code>(N°Pro, Heures)</code> est préférable à deux index
+                    séparés : la colonne d'égalité (<code>N°Pro</code>) en premier, puis la plage
+                    (<code>Heures</code>), pour que le moteur puisse balayer uniquement les entrées
+                    pertinentes d'un seul parcours B-tree.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="highlight-box">
+        <p><span class="badge badge-orange">Méthode — Sélectionner les meilleurs index</span></p>
+        <ul class="steps">
+            <li>Lister tous les candidats et attribuer à chacun un <strong>score de couverture</strong> (nombre de requêtes où il intervient).</li>
+            <li>Évaluer la <strong>sélectivité</strong> : un filtre sur <code>Nom = 'Rochat'</code> élimine presque tous les tuples → très sélectif → gain maximal.</li>
+            <li>Repérer les candidats qui cumulent couverture élevée ET sélectivité élevée → priorité maximale.</li>
+            <li>Vérifier si deux candidats proches (même table, mêmes requêtes) peuvent être fusionnés en un <strong>index composite</strong> pour économiser une structure.</li>
+            <li>Limiter le nombre total d'index pour ne pas pénaliser les <code>INSERT</code> et <code>UPDATE</code> fréquents.</li>
+        </ul>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Nommez les 3 index prioritaires, justifiez couverture + sélectivité, et écrivez les DDL…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+
+            <p><strong>Index 1 — Recherche par nom dans Employe</strong></p>
+            <pre><code>-- Couvre R1, R3, R5 — sélectivité très haute (1 ou 2 tuples attendus)
+CREATE INDEX idx_employe_nom_prenom
+    ON Employe (Nom, Prénom);</code></pre>
+
+            <p><strong>Index 2 — Jointure et NOT EXISTS sur Travaille(NSS)</strong></p>
+            <pre><code>-- Couvre R5, R6, R7 — jointure fréquente + test NOT EXISTS pour R7
+CREATE INDEX idx_travaille_nss
+    ON Travaille (NSS);</code></pre>
+
+            <p><strong>Index 3 — Index composite sur Travaille(N°Pro, Heures)</strong></p>
+            <pre><code>-- Couvre R4 (filtre Heures > 10) et R5/R6 (jointure sur N°Pro)
+-- N°Pro en premier (prédicat d'égalité) puis Heures (plage ≥ 10)
+CREATE INDEX idx_travaille_npro_heures
+    ON Travaille (N°Pro, Heures);</code></pre>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Index retenu</th><th>Requêtes couvertes</th><th>Sélectivité</th><th>Gain attendu</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Employe(Nom, Prénom)</code></td>
+                            <td>R1, R3, R5</td>
+                            <td>Très haute</td>
+                            <td>Seq Scan → Index Scan ; 1–2 tuples retournés</td>
+                        </tr>
+                        <tr>
+                            <td><code>Travaille(NSS)</code></td>
+                            <td>R5, R6, R7</td>
+                            <td>Haute</td>
+                            <td>Jointure en O(log n) ; NOT EXISTS rapide par employé</td>
+                        </tr>
+                        <tr>
+                            <td><code>Travaille(N°Pro, Heures)</code></td>
+                            <td>R4, R5, R6</td>
+                            <td>Haute sur N°Pro</td>
+                            <td>Évite le Seq Scan sur Travaille pour filtrer Heures &gt; 10</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="two-col">
+                <div class="highlight-box">
+                    <p><span class="badge badge-red">Contre-exemple</span></p>
+                    <p>
+                        Un index sur <code>Employe(Salaire)</code> n'intervient dans <em>aucune</em>
+                        des 7 requêtes. Le créer alourdit chaque <code>INSERT</code> et <code>UPDATE</code>
+                        sur <code>Employe</code> sans aucun bénéfice en lecture pour ces requêtes.
+                    </p>
+                </div>
+                <div class="callout-info">
+                    <strong>Checklist avant validation :</strong>
+                    <ul>
+                        <li>Chaque index est-il utilisé dans au moins une des requêtes cibles ?</li>
+                        <li>L'ordre des colonnes dans les index composites est-il justifié (égalité avant plage) ?</li>
+                        <li>Le nombre total d'index reste-t-il raisonnable par rapport au volume d'écritures ?</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ── BARÈME ── -->
+    <div class="bareme">
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">Q1 — Identification des candidats</span>
+        <span class="bareme-desc">0,5 pt par attribut candidat correctement identifié avec prédicat associé (8 candidats possibles)</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q2 — Type d'index</span>
+        <span class="bareme-desc">1 pt par type correctement justifié (B-tree / Bitmap / Hash) sur au moins 3 attributs distincts</span>
+
+        <span class="bareme-pts">5</span>
+        <span class="bareme-label">Q3 — Sélection des 3 meilleurs index</span>
+        <span class="bareme-desc">1 pt DDL correct × 3 · 1 pt justification couverture · 1 pt justification sélectivité</span>
+
+        <div class="bareme-total">Total : <strong>12 pts</strong></div>
+    </div>
+
+
+    <!-- ── POUR ALLER PLUS LOIN ── -->
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>La table <code>Employe</code> contient 10 000 tuples mais seulement 5 départements existent. Quel type d'index bénéficie le plus de cette faible cardinalité, et pourquoi un B-tree serait moins efficace dans ce cas précis ?</li>
+            <li>Un <em>index couvrant</em> (<em>covering index</em>) inclut en colonnes supplémentaires les attributs retournés par la requête. Créez un tel index pour R1 et expliquez en quoi il permet un <em>index-only scan</em> — sans accès à la table principale.</li>
+            <li>Comment évolue le coût des <code>INSERT</code> dans <code>Travaille</code> si vous créez les 3 index retenus simultanément ? Quel compromis lecture/écriture devez-vous évaluer en production ?</li>
+            <li>Qu'est-ce qu'un <em>partial index</em> ? Proposez un index partiel pour R4 (employés à Genève, heures &gt; 10) et comparez sa taille estimée avec un index complet sur les mêmes colonnes.</li>
+        </ul>
+    </div>
+
+</body>
+</html>

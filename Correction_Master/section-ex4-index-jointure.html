@@ -19,18 +19,20 @@
             <strong>Objectifs</strong>
             <ul>
                 <li>Proposer des scénarii d'optimisation avec index de jointure binaire</li>
-                <li>Comprendre l'utilisation des index par l'optimiseur</li>
-                <li>Calculer le résultat d'une requête sur données réelles</li>
+                <li>Comprendre l'utilisation des index par l'optimiseur sur un schéma en étoile</li>
+                <li>Calculer le résultat d'une requête et le nombre de tuples scannés</li>
             </ul>
         </div>
         <p class="exo-prereq"><strong>Prérequis :</strong> <em>Schéma en étoile, index de jointure binaire, RID</em></p>
     </div>
 
+    <!-- ── CONTEXTE ── -->
     <div class="context-block">
         <h3>Contexte</h3>
         <p>
             Schéma en étoile avec trois tables de dimensions (Client, Produit, Temps)
-            et une table de faits (Ventes). Chaque tuple est associé à un RID.
+            et une table de faits (Ventes). Chaque tuple est associé à un RID
+            (Row Identifier — identifiant physique de ligne sur disque).
         </p>
         <p>Requête Q à exécuter :</p>
         <pre><code>SELECT Count(*)
@@ -124,7 +126,82 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
         </div>
     </div>
 
-    <!-- ── Q13 ──────────────────────────────────────────────────── -->
+    <!-- ── RAPPELS DE COURS ── -->
+
+    <button class="hint-btn" data-hint="rappel-bji-court" data-label="Rappel de cours — Index de jointure binaire" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Index de jointure binaire</span>
+    </button>
+    <div class="hint" id="rappel-bji-court">
+        <p>Un <strong>index de jointure binaire</strong> (BJI, <em>Binary Join Index</em>) entre une table de dimensions D et la table de faits F mémorise, pour chaque tuple d<sub>i</sub> ∈ D, l'ensemble des RIDs des tuples de F qui se joignent avec d<sub>i</sub> sur la clé étrangère.</p>
+        <p><strong>Principe d'utilisation en 4 étapes :</strong></p>
+        <ul>
+            <li>Appliquer le prédicat de sélection sur D → obtenir les D_RIDs qualifiants.</li>
+            <li>Lire le BJI pour chaque D_RID → obtenir les F_RIDs correspondants dans la table de faits.</li>
+            <li>Si plusieurs BJIs sont utilisés (plusieurs dimensions filtrées), <strong>intersecter</strong> les ensembles de F_RIDs.</li>
+            <li>Accéder physiquement aux seuls tuples de F désignés par l'ensemble résultant.</li>
+        </ul>
+        <p><strong>Avantage clé :</strong> on réduit considérablement le nombre de tuples de la table de faits lus, sans jamais parcourir F en entier. La phase d'intersection opère sur des identifiants (RIDs), pas sur les données.</p>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-bji-long" data-label="Rappel approfondi — Construction des BJIs sur cet exercice" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel approfondi — Construction des BJIs sur cet exercice</span>
+    </button>
+    <div class="hint" id="rappel-bji-long">
+        <p><strong>Structure :</strong> un BJI peut être vu comme une liste de couples (D_RID, F_RID) pour tous les tuples qui se joignent. En pratique, on le groupe par D_RID : pour chaque tuple de la dimension, on stocke la liste des F_RIDs correspondants dans la table de faits.</p>
+
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Exemple — BJI(Client, Ventes) sur C.CID = V.CID</span></p>
+            <ul>
+                <li>C_RID=1 (Pascal, CID=111) → V_RIDs : {7, 8, 16}</li>
+                <li>C_RID=2 (Eric, CID=212) → V_RIDs : {6, 9, 15, 17, 21, 22, 23, 24}</li>
+                <li>C_RID=3 (Ladjel, CID=313) → V_RIDs : {10, 25, 26, 27}</li>
+                <li>C_RID=4 (Yamine, CID=414) → V_RIDs : {5, 11, 12}</li>
+                <li>C_RID=5 (Yves, CID=515) → V_RIDs : {4, 13, 14, 18}</li>
+                <li>C_RID=6 (Gilles, CID=616) → V_RIDs : {1, 2, 3, 19, 20}</li>
+            </ul>
+            <p>Pour la condition <code>C.City = 'Poitiers'</code>, les C_RIDs qualifiants sont {1, 2, 6}. L'union de leurs V_RIDs donne les candidats dans Ventes : {1, 2, 3, 6, 7, 8, 9, 15, 16, 17, 19, 20, 21, 22, 23, 24} — soit 16 tuples sur 27.</p>
+        </div>
+
+        <p>En appliquant le même principe aux trois dimensions filtrées :</p>
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Dimension</th><th>Prédicat</th><th>D_RIDs qualifiants</th><th>V_RIDs via BJI</th><th>Nb tuples F</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Client</td><td>City = 'Poitiers'</td><td>{1, 2, 6}</td><td>{1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24}</td><td>16</td></tr>
+                    <tr><td>Produit</td><td>Type = 'Beauté'</td><td>{5, 6}</td><td>{1,2,5,6,16,21,22,23,24,25,26,27}</td><td>12</td></tr>
+                    <tr><td>Temps</td><td>Mois = 'Juin'</td><td>{6}</td><td>{2, 5, 13, 16, 17, 25}</td><td>6</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie</span></p>
+            <p><strong>Image mentale :</strong> le BJI est comme un carnet de correspondances pré-établi. Chaque client (dimension) a une liste pré-calculée de toutes ses ventes (faits). Pour répondre à une question sur les clients de Poitiers, il suffit de consulter les carnets des 3 clients concernés et d'agréger leurs listes — sans parcourir les 27 lignes de Ventes une par une.</p>
+            <p>Avec plusieurs BJIs, on fait l'intersection des listes : seules les ventes présentes dans <em>toutes</em> les listes (client de Poitiers <strong>ET</strong> produit Beauté <strong>ET</strong> mois de Juin) sont finalement lues.</p>
+        </div>
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Méthode générale</span></p>
+            <ul class="steps">
+                <li>Identifier les prédicats de sélection sur les tables de dimensions.</li>
+                <li>Pour chaque dimension concernée, retrouver les D_RIDs qualifiants.</li>
+                <li>Utiliser le BJI pour projeter chaque ensemble de D_RIDs en V_RIDs.</li>
+                <li>Intersecter les V_RID sets (opération sur identifiants, sans lire Ventes).</li>
+                <li>Accéder physiquement aux seuls tuples de Ventes identifiés.</li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 13                                    -->
+    <!-- ══════════════════════════════════════════════ -->
+
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q13</span>
@@ -140,23 +217,27 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
         </ul>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Créer un BJI entre deux tables de dimensions (ex : Client–Produit). Un BJI est <em>toujours</em> défini entre une table de dimensions D et la table de faits F — jamais entre deux dimensions. L'objectif est de pré-localiser les tuples de Ventes, pas de relier des dimensions entre elles.
         </div>
 
         <button class="hint-btn" data-hint="q13-h1" data-label="Indice 1/2" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice 1/2</span>
         </button>
-        <div class="hint" id="q13-h1">À compléter…</div>
+        <div class="hint" id="q13-h1">
+            La requête Q comporte trois prédicats sur des dimensions : <code>C.City = 'Poitiers'</code>, <code>P.Type = 'Beauté'</code>, <code>T.Mois = 'Juin'</code>. Il existe donc naturellement un BJI possible pour chaque dimension (Client→Ventes, Produit→Ventes, Temps→Ventes). Les scénarii correspondent à en utiliser 1, 2 ou 3.
+        </div>
 
         <button class="hint-btn hint-locked" data-hint="q13-h2" data-label="Indice 2/2" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice 2/2</span>
         </button>
-        <div class="hint" id="q13-h2">À compléter…</div>
+        <div class="hint" id="q13-h2">
+            Scénario 1 : choisir l'une des trois dimensions, par exemple Client, et utiliser BJI(Client, Ventes). Scénario 2 : ajouter BJI(Produit, Ventes) et intersecter les deux V_RID sets. Scénario 3 : utiliser les trois BJIs et intersecter les trois ensembles pour obtenir directement les tuples de Ventes satisfaisant toutes les conditions de jointure.
+        </div>
     </div>
 
-    <div class="reponse-zone" data-placeholder="Votre réponse à Q13…"></div>
+    <div class="reponse-zone" data-placeholder="Décrivez les trois scénarii : quelle(s) dimension(s), quel BJI, quels V_RIDs obtenus…"></div>
 
     <button class="solution-btn" aria-expanded="false">
         <span class="btn-arrow">▶</span>
@@ -165,11 +246,62 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q13</h4>
-            <p>À compléter…</p>
+
+            <p>Chaque scénario utilise un ou plusieurs BJI(Dimension, Ventes). Le principe est identique : filtrer la dimension, obtenir les V_RIDs par l'index, puis intersecter si plusieurs index sont actifs.</p>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Scénario 1 — Un seul BJI</span></p>
+                <p><strong>BJI utilisé :</strong> <code>BJI(Client, Ventes)</code> sur <code>C.CID = V.CID</code></p>
+                <ul>
+                    <li>Sélectionner dans Client les tuples avec City = 'Poitiers' → C_RIDs = {1, 2, 6}</li>
+                    <li>Via BJI : V_RIDs candidats = {1, 2, 3, 6, 7, 8, 9, 15, 16, 17, 19, 20, 21, 22, 23, 24} (16 tuples)</li>
+                    <li>Lire ces 16 tuples de Ventes, puis joindre avec Produit et Temps pour appliquer les prédicats restants.</li>
+                </ul>
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Scénario 2 — Deux BJIs</span></p>
+                <p><strong>BJIs utilisés :</strong> <code>BJI(Client, Ventes)</code> + <code>BJI(Produit, Ventes)</code></p>
+                <ul>
+                    <li>Client, City='Poitiers' → C_RIDs={1,2,6} → <strong>V_RIDs_C</strong> = {1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24}</li>
+                    <li>Produit, Type='Beauté' → P_RIDs={5,6} → <strong>V_RIDs_P</strong> = {1,2,5,6,16,21,22,23,24,25,26,27}</li>
+                    <li>Intersection V_RIDs_C ∩ V_RIDs_P = {1, 2, 6, 16, 21, 22, 23, 24} (8 tuples)</li>
+                    <li>Lire ces 8 tuples de Ventes, puis vérifier T.Mois='Juin' par jointure avec Temps.</li>
+                </ul>
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Scénario 3 — Trois BJIs</span></p>
+                <p><strong>BJIs utilisés :</strong> <code>BJI(Client, Ventes)</code> + <code>BJI(Produit, Ventes)</code> + <code>BJI(Temps, Ventes)</code></p>
+                <ul>
+                    <li><strong>V_RIDs_C</strong> = {1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24} (via Client, Poitiers)</li>
+                    <li><strong>V_RIDs_P</strong> = {1,2,5,6,16,21,22,23,24,25,26,27} (via Produit, Beauté)</li>
+                    <li>Temps, Mois='Juin' → T_RID={6} → <strong>V_RIDs_T</strong> = {2, 5, 13, 16, 17, 25} (via BJI(Temps, Ventes))</li>
+                    <li>Intersection V_RIDs_C ∩ V_RIDs_P ∩ V_RIDs_T = <strong>{2, 16}</strong> (2 tuples)</li>
+                    <li>Accéder uniquement à ces 2 tuples de Ventes — toutes les conditions sont satisfaites sans jointure supplémentaire.</li>
+                </ul>
+            </div>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Scénario</th><th>BJI(s) utilisé(s)</th><th>V_RIDs après intersection</th><th>Tuples Ventes à lire</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>BJI(Client, Ventes)</td><td>{1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24}</td><td>16</td></tr>
+                        <tr><td>2</td><td>BJI(Client) ∩ BJI(Produit)</td><td>{1,2,6,16,21,22,23,24}</td><td>8</td></tr>
+                        <tr><td>3</td><td>BJI(Client) ∩ BJI(Produit) ∩ BJI(Temps)</td><td>{2, 16}</td><td>2</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <!-- ── Q14 ──────────────────────────────────────────────────── -->
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 14                                    -->
+    <!-- ══════════════════════════════════════════════ -->
+
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q14</span>
@@ -181,23 +313,27 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
         </p>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Penser que l'optimiseur lit d'abord toute la table Ventes, puis applique les filtres. Avec un BJI, le traitement se décompose en deux phases bien distinctes : (1) résolution de l'index au niveau RID — sans accéder aux données de Ventes — puis (2) accès physique ciblé aux seuls tuples identifiés.
         </div>
 
         <button class="hint-btn" data-hint="q14-h1" data-label="Indice 1/2" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice 1/2</span>
         </button>
-        <div class="hint" id="q14-h1">À compléter…</div>
+        <div class="hint" id="q14-h1">
+            Pour chaque scénario, l'optimiseur suit les mêmes étapes générales : (1) sélection sur la dimension concernée, (2) lecture du BJI pour obtenir les V_RIDs, (3) union des V_RIDs pour cette dimension, (4) intersection avec les autres dimensions si plusieurs BJIs, (5) accès direct aux tuples de Ventes résultants.
+        </div>
 
         <button class="hint-btn hint-locked" data-hint="q14-h2" data-label="Indice 2/2" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice 2/2</span>
         </button>
-        <div class="hint" id="q14-h2">À compléter…</div>
+        <div class="hint" id="q14-h2">
+            Dans le scénario 3, après intersection des trois ensembles de V_RIDs, l'optimiseur obtient directement {2, 16}. Il n'accède qu'à ces 2 tuples dans Ventes. Toutes les conditions dimensionnelles ayant été résolues au niveau des index, aucune jointure supplémentaire n'est nécessaire pour calculer le Count(*).
+        </div>
     </div>
 
-    <div class="reponse-zone" data-placeholder="Votre réponse à Q14…"></div>
+    <div class="reponse-zone" data-placeholder="Décrivez le plan d'exécution de l'optimiseur pour chaque scénario (étapes, ensembles de RIDs intermédiaires)…"></div>
 
     <button class="solution-btn" aria-expanded="false">
         <span class="btn-arrow">▶</span>
@@ -206,11 +342,43 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q14</h4>
-            <p>À compléter…</p>
+
+            <p><strong>Scénario 1 — BJI(Client, Ventes)</strong></p>
+            <ul class="steps">
+                <li>Parcourir Client, sélectionner City = 'Poitiers' → C_RIDs = {1, 2, 6}.</li>
+                <li>Lire BJI(Client, Ventes) pour C_RIDs = {1, 2, 6} → V_RIDs = {1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24}.</li>
+                <li>Accéder aux 16 tuples de Ventes désignés.</li>
+                <li>Pour chaque tuple de Ventes, joindre avec Produit (vérifier P.Type='Beauté') et Temps (vérifier T.Mois='Juin').</li>
+            </ul>
+
+            <p><strong>Scénario 2 — BJI(Client) + BJI(Produit)</strong></p>
+            <ul class="steps">
+                <li>Client, City='Poitiers' → C_RIDs = {1, 2, 6} → V_RIDs_C = {1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24}.</li>
+                <li>Produit, Type='Beauté' → P_RIDs = {5, 6} → V_RIDs_P = {1,2,5,6,16,21,22,23,24,25,26,27}.</li>
+                <li>Intersection V_RIDs_C ∩ V_RIDs_P = {1,2,6,16,21,22,23,24} — opération sur RIDs, sans lire Ventes.</li>
+                <li>Accéder aux 8 tuples de Ventes, puis vérifier T.Mois='Juin' par jointure avec Temps.</li>
+            </ul>
+
+            <p><strong>Scénario 3 — BJI(Client) + BJI(Produit) + BJI(Temps)</strong></p>
+            <ul class="steps">
+                <li>V_RIDs_C = {1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24} (Client, Poitiers).</li>
+                <li>V_RIDs_P = {1,2,5,6,16,21,22,23,24,25,26,27} (Produit, Beauté).</li>
+                <li>Temps, Mois='Juin' → T_RID = {6} → V_RIDs_T = {2,5,13,16,17,25} (BJI(Temps, Ventes)).</li>
+                <li>Intersection finale : {1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24} ∩ {1,2,5,6,16,21,22,23,24,25,26,27} ∩ {2,5,13,16,17,25} = <strong>{2, 16}</strong>.</li>
+                <li>Accéder aux 2 tuples de Ventes V_RID ∈ {2, 16} — toutes les conditions sont satisfaites, Count(*) = 2.</li>
+            </ul>
+
+            <div class="callout-info">
+                <strong>Point clé :</strong> dans tous les scénarii, les intersections d'ensembles de V_RIDs s'effectuent au niveau de l'index, <em>sans déclencher de lecture physique dans la table de faits</em>. Seule la dernière étape (accès aux tuples désignés) touche effectivement les données de Ventes.
+            </div>
         </div>
     </div>
 
-    <!-- ── Q15 ──────────────────────────────────────────────────── -->
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 15                                    -->
+    <!-- ══════════════════════════════════════════════ -->
+
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q15</span>
@@ -219,17 +387,19 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
         <p>Quel est le résultat retourné par cette requête ?</p>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Compter les tuples de Ventes qui satisfont seulement l'une des conditions (ex : uniquement CID de Poitiers = 16 lignes, ou uniquement PID de type Beauté = 12 lignes). Il faut que les trois prédicats soient simultanément vérifiés sur un même tuple de Ventes : CID d'un client de Poitiers, ET PID d'un produit Beauté, ET TID de Juin.
         </div>
 
         <button class="hint-btn" data-hint="q15-h1" data-label="Indice" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice</span>
         </button>
-        <div class="hint" id="q15-h1">À compléter…</div>
+        <div class="hint" id="q15-h1">
+            Utilisez le résultat du Scénario 3 (Q13) : l'intersection des trois ensembles de V_RIDs donne directement les tuples de Ventes qualifiant toutes les conditions. Comptez ces V_RIDs.
+        </div>
     </div>
 
-    <div class="reponse-zone" data-placeholder="Votre réponse à Q15…"></div>
+    <div class="reponse-zone" data-placeholder="Donnez la valeur retournée par Count(*)…"></div>
 
     <button class="solution-btn" aria-expanded="false">
         <span class="btn-arrow">▶</span>
@@ -238,11 +408,48 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q15</h4>
-            <p>À compléter…</p>
+
+            <p>Les seuls tuples de Ventes satisfaisant simultanément les trois conditions sont V_RID = 2 et V_RID = 16 :</p>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>V_RID</th><th>CID</th><th>Ville</th><th>PID</th><th>Type</th><th>TID</th><th>Mois</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>2</strong></td>
+                            <td>616 (Gilles)</td>
+                            <td><span class="badge badge-green">Poitiers ✓</span></td>
+                            <td>106 (Sonoflore)</td>
+                            <td><span class="badge badge-green">Beauté ✓</span></td>
+                            <td>66</td>
+                            <td><span class="badge badge-green">Juin ✓</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>16</strong></td>
+                            <td>111 (Pascal)</td>
+                            <td><span class="badge badge-green">Poitiers ✓</span></td>
+                            <td>105 (Clarins)</td>
+                            <td><span class="badge badge-green">Beauté ✓</span></td>
+                            <td>66</td>
+                            <td><span class="badge badge-green">Juin ✓</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p><strong>Résultat : <code>Count(*) = 2</code></strong></p>
+
+            <p class="inline-note">Vérification manuelle : V_RID=2 (Gilles/Poitiers, Sonoflore/Beauté, TID=66/Juin) et V_RID=16 (Pascal/Poitiers, Clarins/Beauté, TID=66/Juin) sont les deux seules lignes de Ventes vérifiant les trois prédicats simultanément.</p>
         </div>
     </div>
 
-    <!-- ── Q16 ──────────────────────────────────────────────────── -->
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 16                                    -->
+    <!-- ══════════════════════════════════════════════ -->
+
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q16</span>
@@ -251,17 +458,19 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
         <p>Est-ce que le résultat dépend des scénarii ?</p>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Confondre <em>résultat</em> (valeur retournée par la requête SQL) et <em>performance</em> (coût d'exécution, nombre de tuples lus). Les scénarii influencent uniquement l'efficacité du plan d'accès — pas la valeur retournée par <code>Count(*)</code>.
         </div>
 
         <button class="hint-btn" data-hint="q16-h1" data-label="Indice" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice</span>
         </button>
-        <div class="hint" id="q16-h1">À compléter…</div>
+        <div class="hint" id="q16-h1">
+            Un index est une structure auxiliaire qui accélère l'accès aux données, mais ne modifie jamais les données elles-mêmes. La requête SQL est sémantiquement identique dans les trois scénarii — seul le chemin d'accès physique change.
+        </div>
     </div>
 
-    <div class="reponse-zone" data-placeholder="Votre réponse à Q16…"></div>
+    <div class="reponse-zone" data-placeholder="Répondez par oui ou non et justifiez en une ou deux phrases…"></div>
 
     <button class="solution-btn" aria-expanded="false">
         <span class="btn-arrow">▶</span>
@@ -270,11 +479,35 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q16</h4>
-            <p>À compléter…</p>
+
+            <p><strong>Non, le résultat ne dépend pas des scénarii.</strong></p>
+
+            <p>Dans les trois scénarii, la requête SQL est strictement la même. Les index de jointure binaire sont des structures d'optimisation physique : ils accélèrent l'accès sans modifier le contenu ni la sémantique des données.</p>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Scénario</th><th>Tuples Ventes accédés</th><th>Count(*)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1 — BJI(Client)</td><td>16 (puis filtrage sur Produit et Temps)</td><td><strong>2</strong></td></tr>
+                        <tr><td>2 — BJI(Client) + BJI(Produit)</td><td>8 (puis filtrage sur Temps)</td><td><strong>2</strong></td></tr>
+                        <tr><td>3 — 3 BJIs</td><td>2 (accès direct, résultat immédiat)</td><td><strong>2</strong></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout-info">
+                <strong>Principe général :</strong> un plan d'exécution différent peut produire le même résultat avec moins de ressources. C'est précisément le rôle de l'optimiseur : trouver le chemin d'accès le plus efficace pour une même requête sémantique, sans jamais en altérer le résultat.
+            </div>
         </div>
     </div>
 
-    <!-- ── Q17 ──────────────────────────────────────────────────── -->
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 17                                    -->
+    <!-- ══════════════════════════════════════════════ -->
+
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q17</span>
@@ -286,23 +519,27 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
         </p>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Répondre 27 (taille totale de Ventes) en supposant un parcours séquentiel complet. Avec des BJIs, l'optimiseur ne parcourt <em>pas</em> Ventes pendant la phase d'index : il opère sur des RIDs. Seuls les tuples désignés par l'intersection finale sont physiquement lus.
         </div>
 
         <button class="hint-btn" data-hint="q17-h1" data-label="Indice 1/2" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice 1/2</span>
         </button>
-        <div class="hint" id="q17-h1">À compléter…</div>
+        <div class="hint" id="q17-h1">
+            La réponse dépend du scénario utilisé. Pour chaque scénario, comptez le nombre de V_RIDs dans l'ensemble obtenu après intersections — c'est le nombre de tuples de Ventes que l'optimiseur doit lire physiquement pour calculer le résultat.
+        </div>
 
         <button class="hint-btn hint-locked" data-hint="q17-h2" data-label="Indice 2/2" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice 2/2</span>
         </button>
-        <div class="hint" id="q17-h2">À compléter…</div>
+        <div class="hint" id="q17-h2">
+            Scénario 1 : l'ensemble V_RIDs après 1 BJI contient 16 éléments → 16 tuples lus. Scénario 2 : intersection de 2 ensembles → 8 tuples. Scénario 3 : intersection des 3 ensembles → 2 tuples. Plus on ajoute de BJIs, moins on lit de tuples dans la table de faits.
+        </div>
     </div>
 
-    <div class="reponse-zone" data-placeholder="Votre réponse à Q17…"></div>
+    <div class="reponse-zone" data-placeholder="Donnez le nombre de tuples de Ventes scannés pour chaque scénario…"></div>
 
     <button class="solution-btn" aria-expanded="false">
         <span class="btn-arrow">▶</span>
@@ -311,8 +548,38 @@ WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q17</h4>
-            <p>À compléter…</p>
+
+            <p>Le nombre de tuples de Ventes physiquement scannés dépend directement du scénario :</p>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Scénario</th><th>V_RIDs après intersections</th><th>Tuples Ventes scannés</th><th>Réduction vs scan complet (27)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Sans BJI (scan séquentiel)</td><td>tous les 27</td><td>27</td><td>—</td></tr>
+                        <tr><td>1 — BJI(Client)</td><td>{1,2,3,6,7,8,9,15,16,17,19,20,21,22,23,24}</td><td>16</td><td><span class="badge badge-blue">−41 %</span></td></tr>
+                        <tr><td>2 — BJI(Client) + BJI(Produit)</td><td>{1,2,6,16,21,22,23,24}</td><td>8</td><td><span class="badge badge-blue">−70 %</span></td></tr>
+                        <tr><td>3 — 3 BJIs</td><td>{2, 16}</td><td><strong>2</strong></td><td><span class="badge badge-green">−93 %</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p><strong>Avec 3 BJIs (scénario 3), l'optimiseur ne scanne que 2 tuples sur 27</strong>, soit une réduction de 93 % du volume d'accès physique à la table des faits.</p>
+
+            <p class="inline-note">En production, une table de faits peut contenir des milliards de tuples. Le gain proportionnel des BJIs est alors déterminant pour rendre les requêtes OLAP exécutables en temps interactif.</p>
         </div>
+    </div>
+
+
+    <!-- ── POUR ALLER PLUS LOIN ── -->
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Si vous n'utilisez qu'un seul BJI, lequel choisir ? Comparez les sélectivités : Client (3 qualifiants sur 6 → 16 V_RIDs), Produit (2/6 → 12 V_RIDs), Temps (1/6 → 6 V_RIDs). Plus la dimension est sélective, plus le BJI seul réduit les tuples de Ventes à lire.</li>
+            <li>Comment représenter un BJI sous forme de vecteur de bits (bitmap) ? Comment s'effectue alors l'intersection — et quel est l'avantage en termes de temps CPU ?</li>
+            <li>Un BJI occupe de l'espace disque supplémentaire et doit être maintenu lors des INSERT/UPDATE dans Ventes ou dans les dimensions. Comment arbitrer entre le coût de maintenance et le gain en lecture dans un contexte décisionnel ?</li>
+        </ul>
     </div>
 
 </body>

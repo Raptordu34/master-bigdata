@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mémento SQL — Expert Examen (Recto-Verso)</title>
+    <style>
+        /* Configuration Impression Paysage A4 */
+        @page {
+            size: A4 landscape;
+            margin: 5mm;
+        }
+
+        body {
+            background-color: white !important;
+            color: black !important;
+            font-family: "Segoe UI", Calibri, sans-serif;
+            font-size: 8.5pt;
+            line-height: 1.2;
+            margin: 0;
+            padding: 0;
+        }
+
+        .page {
+            width: 287mm;
+            height: 200mm;
+            padding: 5mm;
+            box-sizing: border-box;
+            page-break-after: always;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sheet-header {
+            text-align: center;
+            border-bottom: 2px solid black;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sheet-header h1 {
+            margin: 0;
+            font-size: 14pt;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .sheet-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            flex-grow: 1;
+        }
+
+        .section {
+            border: 1px solid black;
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section h2 {
+            margin: 0;
+            padding: 3px 8px;
+            font-size: 9.5pt;
+            background-color: #e0e0e0;
+            border-bottom: 1px solid black;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .section-content {
+            padding: 5px;
+            flex-grow: 1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 5px;
+        }
+
+        th, td {
+            border: 1px solid #999;
+            padding: 2px 4px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f0f0f0;
+            font-size: 8pt;
+        }
+
+        code {
+            font-family: "Consolas", monospace;
+            font-weight: bold;
+            color: #000;
+        }
+
+        pre {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 4px;
+            font-size: 8pt;
+            margin: 3px 0;
+            white-space: pre-wrap;
+            font-family: "Consolas", monospace;
+        }
+
+        .important-box {
+            border: 1.5px solid black;
+            padding: 4px;
+            margin: 4px 0;
+            background-color: #fffde7;
+            font-size: 8.5pt;
+        }
+
+        .footer {
+            text-align: right;
+            font-size: 7pt;
+            border-top: 1px solid #ccc;
+            padding-top: 2px;
+        }
+
+        .venn {
+            font-family: monospace;
+            font-size: 7pt;
+            line-height: 1;
+            text-align: center;
+            display: block;
+            margin: 2px 0;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { -webkit-print-color-adjust: exact; }
+        }
+
+        .print-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: #000;
+            color: #fff;
+            border: 2px solid #fff;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <button class="print-btn no-print" onclick="window.print()">🖨️ EXPORTER EN PDF / IMPRIMER</button>
+
+    <!-- PAGE 1 : FONDAMENTAUX & JOINTURES -->
+    <div class="page">
+        <header class="sheet-header">
+            <span>RECTO</span>
+            <h1>Mémento SQL — 1. Fondamentaux & Analyse de Données</h1>
+            <span>Examen 2026</span>
+        </header>
+
+        <div class="sheet-grid">
+            <!-- COLONNE 1 : SYNTAXE & FILTRAGE -->
+            <div class="col">
+                <div class="section">
+                    <h2>1. Structure & Logique d'exécution</h2>
+                    <div class="section-content">
+                        <strong>Ordre d'écriture (Obligatoire) :</strong>
+                        <pre>1. SELECT [DISTINCT] col1, col2
+2. FROM table_A [JOIN table_B ON ...]
+3. WHERE condition_sur_lignes
+4. GROUP BY colonnes_de_regroupement
+5. HAVING condition_sur_groupes
+6. ORDER BY col [ASC|DESC]
+7. LIMIT n OFFSET m</pre>
+                        <div class="important-box">
+                            <strong>Ordre d'exécution réel (Le moteur SQL) :</strong><br>
+                            1. <code>FROM</code> & <code>JOIN</code> (Choix des données)<br>
+                            2. <code>WHERE</code> (Filtrage brut)<br>
+                            3. <code>GROUP BY</code> (Organisation)<br>
+                            4. <code>HAVING</code> (Filtre après calcul)<br>
+                            5. <code>SELECT</code> (Projection & Alias)<br>
+                            6. <code>ORDER BY</code> (Tri final)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>2. Prédicats de Filtrage (WHERE)</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Type</th><th>Syntaxe & Exemple</th></tr>
+                            <tr><td>Comparaison</td><td><code>= , != , < , > , <= , >=</code></td></tr>
+                            <tr><td>Inclusion</td><td><code>IN (1, 2, 10)</code> ou <code>IN (SELECT...)</code></td></tr>
+                            <tr><td>Intervalle</td><td><code>BETWEEN 10 AND 20</code> (Inclusif)</td></tr>
+                            <tr><td>Motif</td><td><code>LIKE 'J%'</code> (%:0+ char, _:1 char)</td></tr>
+                            <tr><td>Valeur vide</td><td><code>IS NULL</code> / <code>IS NOT NULL</code></td></tr>
+                        </table>
+                        <strong>Logique Booléenne :</strong> <code>AND</code> (prioritaire), <code>OR</code>, <code>NOT</code>.<br>
+                        <em>Ex:</em> <code>WHERE (A OR B) AND C</code>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>3. Tri & Pagination</h2>
+                    <div class="section-content">
+                        <code>ORDER BY sal DESC, nom ASC;</code> (Tri prioritaire sur sal)<br>
+                        <code>LIMIT 10 OFFSET 20;</code> (Prend 10 lignes à partir de la 21ème).
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : JOINTURES -->
+            <div class="col">
+                <div class="section">
+                    <h2>4. Maîtrise des Jointures (JOIN)</h2>
+                    <div class="section-content">
+                        <p>Relier tables A et B via une clé commune (ex: <code>A.fk = B.pk</code>).</p>
+                        <table>
+                            <tr><td><code>INNER JOIN</code></td><td>Lignes avec correspondance dans <b>les deux</b>.</td></tr>
+                            <tr><td><code>LEFT JOIN</code></td><td><b>Tout A</b> + B si existe (sinon NULL).</td></tr>
+                            <tr><td><code>RIGHT JOIN</code></td><td><b>Tout B</b> + A si existe (sinon NULL).</td></tr>
+                            <tr><td><code>FULL JOIN</code></td><td>Union de LEFT et RIGHT (Toutes les lignes).</td></tr>
+                            <tr><td><code>CROSS JOIN</code></td><td>Produit cartésien (Chaque A avec chaque B).</td></tr>
+                        </table>
+                        
+                        <h3>Jointure de N tables :</h3>
+                        <pre>SELECT t1.a, t2.b, t3.c
+FROM t1
+JOIN t2 ON t1.id = t2.t1_id
+JOIN t3 ON t2.id = t3.t2_id;</pre>
+
+                        <h3>Auto-jointure (Self-Join) :</h3>
+                        <p>Indispensable pour les relations parent/enfant ou manager/employé. <b>Alias obligatoires.</b></p>
+                        <pre>SELECT e.nom AS Emp, m.nom AS Manager
+FROM employes e
+LEFT JOIN employes m ON e.manager_id = m.id;</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : AGREGATS -->
+            <div class="col">
+                <div class="section">
+                    <h2>5. Agrégats & GROUP BY</h2>
+                    <div class="section-content">
+                        <p>Calculs sur des ensembles de lignes.</p>
+                        <table>
+                            <tr><th>Fonction</th><th>NULL Handling</th></tr>
+                            <tr><td><code>COUNT(*)</code></td><td>Compte absolument tout.</td></tr>
+                            <tr><td><code>COUNT(col)</code></td><td>Ignore les NULL.</td></tr>
+                            <tr><td><code>AVG(col)</code></td><td>Moyenne (Ignore NULL).</td></tr>
+                            <tr><td><code>SUM / MAX / MIN</code></td><td>Ignore NULL.</td></tr>
+                        </table>
+                        <div class="important-box">
+                            <strong>LA RÈGLE D'OR :</strong> Si vous utilisez une fonction d'agrégation (SUM, AVG...), toutes les autres colonnes dans le <code>SELECT</code> doivent obligatoirement être listées dans le <code>GROUP BY</code>.
+                        </div>
+                        <h3>HAVING (Le filtre de groupe) :</h3>
+                        <p>S'utilise pour filtrer sur le <b>résultat</b> d'un agrégat.</p>
+                        <pre>SELECT ville, COUNT(*)
+FROM clients
+GROUP BY ville
+HAVING COUNT(*) > 5; -- Filtre les villes de + de 5 clients</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>6. Traitement des NULL</h2>
+                    <div class="section-content">
+                        <p><code>NULL</code> = Valeur inconnue (différent de 0 ou vide).</p>
+                        <code>COALESCE(col, 0)</code> : Retourne 0 si col est NULL.<br>
+                        <code>NULLIF(a, b)</code> : Retourne NULL si a=b.<br>
+                        <strong>Attention :</strong> Toute opération avec NULL retourne NULL (<code>5 + NULL = NULL</code>).
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">Mémento SQL par Gemini CLI — Page 1/2</div>
+    </div>
+
+    <!-- PAGE 2 : AVANCE & FONCTIONS -->
+    <div class="page">
+        <header class="sheet-header">
+            <span>VERSO</span>
+            <h1>Mémento SQL — 2. Requêtes Complexes & Utilitaires</h1>
+            <span>Examen 2026</span>
+        </header>
+
+        <div class="sheet-grid">
+            <!-- COLONNE 4 : SOUS-REQUETES -->
+            <div class="col">
+                <div class="section">
+                    <h2>7. Sous-requêtes (Subqueries)</h2>
+                    <div class="section-content">
+                        <h3>1. Scalaire (1 valeur) :</h3>
+                        <code>WHERE prix > (SELECT AVG(prix) FROM prod)</code>
+                        <h3>2. Liste (1 colonne) :</h3>
+                        <code>WHERE id IN (SELECT id_client FROM commandes)</code>
+                        <h3>3. Corrélée (Dépendante) :</h3>
+                        <p>La sous-requête s'exécute pour <b>chaque ligne</b> de la requête parente.</p>
+                        <pre>SELECT nom, sal
+FROM emp e
+WHERE sal > (
+  SELECT AVG(sal) FROM emp 
+  WHERE dept_id = e.dept_id
+);</pre>
+                        <h3>4. EXISTS vs IN :</h3>
+                        <p><code>EXISTS</code> est souvent plus rapide pour les gros volumes car il s'arrête dès la première correspondance trouvée.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>8. Opérateurs Ensemblistes</h2>
+                    <div class="section-content">
+                        <p>Combinaison verticale (même nombre/type de colonnes).</p>
+                        <ul>
+                            <li><code>UNION</code> : Fusionne + supprime les doublons.</li>
+                            <li><code>UNION ALL</code> : Fusionne tout (Rapide).</li>
+                            <li><code>INTERSECT</code> : Uniquement les lignes présentes dans les deux.</li>
+                            <li><code>EXCEPT</code> : Lignes du 1er absentes du 2ème.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 5 : AVANCE & WINDOW -->
+            <div class="col">
+                <div class="section">
+                    <h2>9. CTE (WITH) & Lisibilité</h2>
+                    <div class="section-content">
+                        <p>Permet de définir des "tables temporaires" nommées pour simplifier les requêtes imbriquées.</p>
+                        <pre>WITH total_ventes AS (
+  SELECT vendeur_id, SUM(ca) as ca_total
+  FROM ventes GROUP BY vendeur_id
+)
+SELECT * FROM vendeurs v
+JOIN total_ventes t ON v.id = t.vendeur_id
+WHERE t.ca_total > 10000;</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>10. Fonctions de Fenêtrage (OVER)</h2>
+                    <div class="section-content">
+                        <p>Calculer sur un groupe de lignes <b>sans les regrouper</b> (conserve le détail).</p>
+                        <code>fonction() OVER(PARTITION BY col ORDER BY col)</code>
+                        <table>
+                            <tr><td><code>ROW_NUMBER()</code></td><td>Numéro de ligne unique.</td></tr>
+                            <tr><td><code>RANK()</code></td><td>Classement (ex-aequo sautent).</td></tr>
+                            <tr><td><code>DENSE_RANK()</code></td><td>Classement (ex-aequo se suivent).</td></tr>
+                            <tr><td><code>SUM(sal) OVER()</code></td><td>Cumul progressif ou total fixe.</td></tr>
+                        </table>
+                        <pre>-- Exemple : Rang de salaire par département
+SELECT nom, sal, dept,
+RANK() OVER(PARTITION BY dept ORDER BY sal DESC) as rang
+FROM employes;</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 6 : LOGIQUE & FONCTIONS -->
+            <div class="col">
+                <div class="section">
+                    <h2>11. Logique CASE WHEN</h2>
+                    <div class="section-content">
+                        <p>Équivalent de SI/ALORS.</p>
+                        <pre>SELECT nom,
+CASE 
+  WHEN age < 18 THEN 'Mineur'
+  WHEN age < 65 THEN 'Adulte'
+  ELSE 'Senior'
+END AS categorie
+FROM personnes;</pre>
+                    </div>
+                </div>
+
+                <div class="section" style="flex-grow: 1;">
+                    <h2>12. Fonctions Utiles & Dates</h2>
+                    <div class="section-content">
+                        <strong>Manipulation de Texte :</strong>
+                        <ul>
+                            <li><code>LOWER(s) / UPPER(s)</code> : Change la casse.</li>
+                            <li><code>TRIM(s) / LTRIM / RTRIM</code> : Supprime les espaces.</li>
+                            <li><code>LENGTH(s)</code> : Nombre de caractères.</li>
+                            <li><code>SUBSTR(s, start, len)</code> : Extraction (1-indexed).</li>
+                            <li><code>REPLACE(s, old, new)</code> : Remplace une chaîne.</li>
+                            <li><code>INSTR(s, sub)</code> : Position d'une sous-chaîne.</li>
+                        </ul>
+                        
+                        <strong>Mathématiques :</strong>
+                        <ul>
+                            <li><code>ROUND(n, d)</code> : Arrondi à <code>d</code> décimales.</li>
+                            <li><code>ABS(n)</code> : Valeur absolue.</li>
+                            <li><code>FLOOR(n) / CEIL(n)</code> : Arrondi inf/sup.</li>
+                            <li><code>RANDOM()</code> : Valeur aléatoire.</li>
+                        </ul>
+
+                        <strong>Gestion des Dates (SQLite/Standard) :</strong>
+                        <ul>
+                            <li><code>DATE('now')</code> / <code>TIME('now')</code> / <code>DATETIME('now')</code></li>
+                            <li><code>STRFTIME('%Y-%m-%d %H:%M', date)</code> : Formatage complet.
+                                <br><small>%Y: Année, %m: Mois, %d: Jour, %H: Heure, %M: Min</small></li>
+                            <li><code>julianday(d2) - julianday(d1)</code> : Écart en jours décimaux.</li>
+                            <li><code>DATE(col, '+1 month')</code> : Ajout d'intervalle.</li>
+                        </ul>
+
+                        <strong>Conversion & Type :</strong>
+                        <ul>
+                            <li><code>CAST(val AS type)</code> : ex: <code>CAST(annee AS INT)</code>.</li>
+                            <li><code>TYPEOF(col)</code> : Vérifie le type de donnée stocké.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">Mémento SQL par Gemini CLI — Page 2/2</div>
+    </div>
+
+</body>
+</html>

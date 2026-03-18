@@ -18,14 +18,15 @@
         <div class="objectifs">
             <strong>Objectifs</strong>
             <ul>
-                <li>Exprimer une requête en algèbre relationnelle et SQL</li>
-                <li>Calculer le coût en lectures de blocs pour différents plans</li>
-                <li>Comparer les plans d'exécution et proposer des alternatives</li>
+                <li>Exprimer une requête en algèbre relationnelle et en SQL</li>
+                <li>Calculer le coût en lectures de blocs pour différents plans d'exécution</li>
+                <li>Comparer les plans et identifier les leviers d'optimisation</li>
             </ul>
         </div>
         <p class="exo-prereq"><strong>Prérequis :</strong> <em>Modèle de coût, Block Nested Loop Join</em></p>
     </div>
 
+    <!-- ── CONTEXTE ─────────────────────────────────────────────────────── -->
     <div class="context-block">
         <h3>Contexte</h3>
         <p>Base de données composée de deux relations :</p>
@@ -39,7 +40,7 @@
                 <p><span class="badge badge-orange">Paramètres</span></p>
                 <ul>
                     <li>Fournisseur : 10 000 tuples</li>
-                    <li>Livraison : 10 000 tuples (≈100 concernent P1)</li>
+                    <li>Livraison : 10 000 tuples (≈ 100 concernent P1)</li>
                     <li>Facteur de blocage : 5 tuples/bloc</li>
                     <li>Les deux tables sont tassées</li>
                     <li>E/S disque : 20 ms/bloc</li>
@@ -47,10 +48,48 @@
                 </ul>
             </div>
         </div>
-        <p>Requête Q : lister les noms des fournisseurs qui livrent le produit dont le numéro est p1.</p>
+        <p>Requête Q : lister les noms des fournisseurs qui livrent le produit dont le numéro est P1.</p>
+
+        <!-- Rappel de cours repliable -->
+        <button class="hint-btn" data-hint="rappel-bnlj" data-label="Rappel de cours — modèle de coût &amp; BNLJ" data-close-label="Masquer le rappel" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Rappel de cours — modèle de coût &amp; BNLJ</span>
+        </button>
+        <div class="hint" id="rappel-bnlj">
+            <p><strong>Taille en blocs.</strong> Si une relation R contient <em>n</em> tuples et que le facteur de blocage est <em>bf</em> (tuples par bloc), le nombre de blocs est :</p>
+            <pre><code>B(R) = ⌈ n / bf ⌉</code></pre>
+            <p>Ici : <code>B(Fournisseur) = 10 000 / 5 = 2 000 blocs</code> ; <code>B(Livraison) = 10 000 / 5 = 2 000 blocs</code>.</p>
+
+            <p><strong>Block Nested Loop Join (BNLJ).</strong> L'algorithme charge un <em>lot</em> de blocs de la table externe en mémoire, puis parcourt intégralement la table interne pour chaque lot.</p>
+            <ul>
+                <li><strong>Coût (générique) :</strong> <code>B(R) + ⌈B(R)/M⌉ × B(S)</code>, où M est la taille du buffer en blocs et S la table interne.</li>
+                <li><strong>Cas lot = 1 bloc :</strong> coût = <code>B(R) + B(R) × B(S)</code>.</li>
+                <li><strong>Cas lot = M blocs :</strong> la table interne est relue <code>⌈B(R)/M⌉</code> fois seulement.</li>
+            </ul>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Repère</span></p>
+                <p>Le nombre de fois où la table interne est relue est le facteur clé du coût. Augmenter la taille du buffer divise directement ce nombre de relectures.</p>
+            </div>
+
+            <p><strong>Sélection en amont (push-down).</strong> Appliquer un filtre avant la jointure réduit la taille de l'une des relations, ce qui diminue à la fois le nombre de blocs à lire et le nombre de relectures de la table interne.</p>
+        </div>
+
+        <!-- Exemple + Analogie dans deux colonnes -->
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Exemple</span></p>
+                <p>Avec un buffer de 1 bloc (5 tuples), Livraison est relue <strong>2 000 fois</strong> (une fois par bloc de Fournisseur). Avec un buffer de 20 blocs (100 tuples), Livraison n'est relue que <strong>100 fois</strong>. Même algorithme, coût divisé par 20.</p>
+            </div>
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Analogie</span></p>
+                <p><strong>Intuition :</strong> comparer deux annuaires téléphoniques sans index. Si on feuillette le second annuaire entier pour <em>chaque ligne</em> du premier, on fait des millions d'opérations. Si on charge d'abord une centaine de noms du premier, on ne relit le second qu'une fois pour tous ces noms en même temps.</p>
+            </div>
+        </div>
     </div>
 
-    <!-- ── Q9 ───────────────────────────────────────────────────── -->
+
+    <!-- ── Q9 ───────────────────────────────────────────────────────────── -->
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q9</span>
@@ -59,14 +98,18 @@
         <p>Exprimer cette requête en algèbre relationnelle et en SQL.</p>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Écrire une sélection seule (<code>σ<sub>NP='p1'</sub>(Livraison)</code>) sans effectuer la jointure avec Fournisseur. Le résultat ne contiendrait que les tuples de Livraison — pas les noms des fournisseurs, qui sont dans l'autre table.
         </div>
 
         <button class="hint-btn" data-hint="q9-h1" data-label="Indice" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice</span>
         </button>
-        <div class="hint" id="q9-h1">À compléter…</div>
+        <div class="hint" id="q9-h1">
+            <p>Identifiez d'abord : <strong>quel attribut veut-on en sortie ?</strong> → <code>NomF</code>, qui est dans <strong>Fournisseur</strong>.</p>
+            <p>Puis : <strong>quelle condition filtre les lignes ?</strong> → <code>NP = 'p1'</code>, qui est dans <strong>Livraison</strong>.</p>
+            <p>Les deux tables sont liées par l'attribut commun <code>NF</code>. Il faut donc : sélectionner dans Livraison, <em>joindre</em> avec Fournisseur sur <code>NF</code>, puis projeter sur <code>NomF</code>.</p>
+        </div>
     </div>
 
     <div class="reponse-zone" data-placeholder="Votre réponse à Q9…"></div>
@@ -78,11 +121,27 @@
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q9</h4>
-            <p>À compléter…</p>
+
+            <p><strong>Algèbre relationnelle</strong></p>
+            <p>On filtre d'abord Livraison, on joint avec Fournisseur sur <code>NF</code>, puis on projette sur <code>NomF</code> :</p>
+            <pre><code>π_NomF ( σ_NP='p1'(Livraison) ⋈_NF Fournisseur )</code></pre>
+
+            <p><strong>SQL</strong></p>
+            <pre><code>SELECT F.NomF
+FROM   Fournisseur F, Livraison L
+WHERE  F.NF = L.NF
+  AND  L.NP = 'p1';</code></pre>
+
+            <p class="inline-note">La forme avec <code>JOIN … ON</code> est équivalente : <code>FROM Fournisseur F JOIN Livraison L ON F.NF = L.NF WHERE L.NP = 'p1'</code>.</p>
+
+            <div class="callout-info">
+                <strong>Pourquoi écrire la sélection avant la jointure en algèbre ?</strong> En algèbre relationnelle, écrire <code>σ</code> avant <code>⋈</code> est une optimisation logique : appliquer le filtre en amont réduit le volume de données à joindre. En SQL, l'optimiseur fait ce choix automatiquement.
+            </div>
         </div>
     </div>
 
-    <!-- ── Q10 ──────────────────────────────────────────────────── -->
+
+    <!-- ── Q10 ──────────────────────────────────────────────────────────── -->
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q10</span>
@@ -91,7 +150,7 @@
         <p>Pour chacun des plans (Plan 1, Plan 2, Plan 3), combien de lectures de blocs sont effectuées ?</p>
 
         <div class="context-block" style="margin-top:1rem;">
-            <p><strong>Plan 1</strong> — Jointure naïve, puis sélection :</p>
+            <p><strong>Plan 1</strong> — Jointure naïve (1 bloc de Fournisseur à la fois), sélection après jointure :</p>
             <pre><code>tant que non fin Fournisseur faire
     lire F de Fournisseur
     pour tout tuple f de F faire
@@ -130,20 +189,34 @@ tant que non fin Fournisseur faire
         </div>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Raisonner en <em>tuples</em> au lieu de <em>blocs</em>. Le coût E/S se mesure en lectures de blocs, pas en comparaisons de tuples. Commencer par convertir toutes les tailles en blocs grâce au facteur de blocage.
         </div>
 
         <button class="hint-btn" data-hint="q10-h1" data-label="Indice 1/2" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice 1/2</span>
         </button>
-        <div class="hint" id="q10-h1">À compléter…</div>
+        <div class="hint" id="q10-h1">
+            <p><strong>Étape préliminaire — convertir en blocs :</strong></p>
+            <ul>
+                <li><code>B(Fournisseur) = 10 000 / 5 = 2 000 blocs</code></li>
+                <li><code>B(Livraison) = 10 000 / 5 = 2 000 blocs</code></li>
+                <li><code>Buffer mémoire = 100 tuples = 20 blocs</code></li>
+            </ul>
+            <p>Pour chaque plan, posez-vous : <em>combien de fois la table interne est-elle relue intégralement ?</em></p>
+        </div>
 
         <button class="hint-btn hint-locked" data-hint="q10-h2" data-label="Indice 2/2" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice 2/2</span>
         </button>
-        <div class="hint" id="q10-h2">À compléter…</div>
+        <div class="hint" id="q10-h2">
+            <ul>
+                <li><strong>Plan 1 :</strong> pour chaque bloc de Fournisseur (2 000 blocs en table externe), Livraison est relue une fois entière → 2 000 relectures de Livraison.</li>
+                <li><strong>Plan 2 :</strong> le buffer charge 100 tuples = 20 blocs de Fournisseur à la fois → 2 000/20 = 100 lots → 100 relectures de Livraison.</li>
+                <li><strong>Plan 3 :</strong> on filtre d'abord Livraison → L1 ≈ 100 tuples = 20 blocs. Puis BNLJ Fournisseur ⋈ L1 avec le même buffer de 100 tuples → 100 relectures de L1 (20 blocs chacune).</li>
+            </ul>
+        </div>
     </div>
 
     <div class="reponse-zone" data-placeholder="Votre réponse à Q10…"></div>
@@ -155,11 +228,59 @@ tant que non fin Fournisseur faire
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q10</h4>
-            <p>À compléter…</p>
+
+            <p><strong>Tailles de référence :</strong></p>
+            <ul>
+                <li><code>B(F) = 10 000 / 5 = 2 000 blocs</code></li>
+                <li><code>B(L) = 10 000 / 5 = 2 000 blocs</code></li>
+                <li><code>B(L1) = 100 / 5 = 20 blocs</code> (après filtrage sur NP = 'p1')</li>
+                <li>Buffer mémoire = 100 tuples = 20 blocs</li>
+            </ul>
+
+            <p><strong>Plan 1 — BNLJ lot = 1 bloc :</strong></p>
+            <p>Pour chaque bloc de Fournisseur (table externe), on relit Livraison entièrement :</p>
+            <pre><code>Lectures de F  = B(F) = 2 000
+Lectures de L  = B(F) × B(L) = 2 000 × 2 000 = 4 000 000
+──────────────────────────────────────────────────────────
+Total Plan 1   = 2 000 + 4 000 000 = 4 002 000 blocs</code></pre>
+
+            <p><strong>Plan 2 — BNLJ lot = 20 blocs (100 tuples) :</strong></p>
+            <p>Le buffer absorbe 20 blocs de F à la fois → Livraison n'est relue que 100 fois :</p>
+            <pre><code>Lots de F      = B(F) / 20 = 2 000 / 20 = 100 lots
+Lectures de F  = B(F) = 2 000
+Lectures de L  = 100 × B(L) = 100 × 2 000 = 200 000
+──────────────────────────────────────────────────────────
+Total Plan 2   = 2 000 + 200 000 = 202 000 blocs</code></pre>
+
+            <p><strong>Plan 3 — Sélection en amont + BNLJ sur L1 :</strong></p>
+            <p>Phase 1 : on filtre Livraison pour construire L1 (≈ 100 tuples, 20 blocs).<br>
+            Phase 2 : BNLJ Fournisseur ⋈ L1 avec buffer 20 blocs sur F :</p>
+            <pre><code>Phase 1 : scan Livraison   = 2 000 blocs
+Phase 2 : lectures de F    = B(F) = 2 000
+          lots de F         = 100
+          lectures de L1    = 100 × B(L1) = 100 × 20 = 2 000
+──────────────────────────────────────────────────────────
+Total Plan 3   = 2 000 + 2 000 + 2 000 = 6 000 blocs</code></pre>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Plan</th><th>Principe</th><th>Lectures de blocs</th><th>Gain vs Plan 1</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Plan 1</strong></td><td>BNLJ naïf, lot = 1 bloc</td><td>4 002 000</td><td>—</td></tr>
+                        <tr><td><strong>Plan 2</strong></td><td>BNLJ, buffer 100 tuples</td><td>202 000</td><td><span class="badge badge-green">÷ 20</span></td></tr>
+                        <tr><td><strong>Plan 3</strong></td><td>Sélection amont + BNLJ sur L1</td><td>6 000</td><td><span class="badge badge-green">÷ 667</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="inline-note">Le saut de Plan 2 à Plan 3 est bien plus spectaculaire que celui de Plan 1 à Plan 2 : réduire la taille de la table interne (L1 = 20 blocs au lieu de 2 000) impacte directement le multiplicateur de relectures.</p>
         </div>
     </div>
 
-    <!-- ── Q11 ──────────────────────────────────────────────────── -->
+
+    <!-- ── Q11 ──────────────────────────────────────────────────────────── -->
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q11</span>
@@ -168,14 +289,17 @@ tant que non fin Fournisseur faire
         <p>Pour chacun des plans, quel est le temps d'exécution de la requête ?</p>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Multiplier le nombre de <em>tuples</em> par 20 ms au lieu du nombre de <em>blocs</em>. Le coût E/S se paye par lecture de bloc disque, pas par tuple traité en mémoire.
         </div>
 
         <button class="hint-btn" data-hint="q11-h1" data-label="Indice" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice</span>
         </button>
-        <div class="hint" id="q11-h1">À compléter…</div>
+        <div class="hint" id="q11-h1">
+            <p>La formule est directe : <code>Temps = nb_lectures_blocs × 20 ms</code>.</p>
+            <p>Utilisez les résultats de Q10, puis convertissez : 1 000 ms = 1 s, 60 000 ms = 1 min, 3 600 000 ms = 1 h.</p>
+        </div>
     </div>
 
     <div class="reponse-zone" data-placeholder="Votre réponse à Q11…"></div>
@@ -187,11 +311,32 @@ tant que non fin Fournisseur faire
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q11</h4>
-            <p>À compléter…</p>
+
+            <pre><code>Plan 1 : 4 002 000 × 20 ms = 80 040 000 ms ≈ 80 040 s ≈ 22 h 13 min
+Plan 2 :   202 000 × 20 ms =  4 040 000 ms ≈  4 040 s ≈  1 h  7 min
+Plan 3 :     6 000 × 20 ms =    120 000 ms =    120 s  =      2 min</code></pre>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Plan</th><th>Blocs lus</th><th>Temps (ms)</th><th>Temps lisible</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Plan 1</strong></td><td>4 002 000</td><td>80 040 000</td><td>≈ 22 heures</td></tr>
+                        <tr><td><strong>Plan 2</strong></td><td>202 000</td><td>4 040 000</td><td>≈ 1 h 7 min</td></tr>
+                        <tr><td><strong>Plan 3</strong></td><td>6 000</td><td>120 000</td><td>2 minutes</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout-info">
+                <strong>Interprétation :</strong> L'optimisation de Plan 1 → Plan 3 divise le temps par plus de 650. Ce gain illustre l'importance du <em>push-down de sélection</em> dans les bases de données réparties : filtrer tôt, au plus près des données, avant de joindre.
+            </div>
         </div>
     </div>
 
-    <!-- ── Q12 ──────────────────────────────────────────────────── -->
+
+    <!-- ── Q12 ──────────────────────────────────────────────────────────── -->
     <div class="question">
         <div class="question-header">
             <span class="question-num">Q12</span>
@@ -200,14 +345,18 @@ tant que non fin Fournisseur faire
         <p>Proposez d'autres plans d'exécution.</p>
 
         <div class="erreur-freq">
-            <strong>Piège courant :</strong> À compléter…
+            <strong>Piège courant :</strong> Considérer que Plan 3 est forcément optimal parce qu'il applique la sélection en amont. Il reste possible d'aller plus loin en choisissant mieux <em>quel rôle</em> chaque table joue dans la jointure (table externe vs interne).
         </div>
 
         <button class="hint-btn" data-hint="q12-h1" data-label="Indice" aria-expanded="false">
             <span class="btn-arrow">▶</span>
             <span class="btn-label">Indice</span>
         </button>
-        <div class="hint" id="q12-h1">À compléter…</div>
+        <div class="hint" id="q12-h1">
+            <p>Dans Plan 3, Fournisseur est la table <em>externe</em> (2 000 blocs, 100 lots) et L1 est la table <em>interne</em> (20 blocs, relue 100 fois).</p>
+            <p>Que se passe-t-il si l'on <strong>inverse les rôles</strong> : L1 comme table externe et Fournisseur comme table interne ?</p>
+            <p>L1 ne contient que 100 tuples = 20 blocs. Combien de lots faut-il pour charger L1 en mémoire avec un buffer de 20 blocs ?</p>
+        </div>
     </div>
 
     <div class="reponse-zone" data-placeholder="Votre réponse à Q12…"></div>
@@ -219,8 +368,59 @@ tant que non fin Fournisseur faire
     <div class="solution">
         <div class="solution-inner">
             <h4 style="margin-top:0;">Solution — Q12</h4>
-            <p>À compléter…</p>
+
+            <p><strong>Plan 4 — Sélection amont + inversion des tables dans la jointure</strong></p>
+            <p>L'idée : utiliser L1 (la relation filtrée, très petite) comme <em>table externe</em> et Fournisseur comme <em>table interne</em>.</p>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Méthode</span></p>
+                <ul class="steps">
+                    <li>Phase 1 (identique à Plan 3) : scanner Livraison pour construire L1. Coût : <code>B(Livraison) = 2 000 blocs</code>.</li>
+                    <li>L1 = 100 tuples = 20 blocs. Le buffer mémoire contient 20 blocs. → L1 tient <strong>entièrement en mémoire en 1 seul lot</strong>.</li>
+                    <li>Phase 2 : BNLJ avec L1 comme table externe (1 lot) et Fournisseur comme table interne → Fournisseur est parcouru <strong>une seule fois</strong>.</li>
+                </ul>
+            </div>
+
+            <pre><code>Phase 1 : scan Livraison          = 2 000 blocs
+Phase 2 : lots de L1               = ⌈20 / 20⌉ = 1 lot
+          lectures de Fournisseur  = 1 × B(F) = 1 × 2 000 = 2 000 blocs
+──────────────────────────────────────────────────────────────────────
+Total Plan 4 = 2 000 + 2 000 = 4 000 blocs
+Temps Plan 4 = 4 000 × 20 ms = 80 000 ms = 80 secondes</code></pre>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Plan</th><th>Blocs lus</th><th>Temps</th><th>Gain vs Plan 3</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Plan 3</strong></td><td>6 000</td><td>120 s</td><td>—</td></tr>
+                        <tr><td><strong>Plan 4</strong></td><td>4 000</td><td>80 s</td><td><span class="badge badge-green">÷ 1,5</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p><strong>Pourquoi Plan 4 est meilleur que Plan 3 ?</strong></p>
+            <p>Dans Plan 3, L1 est relue 100 fois (une fois par lot de Fournisseur) → 100 × 20 = 2 000 lectures de L1.<br>
+            Dans Plan 4, Fournisseur est relu <em>une seule fois</em> car L1 tient en mémoire en un seul lot → 0 relecture supplémentaire de L1.</p>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Analogie</span></p>
+                <p><strong>Principe général :</strong> dans un BNLJ, la table interne est celle qui est relue le plus souvent. Il faut donc toujours placer en table interne la <em>plus petite</em> relation — ou, mieux encore, celle dont la taille en blocs est la plus faible après filtrage.</p>
+            </div>
+
+            <p class="inline-note">D'autres plans restent possibles : tri préalable des deux tables pour un Sort-Merge Join, utilisation d'un index sur NF pour un Index Nested Loop Join, ou Hash Join si la mémoire disponible est suffisante.</p>
         </div>
+    </div>
+
+    <!-- ── POUR ALLER PLUS LOIN ──────────────────────────────────────────── -->
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Comment évolue le coût du Plan 4 si le nombre de tuples concernant P1 passe de 100 à 1 000 ? L1 tient-elle encore en mémoire en un seul lot ?</li>
+            <li>Quelle stratégie adopter si ni Fournisseur ni L1 ne tient entièrement en mémoire ? Recherchez le <em>Grace Hash Join</em>.</li>
+            <li>Dans un contexte distribué, quel plan est le plus économique en termes de <em>transferts réseau</em> (pas seulement d'E/S disque) ?</li>
+        </ul>
     </div>
 
 </body>

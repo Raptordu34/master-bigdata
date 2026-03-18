@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 3 — Rule Based Approach (RBA)</h2>
+
+    <!-- ── EN-TÊTE DE L'EXERCICE ── -->
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 20 pts</span>
+            <span class="exo-time">⏱ 45–60 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Traduire une requête SQL en expression d'algèbre relationnelle naïve</li>
+                <li>Appliquer les règles de réécriture du RBA pas à pas (cascade, push-down, synthèse de jointure)</li>
+                <li>Produire une expression algébrique optimisée et justifier chaque règle utilisée</li>
+                <li>Comparer le volume intermédiaire avant et après optimisation</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> Cours 3 — <em>Algèbre relationnelle</em> · Cours 5 — <em>Optimisation logique de requêtes</em></p>
+    </div>
+
+    <!-- ── CONTEXTE ── -->
+    <div class="context-block">
+        <h3>Contexte — Base de données universitaire</h3>
+        <p>
+            On travaille sur la base de données de gestion pédagogique ci-dessous.
+            Les cardinalités sont données à titre indicatif pour estimer les volumes intermédiaires.
+        </p>
+
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>Table</th><th>Colonnes</th><th>Lignes</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Student</strong></td>
+                        <td><code>StudId</code>, <code>Name</code>, <code>Level</code></td>
+                        <td>6</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Course</strong></td>
+                        <td><code>CourId</code>, <code>Name</code>, <code>Dept</code></td>
+                        <td>7</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Grades</strong></td>
+                        <td><code>CourId</code>, <code>StudId</code>, <code>Grade</code></td>
+                        <td>26</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="two-col">
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>StudId</th><th>Name</th><th>Level</th></tr></thead>
+                    <tbody>
+                        <tr><td>101</td><td>AlE</td><td>HCSC</td></tr>
+                        <tr><td>202</td><td>Cendi</td><td>MCSC</td></tr>
+                        <tr><td>303</td><td>Capri</td><td>MCSC</td></tr>
+                        <tr><td>404</td><td>Ambar</td><td>MSC</td></tr>
+                        <tr><td>505</td><td>Philip</td><td>MSC</td></tr>
+                        <tr><td>606</td><td>Nicolas</td><td>MSC</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>CourId</th><th>Name</th><th>Dept</th></tr></thead>
+                    <tbody>
+                        <tr><td>C306</td><td>Comm</td><td>Comp</td></tr>
+                        <tr><td>C422</td><td>Comm</td><td>Comp</td></tr>
+                        <tr><td>M330</td><td>Calc</td><td>Math</td></tr>
+                        <tr><td>C442</td><td>IDBI</td><td>Comp</td></tr>
+                        <tr><td>S402</td><td>BioS</td><td>Stat</td></tr>
+                        <tr><td>M444</td><td>Alg</td><td>Math</td></tr>
+                        <tr><td>S466</td><td>Stat</td><td>Stat</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p>
+            Les quatre requêtes à optimiser sont les suivantes.
+            Elles partagent le même schéma et illustrent des situations de complexité croissante.
+        </p>
+
+        <pre><code>-- Requête 1 : jointure binaire + une sélection
+SELECT Name, Grade
+FROM   Student, Grades
+WHERE  Student.StudId = Grades.StudId
+  AND  Level = 'MSC';
+
+-- Requête 2 : triple jointure + une sélection
+SELECT Name, Dept, Grade
+FROM   Student, Grades, Course
+WHERE  Student.StudId = Grades.StudId
+  AND  Grades.CourId  = Course.CourId
+  AND  Level = 'MSC';
+
+-- Requête 3 : triple jointure + deux sélections (tables différentes)
+SELECT Name, Dept, Grade
+FROM   Student, Grades, Course
+WHERE  Student.StudId = Grades.StudId
+  AND  Grades.CourId  = Course.CourId
+  AND  Level = 'MSC'
+  AND  Dept  = 'Math';
+
+-- Requête 4 : agrégat + deux sélections + triple jointure
+SELECT Count(*)
+FROM   Student, Grades, Course
+WHERE  Student.StudId = Grades.StudId
+  AND  Grades.CourId  = Course.CourId
+  AND  Level = 'MSC'
+  AND  Dept  = 'Stat';</code></pre>
+    </div>
+
+    <!-- ── RAPPEL DE COURS : RÈGLES RBA ── -->
+    <button class="hint-btn" data-hint="rappel-rba-court" data-label="Rappel de cours — règles RBA" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — règles RBA</span>
+    </button>
+    <div class="hint" id="rappel-rba-court">
+        <p>Le <strong>Rule Based Approach</strong> (approche dirigée par des règles) optimise une expression d'algèbre relationnelle en appliquant des équivalences algébriques dans un ordre prescrit, sans tenir compte des statistiques réelles. L'objectif est de réduire la taille des relations intermédiaires le plus tôt possible.</p>
+        <p>Les règles principales, dans l'ordre d'application habituel :</p>
+        <ul>
+            <li><strong>R1 — Cascade de sélections :</strong> σ<sub>C₁ ∧ C₂</sub>(E) ≡ σ<sub>C₁</sub>(σ<sub>C₂</sub>(E)) — on scinde une conjonction en sélections imbriquées.</li>
+            <li><strong>R2 — Commutativité des sélections :</strong> σ<sub>C₁</sub>(σ<sub>C₂</sub>(E)) ≡ σ<sub>C₂</sub>(σ<sub>C₁</sub>(E)) — on peut réordonner les sélections.</li>
+            <li><strong>R3 — Push-down sur produit cartésien :</strong> Si C ne porte que sur R : σ<sub>C</sub>(R × S) ≡ σ<sub>C</sub>(R) × S — on descend la sélection avant le produit.</li>
+            <li><strong>R4 — Synthèse de jointure :</strong> σ<sub>R.A=S.B</sub>(R × S) ≡ R ⋈<sub>R.A=S.B</sub> S — un produit cartésien suivi d'une sélection d'équi-jointure devient une jointure.</li>
+            <li><strong>R5 — Push-down sur jointure :</strong> Si C ne porte que sur R : σ<sub>C</sub>(R ⋈ S) ≡ σ<sub>C</sub>(R) ⋈ S — on applique la sélection avant la jointure.</li>
+            <li><strong>R6 — Commutativité des jointures :</strong> R ⋈ S ≡ S ⋈ R — on peut choisir l'ordre de la jointure.</li>
+            <li><strong>R7 — Associativité des jointures :</strong> (R ⋈ S) ⋈ T ≡ R ⋈ (S ⋈ T) — on peut regrouper différemment.</li>
+            <li><strong>R8 — Cascade de projections :</strong> π<sub>L₁</sub>(π<sub>L₂</sub>(E)) ≡ π<sub>L₁</sub>(E) si L₁ ⊆ L₂ — les projections redondantes se suppriment.</li>
+        </ul>
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Heuristique principale</span></p>
+            <p>Toujours appliquer les sélections <strong>aussi tôt que possible</strong> (avant les jointures ou produits cartésiens). Plus une table est petite avant la jointure, moins la jointure coûte cher.</p>
+        </div>
+    </div>
+
+    <button class="hint-btn" data-hint="rappel-rba-methode" data-label="Méthode d'application pas à pas" data-close-label="Masquer la méthode" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Méthode d'application pas à pas</span>
+    </button>
+    <div class="hint" id="rappel-rba-methode">
+        <p>Pour chaque requête, suivre ces cinq étapes dans l'ordre :</p>
+        <ul class="steps">
+            <li><strong>Écriture naïve :</strong> traduire le <code>FROM</code> (tables) en produits cartésiens, puis le <code>WHERE</code> en une seule grande sélection conjonctive.</li>
+            <li><strong>Cascade (R1) :</strong> décomposer la sélection conjonctive en sélections imbriquées individuelles.</li>
+            <li><strong>Push-down (R2 + R3) :</strong> faire descendre chaque sélection qui porte sur une seule table jusqu'à ce qu'elle soit directement au-dessus de cette table.</li>
+            <li><strong>Synthèse de jointure (R4) :</strong> remplacer chaque <em>produit cartésien + sélection d'égalité de colonnes</em> par une jointure naturelle ou conditionnelle.</li>
+            <li><strong>Push projections (R8) :</strong> si des colonnes ne sont plus nécessaires après la jointure, ajouter des projections intermédiaires pour réduire la largeur des tuples.</li>
+        </ul>
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie</span></p>
+            <p><strong>Cuisiner vs préparer :</strong> lire une recette naïvement, c'est comme mettre tous les ingrédients dans la casserole avant de les éplucher. Le push-down, c'est éplucher et sélectionner les bons légumes <em>avant</em> de les ajouter — le volume dans la casserole diminue dès le départ.</p>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Exemple — lecture d'une expression naïve</span></p>
+            <p>Pour <code>SELECT Name FROM Student WHERE Level = 'MSC'</code>, la traduction naïve est :</p>
+            <p><code>π<sub>Name</sub>( σ<sub>Level='MSC'</sub>(Student) )</code></p>
+            <p>Cette requête simple est déjà optimale : il n'y a qu'une table et une sélection. Le RBA devient utile dès qu'il y a plusieurs tables, car le produit cartésien est coûteux.</p>
+        </div>
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie — volume intermédiaire</span></p>
+            <p><strong>Imaginez :</strong> filtrer 26 bulletins de notes pour ne garder que les étudiants MSC <em>avant</em> de chercher leur nom dans l'annuaire. Sans push-down, on croise d'abord les 26 bulletins avec les 6 étudiants (= 156 paires) avant de filtrer. Avec push-down, on filtre d'abord les 3 étudiants MSC, puis on croise (= 78 paires seulement).</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- QUESTION 1 — Jointure binaire + une sélection          -->
+    <!-- ══════════════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">4 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Optimisez la <strong>Requête 1</strong> par le RBA :</p>
+        <pre><code>SELECT Name, Grade
+FROM   Student, Grades
+WHERE  Student.StudId = Grades.StudId
+  AND  Level = 'MSC';</code></pre>
+        <div class="sub-question"><strong>a)</strong> Écrivez l'expression d'algèbre relationnelle naïve (produit cartésien + une seule sélection conjonctive).</div>
+        <div class="sub-question"><strong>b)</strong> Appliquez les règles R1, R3, R4 pour obtenir l'expression optimisée. Justifiez chaque étape.</div>
+        <div class="sub-question"><strong>c)</strong> Calculez le nombre de tuples intermédiaires avant et après optimisation.</div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Appliquer directement R4 (synthèse de jointure) sans passer par R1 (cascade). Si la sélection mélange une condition de jointure (<code>StudId = StudId</code>) et une condition de filtre (<code>Level = 'MSC'</code>), il faut <em>d'abord</em> les séparer avec R1 avant de descendre la condition de filtre.
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Expression naïve : <code>π<sub>Name,Grade</sub>( σ<sub>Level='MSC' ∧ Student.StudId=Grades.StudId</sub>(Student × Grades) )</code>.<br>
+            La conjonction dans la sélection est le point de départ de R1.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q1-h2">
+            Après R1 : σ<sub>Level='MSC'</sub>( σ<sub>Student.StudId=Grades.StudId</sub>(Student × Grades) ).<br>
+            <strong>R3</strong> : <code>Level='MSC'</code> ne porte que sur <code>Student</code> → descendre avant le ×.<br>
+            <strong>R4</strong> : la sélection d'égalité restante + × → jointure naturelle.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Expression naïve…  b) Étapes R1 → R3 → R4…  c) Volumes avant/après…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+
+            <p><strong>a) Expression naïve</strong></p>
+            <p>On traduit le <code>FROM Student, Grades</code> en produit cartésien et le <code>WHERE</code> en une sélection conjonctive :</p>
+            <div class="highlight-box">
+                <p><code>π<sub>Name,Grade</sub>( σ<sub>Level='MSC' ∧ Student.StudId=Grades.StudId</sub>(Student × Grades) )</code></p>
+            </div>
+            <p class="inline-note">À ce stade, le produit cartésien génère 6 × 26 = <strong>156 tuples</strong> avant tout filtrage.</p>
+
+            <p><strong>b) Application des règles</strong></p>
+            <ul class="steps">
+                <li>
+                    <strong>R1 — Cascade :</strong> on scinde la conjonction en deux sélections imbriquées.<br>
+                    <code>π<sub>Name,Grade</sub>( σ<sub>Level='MSC'</sub>( σ<sub>Student.StudId=Grades.StudId</sub>(Student × Grades) ) )</code>
+                </li>
+                <li>
+                    <strong>R3 — Push-down :</strong> <code>Level='MSC'</code> ne référence que <code>Student</code> → on la descend au-dessus de <code>Student</code> seul, avant le produit cartésien.<br>
+                    <code>π<sub>Name,Grade</sub>( σ<sub>Student.StudId=Grades.StudId</sub>( σ<sub>Level='MSC'</sub>(Student) × Grades ) )</code>
+                </li>
+                <li>
+                    <strong>R4 — Synthèse de jointure :</strong> la sélection d'égalité sur les deux colonnes <code>StudId</code> combinée au produit cartésien se réécrit en jointure.<br>
+                    <code>π<sub>Name,Grade</sub>( σ<sub>Level='MSC'</sub>(Student) ⋈<sub>StudId</sub> Grades )</code>
+                </li>
+            </ul>
+
+            <p><strong>c) Volumes intermédiaires</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Étape</th><th>Opération</th><th>Tuples produits</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Naïf</td><td>Student × Grades (6 × 26)</td><td><strong>156</strong></td></tr>
+                        <tr><td>Après push-down</td><td>σ<sub>MSC</sub>(Student) → 3 tuples MSC, puis ⋈ Grades</td><td><strong>≤ 78</strong> (3 × 26, avant jointure)</td></tr>
+                        <tr><td>Résultat jointure</td><td>Seuls les tuples de Grades dont StudId ∈ {404,505,606}</td><td>≈ <strong>13</strong> tuples utiles</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="inline-note">Le push-down réduit dès le départ la table d'entrée gauche de 6 à 3 tuples — le coût de la jointure est divisé par 2 avant même de l'effectuer.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- QUESTION 2 — Triple jointure + une sélection           -->
+    <!-- ══════════════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="question-pts">4 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Optimisez la <strong>Requête 2</strong> par le RBA :</p>
+        <pre><code>SELECT Name, Dept, Grade
+FROM   Student, Grades, Course
+WHERE  Student.StudId = Grades.StudId
+  AND  Grades.CourId  = Course.CourId
+  AND  Level = 'MSC';</code></pre>
+        <div class="sub-question"><strong>a)</strong> Écrivez l'expression naïve (deux produits cartésiens, une sélection à quatre prédicats conjonctifs).</div>
+        <div class="sub-question"><strong>b)</strong> Appliquez les règles R1, R3, R4 dans l'ordre. Quel est le nombre d'étapes nécessaires ?</div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Oublier que deux produits cartésiens sont associatifs mais pas interchangeables sans vérification. Le <code>FROM A, B, C</code> se traduit en <code>(A × B) × C</code> par défaut, mais R7 (associativité) permet de regrouper différemment — il faut choisir l'ordre qui minimise le résultat intermédiaire.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Expression naïve : <code>π<sub>Name,Dept,Grade</sub>( σ<sub>P₁ ∧ P₂ ∧ P₃</sub>((Student × Grades) × Course) )</code><br>
+            où P₁ = <code>Level='MSC'</code>, P₂ = <code>Student.StudId=Grades.StudId</code>, P₃ = <code>Grades.CourId=Course.CourId</code>.<br>
+            Appliquez R1 trois fois pour isoler chaque prédicat.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q2-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q2-h2">
+            P₁ porte sur <code>Student</code> seul → push-down avec R3 jusqu'au-dessus de Student.<br>
+            P₂ porte sur <code>Student</code> et <code>Grades</code> → synthèse de jointure (R4) entre ces deux tables.<br>
+            P₃ porte sur <code>Grades</code> et <code>Course</code> → synthèse de jointure (R4) entre le résultat et Course.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Expression naïve…  b) Séquence de règles R1 → R3 → R4 → R4…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+
+            <p><strong>a) Expression naïve</strong></p>
+            <div class="highlight-box">
+                <p><code>π<sub>Name,Dept,Grade</sub>( σ<sub>Level='MSC' ∧ Student.StudId=Grades.StudId ∧ Grades.CourId=Course.CourId</sub>((Student × Grades) × Course) )</code></p>
+            </div>
+            <p class="inline-note">Volume avant filtrage : 6 × 26 × 7 = <strong>1 092 tuples</strong>.</p>
+
+            <p><strong>b) Séquence de règles</strong></p>
+            <ul class="steps">
+                <li>
+                    <strong>R1 ×3 — Cascade :</strong> on isole les trois prédicats conjonctifs en sélections imbriquées.<br>
+                    <code>σ<sub>Level='MSC'</sub>( σ<sub>Student.StudId=Grades.StudId</sub>( σ<sub>Grades.CourId=Course.CourId</sub>((Student × Grades) × Course) ) )</code>
+                </li>
+                <li>
+                    <strong>R2 — Réordonnancement :</strong> on remonte la sélection la plus restrictive (<code>Level='MSC'</code>) au plus près de la feuille Student.
+                </li>
+                <li>
+                    <strong>R3 — Push-down de <code>Level='MSC'</code> :</strong> ne porte que sur Student → on la descend avant le premier produit cartésien.<br>
+                    <code>σ<sub>Student.StudId=Grades.StudId</sub>( σ<sub>Grades.CourId=Course.CourId</sub>( (σ<sub>Level='MSC'</sub>(Student) × Grades) × Course ) )</code>
+                </li>
+                <li>
+                    <strong>R4 — Synthèse jointure Student ⋈ Grades :</strong><br>
+                    <code>σ<sub>Grades.CourId=Course.CourId</sub>( (σ<sub>Level='MSC'</sub>(Student) ⋈<sub>StudId</sub> Grades) × Course )</code>
+                </li>
+                <li>
+                    <strong>R4 — Synthèse jointure (…) ⋈ Course :</strong> expression finale.<br>
+                    <code>π<sub>Name,Dept,Grade</sub>( (σ<sub>Level='MSC'</sub>(Student) ⋈<sub>StudId</sub> Grades) ⋈<sub>CourId</sub> Course )</code>
+                </li>
+            </ul>
+
+            <div class="callout-info">
+                <strong>Lecture de l'arbre d'exécution :</strong>
+                <ul>
+                    <li>Feuille gauche : filtrer Student → 3 tuples MSC.</li>
+                    <li>Jointure 1 : 3 tuples ⋈ 26 tuples Grades → ≈ 13 tuples (seuls les bulletins des étudiants MSC).</li>
+                    <li>Jointure 2 : 13 tuples ⋈ 7 tuples Course → ≈ 13 tuples enrichis du Dept.</li>
+                    <li>Projection finale sur Name, Dept, Grade.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- QUESTION 3 — Triple jointure + deux sélections         -->
+    <!-- ══════════════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="question-pts">6 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Optimisez la <strong>Requête 3</strong> par le RBA :</p>
+        <pre><code>SELECT Name, Dept, Grade
+FROM   Student, Grades, Course
+WHERE  Student.StudId = Grades.StudId
+  AND  Grades.CourId  = Course.CourId
+  AND  Level = 'MSC'
+  AND  Dept  = 'Math';</code></pre>
+        <div class="sub-question"><strong>a)</strong> Écrivez l'expression naïve.</div>
+        <div class="sub-question"><strong>b)</strong> Appliquez le push-down complet : les deux sélections de filtre portent sur des tables différentes. Identifiez sur quelle table chacune doit être descendue.</div>
+        <div class="sub-question"><strong>c)</strong> Comparez les volumes intermédiaires pour l'ordre (Student ⋈ Grades) ⋈ Course versus l'ordre (Course ⋈ Grades) ⋈ Student après push-down. Lequel est préférable ?</div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Fusionner les deux sélections de filtre en une seule. <code>Level='MSC'</code> ne peut pas descendre au-dessus de <code>Course</code>, et <code>Dept='Math'</code> ne peut pas descendre au-dessus de <code>Student</code>. Chaque sélection doit rester au-dessus de sa propre table source.
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Après cascade et push-down séparé :<br>
+            — <code>σ<sub>Level='MSC'</sub>(Student)</code> → 3 tuples<br>
+            — <code>σ<sub>Dept='Math'</sub>(Course)</code> → 2 tuples (M330 et M444)<br>
+            Grades reste intouché (aucune condition ne porte sur lui seul).
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q3-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q3-h2">
+            Pour comparer les ordres, estimez les intermédiaires :<br>
+            — Ordre A : σ<sub>MSC</sub>(Student) ⋈ Grades → ≈ 13 tuples, puis ⋈ σ<sub>Math</sub>(Course) → peu de tuples Math.<br>
+            — Ordre B : σ<sub>Math</sub>(Course) ⋈ Grades → ≈ peu de tuples, puis ⋈ σ<sub>MSC</sub>(Student).<br>
+            L'ordre qui produit le plus petit intermédiaire en premier est préférable.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Expression naïve…  b) Push-down des deux sélections…  c) Comparaison des ordres de jointure…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+
+            <p><strong>a) Expression naïve</strong></p>
+            <div class="highlight-box">
+                <p><code>π<sub>Name,Dept,Grade</sub>( σ<sub>Level='MSC' ∧ Dept='Math' ∧ Student.StudId=Grades.StudId ∧ Grades.CourId=Course.CourId</sub>((Student × Grades) × Course) )</code></p>
+            </div>
+            <p class="inline-note">Volume naïf : 6 × 26 × 7 = <strong>1 092 tuples</strong> avant tout filtrage.</p>
+
+            <p><strong>b) Push-down des deux sélections</strong></p>
+            <ul class="steps">
+                <li><strong>R1 ×4 :</strong> cascade → quatre sélections imbriquées (une par prédicat).</li>
+                <li><strong>R3 — Push <code>Level='MSC'</code> :</strong> porte sur <code>Student</code> seul → descend jusqu'à la feuille <code>Student</code>.</li>
+                <li><strong>R3 — Push <code>Dept='Math'</code> :</strong> porte sur <code>Course</code> seul → descend jusqu'à la feuille <code>Course</code>.</li>
+                <li><strong>R4 ×2 :</strong> synthèse des deux jointures.</li>
+            </ul>
+            <p>Expression optimisée :</p>
+            <div class="highlight-box">
+                <p><code>π<sub>Name,Dept,Grade</sub>( (σ<sub>Level='MSC'</sub>(Student) ⋈<sub>StudId</sub> Grades) ⋈<sub>CourId</sub> σ<sub>Dept='Math'</sub>(Course) )</code></p>
+            </div>
+
+            <p><strong>c) Comparaison des ordres de jointure</strong></p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Ordre</th><th>Intermédiaire 1</th><th>Intermédiaire 2</th><th>Verdict</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>A :</strong> (σ<sub>MSC</sub>(Stu) ⋈ Grades) ⋈ σ<sub>Math</sub>(Cou)</td>
+                            <td>3 ⋈ 26 ≈ 13 tuples</td>
+                            <td>13 ⋈ 2 ≈ quelques tuples Math/MSC</td>
+                            <td><span class="badge badge-green">Acceptable</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>B :</strong> (σ<sub>Math</sub>(Cou) ⋈ Grades) ⋈ σ<sub>MSC</sub>(Stu)</td>
+                            <td>2 ⋈ 26 ≈ bulletins Math seulement ≈ 10</td>
+                            <td>10 ⋈ 3 ≈ quelques tuples Math/MSC</td>
+                            <td><span class="badge badge-green">Préférable</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p>L'ordre B est légèrement préférable : commencer par <code>σ<sub>Dept='Math'</sub>(Course)</code> (2 cours sur 7) produit un intermédiaire encore plus petit que l'ordre A avant la dernière jointure. Dans les deux cas, le push-down élimine l'essentiel des tuples parasites.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- QUESTION 4 — Agrégat + deux sélections + triple join   -->
+    <!-- ══════════════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="question-pts">6 pts</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Optimisez la <strong>Requête 4</strong> par le RBA :</p>
+        <pre><code>SELECT Count(*)
+FROM   Student, Grades, Course
+WHERE  Student.StudId = Grades.StudId
+  AND  Grades.CourId  = Course.CourId
+  AND  Level = 'MSC'
+  AND  Dept  = 'Stat';</code></pre>
+        <div class="sub-question"><strong>a)</strong> Écrivez l'expression naïve complète.</div>
+        <div class="sub-question"><strong>b)</strong> Appliquez le RBA complet et donnez l'expression optimisée finale.</div>
+        <div class="sub-question"><strong>c)</strong> Donnez le résultat numérique en vous appuyant sur les données des tables (Student et Course fournies dans le contexte). Combien de tuples Grades l'optimiseur doit-il lire au minimum ?</div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Penser que <code>Count(*)</code> supprime la possibilité de push-down. L'agrégat s'applique <em>après</em> toutes les jointures et sélections — l'optimiseur descend d'abord les sélections, puis agrège le résultat final. L'expression optimisée place l'agrégat au sommet de l'arbre, pas en bas.
+        </div>
+
+        <button class="hint-btn" data-hint="q4-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            Pour le <code>Count(*)</code>, la projection finale devient un agrégat : <code>γ<sub>Count(*)</sub></code> (ou notez simplement <em>Count</em> en haut de l'arbre). Le reste du traitement est identique à Q3 avec <code>Dept='Stat'</code> à la place de <code>Dept='Math'</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q4-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q4-h2">
+            <code>σ<sub>Dept='Stat'</sub>(Course)</code> retient S402 et S466 → 2 cours Stat.<br>
+            <code>σ<sub>Level='MSC'</sub>(Student)</code> retient Ambar (404), Philip (505), Nicolas (606) → 3 étudiants MSC.<br>
+            Comptez dans Grades les entrées dont <code>CourId ∈ {S402, S466}</code> ET <code>StudId ∈ {404,505,606}</code>.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="a) Expression naïve…  b) Expression optimisée…  c) Résultat numérique et nombre de tuples Grades lus…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+
+            <p><strong>a) Expression naïve</strong></p>
+            <div class="highlight-box">
+                <p><code>γ<sub>Count(*)</sub>( σ<sub>Level='MSC' ∧ Dept='Stat' ∧ Student.StudId=Grades.StudId ∧ Grades.CourId=Course.CourId</sub>((Student × Grades) × Course) )</code></p>
+            </div>
+            <p class="inline-note">Volume naïf : 6 × 26 × 7 = <strong>1 092 tuples</strong>, dont la quasi-totalité sera éliminée par les sélections.</p>
+
+            <p><strong>b) Expression optimisée (RBA complet)</strong></p>
+            <ul class="steps">
+                <li><strong>R1 ×4 :</strong> cascade des quatre prédicats en sélections imbriquées.</li>
+                <li><strong>R3 ×2 :</strong> push-down de <code>Level='MSC'</code> au-dessus de Student, et de <code>Dept='Stat'</code> au-dessus de Course.</li>
+                <li><strong>R4 ×2 :</strong> synthèse des deux jointures (Student ⋈ Grades, puis ⋈ Course).</li>
+            </ul>
+            <div class="highlight-box">
+                <p><strong>Expression finale :</strong></p>
+                <p><code>γ<sub>Count(*)</sub>( (σ<sub>Level='MSC'</sub>(Student) ⋈<sub>StudId</sub> Grades) ⋈<sub>CourId</sub> σ<sub>Dept='Stat'</sub>(Course) )</code></p>
+            </div>
+
+            <p><strong>c) Résultat numérique</strong></p>
+            <p>Après push-down :</p>
+            <ul>
+                <li><code>σ<sub>Level='MSC'</sub>(Student)</code> → 3 étudiants : Ambar (404), Philip (505), Nicolas (606).</li>
+                <li><code>σ<sub>Dept='Stat'</sub>(Course)</code> → 2 cours Stat : S402 (BioS), S466 (Stat).</li>
+                <li>L'optimiseur lit <strong>uniquement les tuples de Grades</strong> correspondant à ces contraintes (après jointure, il cherche des lignes avec <code>StudId ∈ {404,505,606}</code> et <code>CourId ∈ {S402,S466}</code>).</li>
+            </ul>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Étape</th><th>Volume</th><th>Ratio vs naïf</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Naïf (Student × Grades × Course)</td><td>1 092 tuples</td><td>référence</td></tr>
+                        <tr><td>Après push-down sur Student (×3)</td><td>3 × 26 × 7 = 546</td><td>÷ 2</td></tr>
+                        <tr><td>Après push-down sur Course (×2)</td><td>3 × 26 × 2 = 156</td><td>÷ 7</td></tr>
+                        <tr><td>Après jointures (tuples utiles)</td><td>≤ quelques unités</td><td>÷ &gt;100</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="inline-note">
+                Le RBA garantit que chaque sélection est appliquée au plus tôt, réduisant dramatiquement le volume traité.
+                Sans push-down, on aurait traversé 1 092 paires pour n'en conserver que quelques-unes.
+                Le <code>Count(*)</code> final s'applique sur un résultat déjà minimal.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ── BARÈME ── -->
+    <div class="bareme">
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">Q1 — Jointure binaire + push-down</span>
+        <span class="bareme-desc">1 pt expression naïve · 2 pts séquence R1→R3→R4 justifiée · 1 pt volumes</span>
+
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">Q2 — Triple jointure + une sélection</span>
+        <span class="bareme-desc">1 pt naïve · 3 pts séquence correcte (R1×3 + R3 + R4×2)</span>
+
+        <span class="bareme-pts">6</span>
+        <span class="bareme-label">Q3 — Deux sélections sur tables différentes</span>
+        <span class="bareme-desc">1 pt naïve · 3 pts push-down des deux sélections séparées · 2 pts comparaison d'ordres</span>
+
+        <span class="bareme-pts">6</span>
+        <span class="bareme-label">Q4 — Agrégat + RBA complet</span>
+        <span class="bareme-desc">1 pt naïve · 3 pts expression optimisée · 2 pts résultat numérique justifié</span>
+
+        <div class="bareme-total">Total : <strong>20 pts</strong></div>
+    </div>
+
+
+    <!-- ── POUR ALLER PLUS LOIN ── -->
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Le RBA est une optimisation purement <em>logique</em> : il ne connaît pas les cardinalités réelles. Comment le <strong>Cost Based Approach (CBA)</strong> complète-t-il cette approche pour choisir l'ordre de jointure optimal ?</li>
+            <li>Explorez la règle <strong>R8 — push-down de projections</strong> : si la requête demande uniquement <code>Name</code> et <code>Grade</code>, peut-on éliminer les colonnes inutiles avant la jointure ? Dans quels cas cela est-il contre-productif (colonne de jointure éliminée trop tôt) ?</li>
+            <li>En PostgreSQL, exécutez <code>EXPLAIN SELECT Count(*) FROM …</code> avec et sans index. Comparez le plan produit par l'optimiseur avec l'expression algébrique que vous avez construite manuellement.</li>
+        </ul>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,36 @@
+  > Rôle : Agis en tant qu'Ingénieur Pédagogique et Développeur Front-end Senior.
+  >
+  > Contexte : Je travaille sur un dossier de TD (Travaux Dirigés) structuré avec un fichier index.html servant de conteneur et plusieurs
+  fichiers section-xxx.html contenant des exercices et des rappels de cours SQL/Bases de Données. Le projet utilise un Design System spécifique
+  (design/tokens.css, components.css).
+  >
+  > Objectif : Générer un fichier cheat-sheet.html qui servira de mémento de révision pour un examen.
+  >
+  > Contraintes de Mise en Page (CRITIQUE) :
+  > 1. Format : Paysage (A4 Landscape), conçu pour une impression Recto-Verso (2 pages max).
+  > 2. Densité : Information très dense. Utilise une grille de 3 colonnes par page.
+  > 3. Design "Économie d'encre" : Fond blanc pur, texte noir, bordures fines. Pas de dégradés ni d'images. Utilise des nuances de gris très
+  légères pour les en-têtes de blocs.
+  > 4. Typographie : Utilise une police système sans-serif (Segoe UI/Calibri) à 8.5pt ou 9pt pour maximiser le contenu.
+  >
+  > Contenu à extraire :
+  > Analyse les fichiers de section fournis et synthétise :
+  > - Les ordres de syntaxe et les mots-clés fondamentaux.
+  > - Les règles d'or et les pièges classiques cités dans les "Rappels de cours" ou les solutions.
+  > - Les fonctions utilitaires (Texte, Maths, Dates).
+  > - Des exemples de code courts et concrets pour chaque concept complexe.
+  >
+  > Structure du document attendue :
+  > - Page 1 (Recto) : Fondamentaux, structures de base, opérateurs de filtrage, et les concepts de regroupement/jointures simples.
+  > - Page 2 (Verso) : Concepts avancés, sous-requêtes, fonctions de fenêtrage, logique conditionnelle (CASE WHEN) et fonctions système.
+  >
+  > Fonctionnalités Techniques à inclure :
+  > - Un bouton flottant no-print pour déclencher window.print().
+  > - Les directives CSS @page { size: A4 landscape; } et @media print.
+  > - Une classe .page-break pour séparer proprement le recto du verso.
+  > - Des blocs de type .section avec un titre en gris (#e0e0e0) et un contenu .section-content.
+  >
+  > Fichiers source à analyser :
+  > [LISTE ICI TES FICHIERS : ex: index.html, section-ex1.html, etc.]
+  >
+  > Action : Génère-moi le code HTML complet et autonome (CSS inclus dans la balise <style>) pour ce fichier cheat-sheet.html.

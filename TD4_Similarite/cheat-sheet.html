@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mémento SQL & Optimisation — TD4 Similarité (Recto-Verso)</title>
+    <style>
+        /* Configuration Impression Paysage A4 */
+        @page { size: A4 landscape; margin: 5mm; }
+        body {
+            background-color: white !important;
+            color: black !important;
+            font-family: "Segoe UI", "Calibri", sans-serif;
+            font-size: 8.5pt;
+            line-height: 1.15;
+            margin: 0; padding: 0;
+        }
+        .page {
+            width: 287mm; height: 200mm;
+            padding: 5mm; box-sizing: border-box;
+            page-break-after: always;
+            display: flex; flex-direction: column;
+        }
+        .sheet-header {
+            text-align: center; border-bottom: 2px solid black;
+            margin-bottom: 6px; display: flex;
+            justify-content: space-between; align-items: center;
+        }
+        .sheet-header h1 { margin: 0; font-size: 13pt; text-transform: uppercase; letter-spacing: 1px; }
+        .sheet-header .page-tag { font-weight: bold; border: 1px solid black; padding: 2px 6px; }
+
+        .sheet-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; flex-grow: 1; }
+        .col { display: flex; flex-direction: column; gap: 6px; }
+
+        .section { border: 1px solid black; display: flex; flex-direction: column; break-inside: avoid; }
+        .section h2 {
+            margin: 0; padding: 2px 6px; font-size: 9pt;
+            background-color: #e0e0e0; border-bottom: 1px solid black;
+            text-transform: uppercase; font-weight: bold;
+        }
+        .section-content { padding: 4px; flex-grow: 1; }
+        
+        h3 { margin: 4px 0 2px 0; font-size: 8.5pt; text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; margin: 3px 0; }
+        th, td { border: 1px solid #666; padding: 1px 3px; text-align: left; font-size: 8pt; }
+        th { background-color: #f2f2f2; }
+
+        code { font-family: "Consolas", monospace; font-weight: bold; background: #eee; padding: 0 2px; }
+        pre {
+            background: #f9f9f9; border: 1px solid #ccc;
+            padding: 3px; font-size: 7.5pt; margin: 3px 0;
+            white-space: pre-wrap; font-family: "Consolas", monospace;
+        }
+
+        .rule-box { border: 1.5px dashed black; padding: 3px; margin: 3px 0; background-color: #fdfdfd; }
+        .rule-box strong { color: #000; text-transform: uppercase; font-size: 7.5pt; }
+        .pitfall { border-left: 3px solid #333; padding-left: 4px; font-style: italic; margin: 3px 0; }
+        
+        .footer { text-align: right; font-size: 7pt; border-top: 1px solid #ccc; padding-top: 2px; margin-top: auto; }
+        
+        @media print { .no-print { display: none !important; } }
+        .print-btn {
+            position: fixed; top: 10px; right: 10px;
+            background: #000; color: #fff; border: none;
+            padding: 6px 12px; border-radius: 4px; cursor: pointer;
+            font-weight: bold; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="print-btn no-print" onclick="window.print()">🖨️ IMPRIMER (PAYSAGE)</button>
+
+    <!-- PAGE 1 : FONDAMENTAUX & INDEX DE JOINTURE BINAIRE -->
+    <div class="page">
+        <header class="sheet-header">
+            <span class="page-tag">RECTO</span>
+            <h1>Mémento 1 : Syntaxe SQL & Indexation Binaire (BJI)</h1>
+            <span>Master Big Data 2026</span>
+        </header>
+
+        <div class="sheet-grid">
+            <!-- COL 1 : STRUCTURE & SELECT -->
+            <div class="col">
+                <div class="section">
+                    <h2>1. Structure Fondamentale</h2>
+                    <div class="section-content">
+                        <code>SELECT [DISTINCT] col AS alias</code><br>
+                        <code>FROM Table_A [JOIN Table_B ON A.id = B.fk]</code><br>
+                        <code>WHERE condition</code> <em>(Filtre lignes)</em><br>
+                        <code>GROUP BY col</code> <em>(Agrégation)</em><br>
+                        <code>HAVING condition</code> <em>(Filtre groupes)</em><br>
+                        <code>ORDER BY col [ASC|DESC]</code><br>
+                        <div class="rule-box">
+                            <strong>Logique NULL :</strong> <code>IS NULL</code> / <code>IS NOT NULL</code>.<br>
+                            <code>COALESCE(val, 0)</code> remplace NULL par 0.<br>
+                            <code>NOT IN (..., NULL)</code> ne renvoie <strong>rien</strong>.
+                        </div>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2>2. Agrégats & GROUP BY</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Fonction</th><th>Comportement</th></tr>
+                            <tr><td><code>COUNT(*)</code></td><td>Toutes les lignes</td></tr>
+                            <tr><td><code>COUNT(col)</code></td><td>Lignes où col ≠ NULL</td></tr>
+                            <tr><td><code>AVG, SUM</code></td><td>Ignorent les NULL</td></tr>
+                        </table>
+                        <div class="rule-box">
+                            <strong>Règle d'or :</strong> Toute colonne dans le <code>SELECT</code> non agrégée <strong>doit</strong> être dans le <code>GROUP BY</code>.
+                        </div>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2>3. Opérateurs de Jointure</h2>
+                    <div class="section-content">
+                        <strong>INNER JOIN :</strong> Intersection stricte.<br>
+                        <strong>LEFT JOIN :</strong> Tout le parent + enfants si existent.<br>
+                        <strong>CROSS JOIN :</strong> Produit cartésien (A × B).<br>
+                        <strong>Semi-Join (⋉) :</strong> Tuples de A ayant un match dans B. Utile en fragmentation dérivée.
+                    </div>
+                </div>
+            </div>
+
+            <!-- COL 2 : INDEX DE JOINTURE BINAIRE (BJI) -->
+            <div class="col">
+                <div class="section">
+                    <h2>4. Index de Jointure Binaire (BJI)</h2>
+                    <div class="section-content">
+                        <p><strong>Déf :</strong> Indexe une table de faits (ex: <em>Grades</em>) sur des attributs de tables de dimension (ex: <em>Level</em> de <em>Student</em>).</p>
+                        <h3>Mécanisme de construction :</h3>
+                        <pre>1. Joindre Fact et Dimension.
+2. Grouper par attribut de dimension.
+3. Stocker liste des RID (Record IDs) de Fact.</pre>
+                        <h3>Exemple conceptuel :</h3>
+                        <p><code>Level='HCSC'</code> → Bitmaps: <code>100100...</code> (RIDs: {1, 4, ...})</p>
+                        <div class="rule-box">
+                            <strong>Avantage :</strong> Évite la jointure physique à l'exécution. On travaille directement sur les listes de RID / Bitmaps.
+                        </div>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2>5. Résolution par intersection</h2>
+                    <div class="section-content">
+                        <p>Pour une requête avec plusieurs critères (<code>Dept='Stat' AND Level='HCSC'</code>) :</p>
+                        <pre>RID_Final = RID(Stat) ∩ RID(HCSC)</pre>
+                        <p>En bitmap : <code>Bitmap_A AND Bitmap_B</code>.</p>
+                        <p><strong>Coût estimé :</strong> Nombre de RIDs dans le résultat final (si index parfait).</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COL 3 : FONCTIONS & CALCULS -->
+            <div class="col">
+                <div class="section">
+                    <h2>6. Fonctions Utilitaires</h2>
+                    <div class="section-content">
+                        <h3>Texte :</h3>
+                        <code>UPPER(), LOWER(), TRIM()</code><br>
+                        <code>SUBSTR(str, start, len)</code><br>
+                        <code>CONCAT(a, b)</code> ou <code>a || b</code>
+                        <h3>Maths :</h3>
+                        <code>ROUND(val, 2)</code>, <code>ABS()</code>, <code>FLOOR()</code><br>
+                        <code>MOD(a, b)</code> ou <code>a % b</code>
+                        <h3>Dates :</h3>
+                        <code>CURRENT_DATE</code>, <code>EXTRACT(YEAR FROM d)</code><br>
+                        <code>TO_CHAR(d, 'YYYY-MM-DD')</code>
+                        <h3>Conditionnel :</h3>
+                        <pre>CASE WHEN cond THEN val1 
+     ELSE val2 END</pre>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2>7. Pièges Classiques (Exam)</h2>
+                    <div class="section-content">
+                        <div class="pitfall">Confondre <code>WHERE</code> (filtre avant agrégat) et <code>HAVING</code> (filtre après).</div>
+                        <div class="pitfall">Oublier les alias dans une auto-jointure.</div>
+                        <div class="pitfall">Penser que <code>COUNT(col)</code> compte les NULL.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">TD4 Similarité — Memento SQL & BJI — Page 1/2</div>
+    </div>
+
+    <!-- PAGE 2 : PARTITIONNEMENT & CONCEPTS AVANCÉS -->
+    <div class="page">
+        <header class="sheet-header">
+            <span class="page-tag">VERSO</span>
+            <h1>Mémento 2 : Partitionnement & Optimisation Avancée</h1>
+            <span>Master Big Data 2026</span>
+        </header>
+
+        <div class="sheet-grid">
+            <!-- COL 4 : PARTITIONNEMENT HORIZONTAL -->
+            <div class="col">
+                <div class="section">
+                    <h2>8. Partitionnement Horizontal</h2>
+                    <div class="section-content">
+                        <h3>A. Primaire (PHP) :</h3>
+                        <p>Partitionnement d'une table <code>R</code> selon ses propres attributs.</p>
+                        <code>R_i = σ_{pred_i}(R)</code>
+                        <h3>B. Dérivé (PHD) :</h3>
+                        <p>Partitionnement d'une table de faits <code>F</code> selon les partitions d'une table dimension <code>D</code>.</p>
+                        <code>F_i = F ⋉ D_i</code> (Semi-jointure)
+                        <div class="rule-box">
+                            <strong>Analogie logistique :</strong> On range les "Ventes" directement dans des cartons étiquetés par "Région".
+                        </div>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2>9. Élimination de partitions</h2>
+                    <div class="section-content">
+                        <p><strong>Partition Pruning :</strong> L'optimiseur ne scanne que les fragments concernés par le <code>WHERE</code>.</p>
+                        <p>Si la requête filtre sur <code>Dept='Stat'</code> et que <em>Grades</em> est fragmenté par <em>Dept</em>, on ne lit <strong>qu'un seul</strong> fragment.</p>
+                        <p><strong>Coût :</strong> Somme des tailles des fragments accédés.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COL 5 : SOUS-REQUÊTES & LOGIQUE -->
+            <div class="col">
+                <div class="section">
+                    <h2>10. Sous-Requêtes Avancées</h2>
+                    <div class="section-content">
+                        <h3>Scalaire (1 valeur) :</h3>
+                        <code>WHERE prix > (SELECT AVG(prix) FROM...)</code>
+                        <h3>Liste (IN / ANY / ALL) :</h3>
+                        <code>WHERE id IN (SELECT id FROM...)</code>
+                        <h3>Corrélée (Exécute par ligne) :</h3>
+                        <pre>SELECT nom FROM emp e
+WHERE salaire > (
+  SELECT AVG(salaire) FROM emp 
+  WHERE dept = e.dept
+)</pre>
+                        <div class="rule-box">
+                            <strong>EXISTS :</strong> Plus rapide que <code>IN</code> pour tester la présence (s'arrête au 1er match).
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COL 6 : MÉTHODOLOGIE EXAMEN -->
+            <div class="col">
+                <div class="section">
+                    <h2>11. Comparaison BJI vs Fragmentation</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Critère</th><th>BJI</th><th>Frag.</th></tr>
+                            <tr><td>Stockage</td><td>Index séparé</td><td>Données éclatées</td></tr>
+                            <tr><td>Jointure</td><td>Évitée</td><td>Physique ou Nulle</td></tr>
+                            <tr><td>Accès</td><td>RID List</td><td>Scan Fragment</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2>12. Conseils & Pièges TD4</h2>
+                    <div class="section-content">
+                        <div class="pitfall"><strong>Piège :</strong> Fragmenter la table de faits sans passer par les dimensions (PHD).</div>
+                        <div class="pitfall"><strong>Piège :</strong> Additionner tous les fragments lors du calcul du coût (on ne lit que l'utile !).</div>
+                        <div class="rule-box">
+                            <strong>ASTUCE EXAM :</strong> Toujours vérifier si l'attribut du <code>WHERE</code> correspond à la clé de fragmentation ou à un index BJI existant.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">Généré par Gemini CLI — TD4 : Similarité, Indexation & Fragmentation — Page 2/2</div>
+    </div>
+
+</body>
+</html>

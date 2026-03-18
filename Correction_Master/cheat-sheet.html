@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mémento Bases de Données & SQL — Correction Master</title>
+    <style>
+        /* CONFIGURATION IMPRESSION A4 PAYSAGE */
+        @page {
+            size: A4 landscape;
+            margin: 5mm;
+        }
+
+        body {
+            background-color: white !important;
+            color: black !important;
+            font-family: "Segoe UI", "Calibri", sans-serif;
+            font-size: 8.5pt;
+            line-height: 1.15;
+            margin: 0;
+            padding: 0;
+        }
+
+        .no-print {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #333;
+            color: white;
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+            z-index: 1000;
+            font-weight: bold;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+        }
+
+        /* LAYOUT */
+        .page {
+            width: 287mm;
+            height: 200mm;
+            padding: 5mm;
+            box-sizing: border-box;
+            page-break-after: always;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid black;
+            margin-bottom: 5px;
+            padding-bottom: 2px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 11pt;
+            text-transform: uppercase;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        /* COMPONENTS */
+        .section {
+            border: 1px solid black;
+            margin-bottom: 5px;
+            break-inside: avoid;
+        }
+
+        .section h2 {
+            margin: 0;
+            padding: 2px 5px;
+            background-color: #e0e0e0;
+            font-size: 9pt;
+            border-bottom: 1px solid black;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .section-content {
+            padding: 4px;
+        }
+
+        .important {
+            border: 1px solid black;
+            padding: 3px;
+            margin: 3px 0;
+            background-color: #f9f9f9;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 3px 0;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 1px 3px;
+            text-align: left;
+        }
+
+        th { background: #f0f0f0; font-size: 7.5pt; }
+
+        code {
+            font-family: "Consolas", monospace;
+            font-weight: bold;
+        }
+
+        pre {
+            font-family: "Consolas", monospace;
+            font-size: 7.5pt;
+            background: #fafafa;
+            padding: 2px;
+            margin: 2px 0;
+            border-left: 2px solid #ccc;
+            white-space: pre-wrap;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0 3px;
+            font-size: 7pt;
+            border: 0.5px solid black;
+            border-radius: 2px;
+            vertical-align: middle;
+        }
+
+        ul { margin: 2px 0; padding-left: 15px; }
+        p { margin: 2px 0; }
+    </style>
+</head>
+<body>
+
+    <button class="no-print" onclick="window.print()">IMPRIMER / EXPORTER PDF</button>
+
+    <!-- PAGE 1 : FONDAMENTAUX & FRAGMENTATION -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento SQL & BD — Page 1 : Fondamentaux & Architecture</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+            
+            <!-- COLONNE 1 -->
+            <div class="col">
+                <div class="section">
+                    <h2>1. Syntaxe & Ordre d'Exécution</h2>
+                    <div class="section-content">
+                        <pre>SELECT [DISTINCT] col1, AVG(col2)
+FROM table_A [JOIN table_B ON A.id = B.id]
+WHERE condition_lignes (filtre brut)
+GROUP BY col_regroupement
+HAVING condition_groupes (filtre post-agrégat)
+ORDER BY col [ASC|DESC]
+LIMIT n OFFSET m</pre>
+                        <div class="important">
+                            Ordre réel : FROM → JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>2. Opérateurs de Filtrage</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><td><code>=, <>, !=, <, ></code></td><td>Comparaison standard</td></tr>
+                            <tr><td><code>BETWEEN a AND b</code></td><td>Inclusif : [a, b]</td></tr>
+                            <tr><td><code>IN (v1, v2, ...)</code></td><td>Appartenance à une liste</td></tr>
+                            <tr><td><code>LIKE 'patt%'</code></td><td><code>%</code> (0+), <code>_</code> (1 seul car.)</td></tr>
+                            <tr><td><code>IS NULL</code></td><td>Test de valeur nulle</td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>3. Agrégats & Groupements</h2>
+                    <div class="section-content">
+                        <p><code>COUNT(*)</code>, <code>SUM()</code>, <code>AVG()</code>, <code>MIN()</code>, <code>MAX()</code></p>
+                        <p><span class="badge">Règle</span> : Toute colonne dans <code>SELECT</code> non agrégée <strong>doit</strong> figurer dans <code>GROUP BY</code>.</p>
+                        <p><code>HAVING</code> s'utilise uniquement avec des fonctions d'agrégation.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 -->
+            <div class="col">
+                <div class="section">
+                    <h2>4. Jointures Standards</h2>
+                    <div class="section-content">
+                        <ul>
+                            <li><strong>INNER JOIN</strong> : Intersection stricte.</li>
+                            <li><strong>LEFT JOIN</strong> : Tout A + B correspondant (ou NULL).</li>
+                            <li><strong>LEFT JOIN</strong> : Tout A + B correspondant (ou NULL).</li>
+                            <li><strong>FULL JOIN</strong> : Union des deux (avec NULLs).</li>
+                            <li><strong>NATURAL JOIN</strong> : Jointure auto sur colonnes de même nom (⚠️ DANGEREUX).</li>
+                        </ul>
+                        <p class="important">Piège : Oublier la clause ON crée un produit cartésien (A × B lignes).</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>5. Fragmentation (Systèmes Répartis)</h2>
+                    <div class="section-content">
+                        <p><strong>Fragmentation Horizontale (FH) :</strong></p>
+                        <ul>
+                            <li>Découpe par lignes via <code>σ</code> (Sélection).</li>
+                            <li>Fragments disjoints : <code>R1 ∩ R2 = ∅</code>.</li>
+                            <li>Reconstruction : <code>R = R1 ∪ R2 ∪ ...</code> (Union).</li>
+                        </ul>
+                        <p><strong>Fragmentation Verticale (FV) :</strong></p>
+                        <ul>
+                            <li>Découpe par colonnes via <code>π</code> (Projection).</li>
+                            <li>⚠️ La <strong>clé primaire</strong> doit être dans chaque fragment.</li>
+                            <li>Reconstruction : <code>R = F1 ⋈ F2 ⋈ ...</code> (Jointure).</li>
+                        </ul>
+                        <p><strong>Propriétés obligatoires :</strong></p>
+                        <ul>
+                            <li><strong>Complétude :</strong> Aucune donnée perdue.</li>
+                            <li><strong>Reconstructibilité :</strong> Opération inverse possible.</li>
+                            <li><strong>Disjonction :</strong> Pas de duplication (sauf PK en FV).</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 -->
+            <div class="col">
+                <div class="section">
+                    <h2>6. Fragmentation Mixte & Ordre</h2>
+                    <div class="section-content">
+                        <p><strong>HV (H puis V) :</strong> On filtre par lignes d'abord. On peut ensuite projeter différemment sur chaque groupe de lignes.</p>
+                        <p><strong>VH (V puis H) :</strong> On projette d'abord. ⚠️ Si la colonne de filtrage de H est supprimée par V, H devient impossible.</p>
+                        <p class="important">Reconstruction mixte : Reconstituer d'abord les horizontaux (Union), puis joindre le tout.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>7. Fonctions Utilitaires</h2>
+                    <div class="section-content">
+                        <p><strong>Texte :</strong> <code>UPPER()</code>, <code>LOWER()</code>, <code>CONCAT(a, b)</code>, <code>SUBSTR(s, start, len)</code>, <code>TRIM()</code>.</p>
+                        <p><strong>Maths :</strong> <code>ROUND(v, d)</code>, <code>COALESCE(val, replacement)</code> (gère les NULLs).</p>
+                        <p><strong>Date :</strong> <code>NOW()</code>, <code>DATE_PART('year', d)</code>, <code>DATEDIFF(end, start)</code>.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 1/2 (Recto)</div>
+    </div>
+
+    <!-- PAGE 2 : AVANCÉ, CBA & INDEX -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento SQL & BD — Page 2 : Avancé & Optimisation</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+            
+            <!-- COLONNE 1 -->
+            <div class="col">
+                <div class="section">
+                    <h2>8. Sous-requêtes & CTE</h2>
+                    <div class="section-content">
+                        <p><strong>IN / NOT IN :</strong> Test sur ensemble.</p>
+                        <p><strong>EXISTS / NOT EXISTS :</strong> Plus performant que IN (s'arrête dès le 1er match).</p>
+                        <p><strong>CTE (WITH) :</strong> Lisibilité accrue.</p>
+                        <pre>WITH TableTemp AS (
+  SELECT ... FROM ...
+) SELECT * FROM TableTemp;</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>9. Logique Conditionnelle (CASE)</h2>
+                    <div class="section-content">
+                        <pre>SELECT Name,
+ CASE 
+  WHEN Age < 18 THEN 'Enfant'
+  WHEN Age < 65 THEN 'Adulte'
+  ELSE 'Senior'
+ END as Tranche
+FROM Personne;</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>10. Fonctions de Fenêtrage (Over)</h2>
+                    <div class="section-content">
+                        <p>Calculs sans grouper les lignes.</p>
+                        <pre>SELECT Dept, Salaire,
+ RANK() OVER(PARTITION BY Dept ORDER BY Salaire DESC) as Rang
+FROM Employes;</pre>
+                        <ul>
+                            <li><code>PARTITION BY</code> : Définit la fenêtre.</li>
+                            <li><code>ORDER BY</code> : Trie dans la fenêtre.</li>
+                            <li><code>RANK()</code> vs <code>DENSE_RANK()</code> (trous vs pas de trous).</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 -->
+            <div class="col">
+                <div class="section">
+                    <h2>11. Optimisation Coût (CBA)</h2>
+                    <div class="section-content">
+                        <p><strong>Modèle de coût :</strong> Principalement basé sur les lectures de blocs (I/O).</p>
+                        <p><strong>Taille en blocs :</strong> <code>B(R) = ⌈ NbTuples / FacteurBlocage ⌉</code>.</p>
+                        <p><strong>Block Nested Loop Join (BNLJ) :</strong></p>
+                        <pre>Coût = B(R) + ⌈ B(R) / M ⌉ × B(S)</pre>
+                        <ul>
+                            <li>R : Table externe (chargée par lots).</li>
+                            <li>S : Table interne (relue entièrement).</li>
+                            <li>M : Taille du Buffer (mémoire vive).</li>
+                        </ul>
+                        <p class="important">Règle d'or : La table interne est relue <code>B(R)/M</code> fois. Toujours mettre la plus petite table en externe pour minimiser les relectures.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>12. Optimisation Logique</h2>
+                    <div class="section-content">
+                        <p><strong>Push-down selection :</strong> Toujours appliquer <code>σ</code> le plus tôt possible pour réduire la taille des relations avant jointure.</p>
+                        <p><strong>Projection précoce :</strong> Supprimer les colonnes inutiles avant les opérations lourdes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 -->
+            <div class="col">
+                <div class="section">
+                    <h2>13. Indexation : B-Tree & BJI</h2>
+                    <div class="section-content">
+                        <p><strong>B-Tree (Standard) :</strong></p>
+                        <ul>
+                            <li>Efficace pour <code>=, <, >, BETWEEN</code>.</li>
+                            <li>Règle du <strong>préfixe le plus sélectif</strong> : Dans un index composite (A, B), l'ordre doit suivre la probabilité de filtrage.</li>
+                        </ul>
+                        <p><strong>Binary Join Index (BJI) :</strong></p>
+                        <ul>
+                            <li>Mémorise les liens entre une Dimension (D) et une table de Faits (F).</li>
+                            <li>Stocke des paires (D_RID, {F_RIDs}).</li>
+                        </ul>
+                        <div class="important">
+                            Utilisation BJI :<br>
+                            1. Filtre sur Dimension → D_RIDs.<br>
+                            2. Accès BJI → F_RIDs (identifiants faits).<br>
+                            3. Intersection des F_RIDs si multi-index.<br>
+                            4. Lecture physique finale dans F.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>14. Vues Matérialisées</h2>
+                    <div class="section-content">
+                        <p>Stocke le résultat sur disque. Doit être rafraîchie.</p>
+                        <pre>CREATE MATERIALIZED VIEW MV AS
+SELECT ... WITH DATA;</pre>
+                        <p>Optimise les requêtes répétitives sur gros volumes.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 2/2 (Verso)</div>
+    </div>
+
+</body>
+</html>
