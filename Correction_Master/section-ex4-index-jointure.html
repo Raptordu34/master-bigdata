@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 4 — Index de jointure binaire</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-points">◎ 5 questions</span>
+            <span class="exo-time">⏱ 30–45 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Proposer des scénarii d'optimisation avec index de jointure binaire</li>
+                <li>Comprendre l'utilisation des index par l'optimiseur</li>
+                <li>Calculer le résultat d'une requête sur données réelles</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Schéma en étoile, index de jointure binaire, RID</em></p>
+    </div>
+
+    <div class="context-block">
+        <h3>Contexte</h3>
+        <p>
+            Schéma en étoile avec trois tables de dimensions (Client, Produit, Temps)
+            et une table de faits (Ventes). Chaque tuple est associé à un RID.
+        </p>
+        <p>Requête Q à exécuter :</p>
+        <pre><code>SELECT Count(*)
+FROM Client C, Produit P, Temps T, Ventes V
+WHERE C.City = 'Poitiers' AND P.Type = 'Beauté'
+  AND T.Mois = 'Juin' AND P.PID = V.PID
+  AND C.CID = V.CID AND T.TID = V.TID</code></pre>
+
+        <div class="two-col">
+            <div>
+                <div class="table-glass">
+                    <table>
+                        <caption>CLIENT</caption>
+                        <thead><tr><th>C_RID</th><th>CID</th><th>Nom</th><th>Ville</th></tr></thead>
+                        <tbody>
+                            <tr><td>6</td><td>616</td><td>Gilles</td><td>Poitiers</td></tr>
+                            <tr><td>5</td><td>515</td><td>Yves</td><td>Paris</td></tr>
+                            <tr><td>4</td><td>414</td><td>Yamine</td><td>Nantes</td></tr>
+                            <tr><td>3</td><td>313</td><td>Ladjel</td><td>Nantes</td></tr>
+                            <tr><td>2</td><td>212</td><td>Eric</td><td>Poitiers</td></tr>
+                            <tr><td>1</td><td>111</td><td>Pascal</td><td>Poitiers</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-glass" style="margin-top:1rem;">
+                    <table>
+                        <caption>PRODUIT</caption>
+                        <thead><tr><th>P_RID</th><th>PID</th><th>Nom</th><th>Type</th></tr></thead>
+                        <tbody>
+                            <tr><td>6</td><td>106</td><td>Sonoflore</td><td>Beauté</td></tr>
+                            <tr><td>5</td><td>105</td><td>Clarins</td><td>Beauté</td></tr>
+                            <tr><td>4</td><td>104</td><td>WebCam</td><td>Multimédia</td></tr>
+                            <tr><td>3</td><td>103</td><td>Barbie</td><td>Jouet</td></tr>
+                            <tr><td>2</td><td>102</td><td>Engrais</td><td>Jardinage</td></tr>
+                            <tr><td>1</td><td>101</td><td>SlimForm</td><td>Fitness</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-glass" style="margin-top:1rem;">
+                    <table>
+                        <caption>TEMPS</caption>
+                        <thead><tr><th>T_RID</th><th>TID</th><th>Mois</th><th>Année</th></tr></thead>
+                        <tbody>
+                            <tr><td>1</td><td>11</td><td>Janvier</td><td>2003</td></tr>
+                            <tr><td>2</td><td>22</td><td>Février</td><td>2003</td></tr>
+                            <tr><td>3</td><td>33</td><td>Mars</td><td>2003</td></tr>
+                            <tr><td>4</td><td>44</td><td>Avril</td><td>2003</td></tr>
+                            <tr><td>5</td><td>55</td><td>Mai</td><td>2003</td></tr>
+                            <tr><td>6</td><td>66</td><td>Juin</td><td>2003</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div>
+                <div class="table-glass">
+                    <table>
+                        <caption>VENTES</caption>
+                        <thead><tr><th>V_RID</th><th>CID</th><th>PID</th><th>TID</th><th>Ventes</th></tr></thead>
+                        <tbody>
+                            <tr><td>1</td><td>616</td><td>106</td><td>11</td><td>25</td></tr>
+                            <tr><td>2</td><td>616</td><td>106</td><td>66</td><td>28</td></tr>
+                            <tr><td>3</td><td>616</td><td>104</td><td>33</td><td>50</td></tr>
+                            <tr><td>4</td><td>515</td><td>104</td><td>11</td><td>10</td></tr>
+                            <tr><td>5</td><td>414</td><td>105</td><td>66</td><td>14</td></tr>
+                            <tr><td>6</td><td>212</td><td>106</td><td>55</td><td>14</td></tr>
+                            <tr><td>7</td><td>111</td><td>101</td><td>44</td><td>20</td></tr>
+                            <tr><td>8</td><td>111</td><td>101</td><td>33</td><td>27</td></tr>
+                            <tr><td>9</td><td>212</td><td>101</td><td>11</td><td>100</td></tr>
+                            <tr><td>10</td><td>313</td><td>102</td><td>11</td><td>200</td></tr>
+                            <tr><td>11</td><td>414</td><td>102</td><td>11</td><td>102</td></tr>
+                            <tr><td>12</td><td>414</td><td>102</td><td>55</td><td>203</td></tr>
+                            <tr><td>13</td><td>515</td><td>102</td><td>66</td><td>100</td></tr>
+                            <tr><td>14</td><td>515</td><td>103</td><td>55</td><td>17</td></tr>
+                            <tr><td>15</td><td>212</td><td>103</td><td>44</td><td>45</td></tr>
+                            <tr><td>16</td><td>111</td><td>105</td><td>66</td><td>44</td></tr>
+                            <tr><td>17</td><td>212</td><td>104</td><td>66</td><td>40</td></tr>
+                            <tr><td>18</td><td>515</td><td>104</td><td>22</td><td>20</td></tr>
+                            <tr><td>19</td><td>616</td><td>104</td><td>22</td><td>20</td></tr>
+                            <tr><td>20</td><td>616</td><td>104</td><td>55</td><td>20</td></tr>
+                            <tr><td>21</td><td>212</td><td>105</td><td>11</td><td>10</td></tr>
+                            <tr><td>22</td><td>212</td><td>105</td><td>44</td><td>10</td></tr>
+                            <tr><td>23</td><td>212</td><td>105</td><td>55</td><td>18</td></tr>
+                            <tr><td>24</td><td>212</td><td>106</td><td>11</td><td>18</td></tr>
+                            <tr><td>25</td><td>313</td><td>105</td><td>66</td><td>19</td></tr>
+                            <tr><td>26</td><td>313</td><td>105</td><td>22</td><td>17</td></tr>
+                            <tr><td>27</td><td>313</td><td>106</td><td>11</td><td>15</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Q13 ──────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q13</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Proposer trois scénarii d'optimisation de la requête en utilisant :
+        </p>
+        <ul>
+            <li><strong>Scénario 1</strong> : un seul index de jointure binaire</li>
+            <li><strong>Scénario 2</strong> : deux index de jointure binaire</li>
+            <li><strong>Scénario 3</strong> : trois index de jointure binaire</li>
+        </ul>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q13-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q13-h1">À compléter…</div>
+
+        <button class="hint-btn hint-locked" data-hint="q13-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q13-h2">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q13…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q13</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+    <!-- ── Q14 ──────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q14</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Montrer comment l'optimiseur de requêtes utilise ces index dans les trois scénarii
+            pour traiter la requête Q.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q14-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q14-h1">À compléter…</div>
+
+        <button class="hint-btn hint-locked" data-hint="q14-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q14-h2">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q14…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q14</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+    <!-- ── Q15 ──────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q15</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Quel est le résultat retourné par cette requête ?</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q15-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q15-h1">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q15…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q15</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+    <!-- ── Q16 ──────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q16</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Est-ce que le résultat dépend des scénarii ?</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q16-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q16-h1">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q16…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q16</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+    <!-- ── Q17 ──────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q17</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Quel est le nombre de tuples de la table des faits que l'optimiseur a passé en revue
+            (scanné) lors de l'exécution de la requête ?
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q17-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q17-h1">À compléter…</div>
+
+        <button class="hint-btn hint-locked" data-hint="q17-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q17-h2">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q17…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q17</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+</body>
+</html>

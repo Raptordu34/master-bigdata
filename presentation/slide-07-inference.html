@@ -1,0 +1,38 @@
+<!-- Slide 5c — Phase d'inférence (Online) -->
+<div class="slide">
+    <div class="slide-content">
+        <div class="slide-header">
+            <h2>Phase Online — Inférence en temps réel</h2>
+            <span class="slide-section-label">§2.3 Online Inference</span>
+        </div>
+        <style>
+            .slide-07-steps.steps { margin-top: 0; }
+            .slide-07-steps.steps li { gap: 0.6rem; padding: 0.35rem 0.5rem; font-size: 0.88rem; line-height: 1.4; }
+            .slide-07-steps.steps li::before { min-width: 22px; height: 22px; font-size: 0.72rem; line-height: 22px; }
+            .slide-07-steps .li-row { display: flex; align-items: baseline; gap: 0.5rem; flex: 1; }
+            .slide-07-steps .li-row strong { font-size: 1rem; white-space: nowrap; min-width: 12.5rem; flex-shrink: 0; }
+            .slide-07-steps .li-row span { color: var(--text-secondary); }
+        </style>
+        <div class="two-col">
+            <div style="padding:0.3rem 0.3rem 1rem;">
+                <ol class="steps slide-07-steps">
+                    <li><span class="li-row"><strong>Request Pre-Processor</strong><span>— mots-clés · intention · dépendances · enrichissement Vector DB</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="1"><span class="li-row"><strong>Request Parser</strong><span>— SRL · mapping opérations · génération du pipeline</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="2"><span class="li-row"><strong>Pipeline Executor Agent</strong><span>— exécution · évaluation · régénération si besoin</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="3"><span class="li-row"><strong>Vector DB</strong><span>— lookup sémantique des connaissances et pipelines mémorisés</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="4"><span class="li-row"><strong>Data &amp; Model Management</strong><span>— appels aux sources de données, outils et modèles spécialisés</span></span></li>
+                </ol>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:1.4rem;justify-content:center;">
+                <div class="highlight-box fragment" data-fragment-index="5">
+                    <strong>Flux :</strong><br>
+                    Requête NL → Pre-Processor → Parser → <strong>Agent</strong> → résultat<br>
+                    <span style="font-size:0.82em;opacity:0.8;">(avec boucle évaluation / régénération)</span>
+                </div>
+                <div class="callout-info fragment" data-fragment-index="6">
+                    L'<strong>Executor Agent</strong> évalue chaque sortie intermédiaire et peut régénérer un sous-pipeline défaillant sans relancer l'ensemble du processus.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 1 — Fragmentation mixte</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 14 pts</span>
+            <span class="exo-time">⏱ 20–30 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Comprendre la fragmentation mixte et l'importance de l'ordre d'application</li>
+                <li>Formuler le problème comme un problème d'optimisation avec contrainte</li>
+                <li>Proposer et analyser la complexité d'une heuristique glouton</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Fragmentation horizontale et verticale — bases de données réparties</em></p>
+    </div>
+
+    <!-- ── CONTEXTE ── -->
+    <div class="context-block">
+        <h3>Contexte</h3>
+        <p>
+            Une table relationnelle peut être partitionnée en utilisant la fragmentation mixte.
+            La fragmentation mixte résulte de l'application successive de la fragmentation
+            horizontale (ou verticale) et verticale (ou horizontale) sur une table.
+        </p>
+        <p>
+            Dans un système de bases de données réparties, la fragmentation vise à distribuer
+            les données sur plusieurs sites afin de minimiser les transferts réseau lors de
+            l'exécution des requêtes. La fragmentation mixte combine les deux formes élémentaires
+            pour atteindre une granularité fine, à la fois sur les lignes et sur les colonnes.
+        </p>
+
+        <div class="callout-info">
+            <strong>Note :</strong> Cet exercice porte sur la nature de la fragmentation mixte,
+            sa formalisation comme problème d'optimisation, et la complexité de l'heuristique associée.
+            Les quatre questions sont progressives : la Q1 est factuelle, la Q2 demande une
+            formalisation mathématique, la Q3 un algorithme, la Q4 une analyse de complexité.
+        </div>
+    </div>
+
+    <!-- ── RAPPEL DE COURS ── -->
+    <button class="hint-btn" data-hint="rappel-frag" data-label="Rappel de cours" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours</span>
+    </button>
+    <div class="hint" id="rappel-frag">
+        <p><strong>Fragmentation horizontale (FH) :</strong> découpe une relation en sous-ensembles
+        de tuples selon un prédicat de sélection σ. Chaque fragment contient <em>tous les attributs</em>
+        mais un sous-ensemble des lignes.</p>
+
+        <p><strong>Fragmentation verticale (FV) :</strong> découpe une relation en sous-ensembles
+        d'attributs selon une projection π. Chaque fragment contient <em>tous les tuples</em> mais
+        un sous-ensemble des colonnes. La clé primaire est toujours dupliquée dans chaque fragment
+        pour permettre la reconstruction.</p>
+
+        <p><strong>Fragmentation mixte (FM) :</strong> application successive de FH puis FV (ordre HV)
+        ou de FV puis FH (ordre VH). Le résultat est un ensemble de fragments qui ne couvrent
+        qu'une partie des lignes <em>et</em> qu'une partie des colonnes.</p>
+
+        <ul>
+            <li><strong>Complétude :</strong> tout tuple de la relation originale appartient à au moins un fragment.</li>
+            <li><strong>Reconstruction :</strong> la relation originale peut être reconstituée par jointure et union des fragments.</li>
+            <li><strong>Disjonction (FH) :</strong> pour la composante horizontale, un tuple n'appartient qu'à un seul fragment.</li>
+        </ul>
+    </div>
+
+    <!-- ── EXEMPLE + ANALOGIE ── -->
+    <div class="two-col">
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Exemple</span></p>
+            <p>Soit une table <code>Employes(ID, Nom, Salaire, Dept, Ville)</code> avec 1 000 tuples.</p>
+            <ul>
+                <li><strong>Ordre HV :</strong> H sur <code>Ville ∈ {Paris, Lyon}</code> → 2 fragments horizontaux ; V sur chacun : {ID, Nom, Ville} et {ID, Salaire, Dept} → <strong>4 fragments</strong>.</li>
+                <li><strong>Ordre VH :</strong> V d'abord → F1 = {ID, Nom, Ville}, F2 = {ID, Salaire, Dept} ; H sur <code>Ville = 'Paris'</code> applicable à F1 seulement (F2 ne contient pas <code>Ville</code>) → <strong>3 fragments</strong>.</li>
+            </ul>
+            <p class="inline-note">L'ordre change le nombre de fragments obtenus (4 vs 3) et leur structure.</p>
+        </div>
+
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie</span></p>
+            <p><strong>Image mentale :</strong> imaginez une feuille de calcul à découper en morceaux.</p>
+            <p>Si vous découpez d'abord par <em>lignes</em> (les villes), chaque bande conserve l'information
+            géographique. Vous pouvez ensuite découper librement par colonnes sur chaque bande.</p>
+            <p>Si vous découpez d'abord par <em>colonnes</em>, certains morceaux perdent la colonne
+            <code>Ville</code>. Impossible d'y appliquer ensuite un filtre géographique.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            L'ordre de l'application de la fragmentation a-t-il une importance sur
+            (a) le nombre de fragments générés et (b) la performance de requêtes ?
+            Justifiez votre réponse par un exemple.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Croire que le nombre de fragments est toujours identique
+            quel que soit l'ordre. En réalité, dans le cas VH, les prédicats horizontaux peuvent ne plus
+            s'appliquer à certains fragments verticaux : la colonne du prédicat a été projetée hors du
+            fragment, ce qui modifie la structure de fragmentation obtenue.
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Pour la partie (a), prenez une table avec les colonnes <code>Ville</code> et <code>Salaire</code>.
+            Essayez les deux ordres : d'abord H sur <code>Ville</code> puis V ; puis V d'abord en séparant
+            <code>Ville</code> et <code>Salaire</code> dans deux fragments distincts, puis H sur <code>Ville</code>.
+            Que se passe-t-il quand la colonne du prédicat horizontal n'est plus disponible dans un fragment vertical ?
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q1-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q1-h2">
+            Pour la partie (b), imaginez une requête qui filtre sur <code>Ville = 'Paris'</code> et
+            projette sur <code>Salaire</code>. En HV, les données Paris/Salaire sont déjà réunies dans
+            un seul fragment → accès minimal. En VH, le moteur doit accéder aux deux fragments verticaux
+            puis les joindre sur la clé, même si la requête ne touche qu'une région géographique.
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q1 — répondez aux deux sous-questions (a) et (b) avec un exemple…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+
+            <p><strong>(a) Nombre de fragments</strong></p>
+            <p>
+                Oui, l'ordre modifie le nombre de fragments. Avec n<sub>H</sub> prédicats horizontaux
+                et n<sub>V</sub> projections verticales :
+            </p>
+            <ul>
+                <li><strong>Ordre HV :</strong> n<sub>H</sub> fragments horizontaux, chacun découpé verticalement
+                en n<sub>V</sub> sous-fragments → total : <strong>n<sub>H</sub> × n<sub>V</sub></strong>.</li>
+                <li><strong>Ordre VH :</strong> n<sub>V</sub> fragments verticaux, mais la fragmentation
+                horizontale ne peut s'appliquer qu'aux fragments qui contiennent la colonne du prédicat.
+                Les autres fragments ne peuvent pas être découpés selon ce critère → le nombre total de
+                fragments est <strong>inférieur à n<sub>H</sub> × n<sub>V</sub></strong>.</li>
+            </ul>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Exemple développé</span></p>
+                <p>Table <code>Employes(ID, Nom, Salaire, Dept, Ville)</code>, 2 prédicats H (Ville ∈ {Paris, Lyon}), 2 projections V ({ID, Nom, Ville} et {ID, Salaire, Dept}) :</p>
+                <ul>
+                    <li><strong>HV :</strong> H sur Ville → 2 fragments ; V sur chacun → <strong>4 fragments</strong> (Paris/Nom-Ville, Paris/Salaire-Dept, Lyon/Nom-Ville, Lyon/Salaire-Dept).</li>
+                    <li><strong>VH :</strong> V → F1 = {ID, Nom, Ville}, F2 = {ID, Salaire, Dept} ; H sur <code>Ville</code> applicable à F1 → F1a (Paris), F1b (Lyon) ; F2 reste entier → <strong>3 fragments</strong> (F1a, F1b, F2).</li>
+                </ul>
+                <p class="inline-note">4 fragments en HV, 3 fragments en VH : l'ordre n'est pas commutatif sur le nombre de fragments.</p>
+            </div>
+
+            <p><strong>(b) Performance des requêtes</strong></p>
+            <p>L'ordre affecte directement l'adéquation entre les fragments et les patterns de requêtes :</p>
+            <ul>
+                <li><strong>HV est préférable</strong> pour les requêtes qui filtrent sur des prédicats géographiques
+                ou temporels <em>et</em> ne lisent qu'un sous-ensemble d'attributs : le fragment HV regroupe en un
+                seul bloc toutes les données d'une région pour un sous-ensemble de colonnes — un seul accès suffit.</li>
+                <li><strong>VH est préférable</strong> pour les requêtes qui projettent sur très peu d'attributs
+                sur l'ensemble des tuples : la projection verticale réduit dès le départ le volume lu, avant même
+                d'appliquer une sélection.</li>
+            </ul>
+
+            <div class="callout-info">
+                <strong>Règle pratique :</strong> on choisit l'ordre en analysant la charge de requêtes.
+                Si la majorité des requêtes filtrent d'abord par critère de sélection avant de projeter,
+                HV est généralement plus efficace. Si la projection réduit massivement les attributs
+                accédés, VH peut être préférable.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Formalisez le problème de la fragmentation mixte comme un problème d'optimisation
+            avec une <strong>contrainte à déterminer</strong>.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Omettre les contraintes de correction (complétude et reconstruction).
+            Un problème d'optimisation sans contrainte de correction peut produire une solution qui minimise
+            bien le coût mais ne permet pas de reconstituer la relation originale, rendant la fragmentation
+            inutilisable en pratique. Ces contraintes ne sont pas optionnelles.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            La <strong>fonction objectif</strong> doit capturer le coût total d'exécution d'une charge
+            de requêtes sur la fragmentation. Pour chaque requête q<sub>i</sub> de fréquence freq(q<sub>i</sub>),
+            le coût dépend du nombre de fragments à accéder et du volume de données transférées entre sites.
+            Cherchez une forme Σ freq(q<sub>i</sub>) × cost(q<sub>i</sub>, F).
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q2-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q2-h2">
+            La <strong>contrainte à déterminer</strong> est le nombre maximal de fragments K admissible.
+            Trop peu de fragments = faible localisation des données. Trop de fragments = surcharge
+            administrative (métadonnées, coût de reconstruction). La contrainte s'écrit : <code>|F| ≤ K</code>.
+            C'est cette valeur K que l'administrateur doit choisir en fonction du contexte système.
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q2 — précisez variables, fonction objectif, et contraintes…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+
+            <p>
+                Soit R une relation, Q = {q<sub>1</sub>, …, q<sub>m</sub>} la charge de requêtes,
+                et F = {f<sub>1</sub>, …, f<sub>k</sub>} une fragmentation mixte de R.
+            </p>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Formalisation</span></p>
+
+                <p><strong>Variables de décision :</strong> le choix des prédicats horizontaux P<sub>H</sub>
+                et des projections verticales P<sub>V</sub> qui définissent F.</p>
+
+                <p><strong>Fonction objectif :</strong></p>
+                <pre><code>Minimiser  Σ_{i=1}^{m} freq(q_i) × cost(q_i, F)</code></pre>
+                <p>où <code>cost(q_i, F)</code> est le coût d'exécution de q<sub>i</sub> sur la fragmentation F
+                (volume de données lues + données transférées entre sites).</p>
+
+                <p><strong>Contrainte à déterminer :</strong></p>
+                <pre><code>|F| ≤ K_max</code></pre>
+                <p>avec K<sub>max</sub> le nombre maximal de fragments admissible, paramètre fixé par l'administrateur.</p>
+
+                <p><strong>Contraintes de correction (obligatoires) :</strong></p>
+                <ul>
+                    <li><em>Complétude :</em> tout tuple de R appartient à au moins un fragment.</li>
+                    <li><em>Reconstruction :</em> R = ⋈ ∪ f<sub>i</sub> — union et jointure des fragments redonne R.</li>
+                    <li><em>Disjonction (composante horizontale) :</em> un tuple n'appartient qu'à un seul fragment horizontal.</li>
+                </ul>
+            </div>
+
+            <p class="inline-note">
+                La contrainte K<sub>max</sub> est "à déterminer" car elle dépend du contexte système :
+                capacité de gestion des métadonnées, nombre de sites disponibles, politique d'administration.
+                C'est le seul levier de contrôle de la complexité de la fragmentation que l'administrateur
+                peut ajuster sans modifier la structure logique de la base.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 3                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Proposez une heuristique pour la fragmentation mixte.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Proposer une recherche exhaustive (tester toutes les combinaisons
+            de prédicats et de projections) en la présentant comme une heuristique. Une heuristique accepte
+            un résultat sous-optimal pour rester en temps polynomial. Une approche exhaustive est exponentielle
+            en n<sub>attr</sub> et impraticable dès que la table dépasse une dizaine d'attributs.
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Pensez à une approche <strong>glouton (greedy)</strong> : partez d'une fragmentation triviale
+            (un seul fragment = la table entière), puis à chaque étape évaluez toutes les coupures possibles
+            (une sélection σ<sub>p</sub> ou une projection π<sub>A</sub> sur un fragment existant) et choisissez
+            celle qui réduit le plus le coût total. Répétez jusqu'à atteindre K fragments ou jusqu'à ce qu'aucune
+            coupure ne soit plus bénéfique.
+        </div>
+    </div>
+
+    <div class="highlight-box">
+        <p><span class="badge badge-orange">Méthode — heuristique glouton par raffinement</span></p>
+        <ul class="steps">
+            <li>Initialiser F = {R} (fragmentation triviale : la relation entière en un seul fragment).</li>
+            <li>Pour chaque fragment f ∈ F et chaque coupure candidate (σ<sub>p</sub> ou π<sub>A</sub>), calculer le gain Δcost = coût(Q, F) − coût(Q, F avec la coupure).</li>
+            <li>Sélectionner la coupure de gain maximal parmi toutes les candidats.</li>
+            <li>Appliquer la coupure : remplacer f par ses deux sous-fragments dans F.</li>
+            <li>Répéter les étapes 2–4 jusqu'à |F| = K ou Δcost ≤ 0 (aucun gain possible).</li>
+        </ul>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q3 — décrivez l'algorithme en pseudo-code ou en étapes numérotées…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+
+            <p>
+                L'heuristique proposée est une <strong>approche glouton par raffinement successif</strong> :
+                on part de la relation entière et on la découpe pas à pas, en choisissant à chaque étape
+                la coupure (horizontale ou verticale) qui améliore le plus la fonction objectif.
+            </p>
+
+            <pre><code>Algorithme HeuristiqueMixte(R, Q, K) :
+  F ← {R}                              // Fragmentation initiale : 1 seul fragment
+  tant que |F| < K faire
+    meilleur_gain ← 0
+    meilleure_coupure ← ∅
+    pour chaque fragment f ∈ F faire
+      pour chaque coupure c possible (σ_p ou π_A) faire
+        F' ← (F \ {f}) ∪ couper(f, c)   // F avec la coupure appliquée
+        Δ ← coût(Q, F) − coût(Q, F')    // gain obtenu
+        si Δ > meilleur_gain alors
+          meilleur_gain ← Δ
+          meilleure_coupure ← (f, c)
+    si meilleur_gain ≤ 0 alors sortir   // plus aucune coupure bénéfique
+    Appliquer meilleure_coupure dans F
+  retourner F</code></pre>
+
+            <div class="callout-info">
+                <strong>Propriétés de l'heuristique :</strong>
+                <ul>
+                    <li><em>Sous-optimale :</em> le choix glouton à chaque étape ne garantit pas l'optimum global.</li>
+                    <li><em>Correcte :</em> à chaque étape la reconstruction est maintenue — on ne fait que subdiviser des fragments existants.</li>
+                    <li><em>Terminaison garantie :</em> l'algorithme s'arrête en au plus K − 1 itérations.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 4                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Donnez la complexité de cet algorithme.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Oublier la composante exponentielle due à la fragmentation
+            verticale. Le nombre de projections possibles sur n<sub>attr</sub> attributs est 2<sup>n<sub>attr</sub></sup>
+            (tout sous-ensemble non vide d'attributs). Sans contraindre cet espace de recherche, la complexité
+            reste exponentielle même pour un algorithme glouton — ce n'est plus une heuristique polynomiale.
+        </div>
+
+        <button class="hint-btn" data-hint="q4-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            À chaque itération de la boucle, on évalue toutes les coupures sur tous les fragments. Comptez :
+            (1) le nombre d'itérations au total : au plus K − 1 ;
+            (2) le nombre de fragments à examiner par itération : au plus K ;
+            (3) le nombre de coupures par fragment : n<sub>pred</sub> coupures horizontales +
+            2<sup>n<sub>attr</sub></sup> coupures verticales ;
+            (4) le coût d'évaluation d'une coupure : O(m) pour parcourir la charge de requêtes.
+            Multipliez ces quatre termes pour obtenir la complexité totale.
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q4 — décomposez la complexité facteur par facteur…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+
+            <p>
+                Notons : K le nombre maximal de fragments cible, n<sub>pred</sub> le nombre de prédicats
+                horizontaux candidats, n<sub>attr</sub> le nombre d'attributs de la relation,
+                et m = |Q| la taille de la charge de requêtes.
+            </p>
+
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Facteur</th><th>Cardinalité</th><th>Explication</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Itérations de la boucle</td><td>K − 1</td><td>On ajoute un fragment à chaque pas</td></tr>
+                        <tr><td>Fragments à examiner</td><td>O(K)</td><td>Taille courante de F à chaque itération</td></tr>
+                        <tr><td>Coupures horizontales par fragment</td><td>n<sub>pred</sub></td><td>Nombre de prédicats candidats</td></tr>
+                        <tr><td>Coupures verticales par fragment</td><td>2<sup>n<sub>attr</sub></sup></td><td>Nombre de sous-ensembles d'attributs non vides</td></tr>
+                        <tr><td>Évaluation d'une coupure</td><td>O(m)</td><td>Recalcul du coût sur toute la charge</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Complexité totale (cas général)</span></p>
+                <pre><code>O( K² × m × (n_pred + 2^n_attr) )</code></pre>
+                <p>
+                    La complexité est <strong>exponentielle en n<sub>attr</sub></strong> dans le cas général,
+                    à cause de l'espace des projections verticales possibles.
+                </p>
+                <p><strong>Variante polynomiale :</strong> en pratique, on restreint les coupures verticales
+                à des groupements d'attributs prédéfinis par analyse de la charge (par exemple, attributs
+                souvent accédés ensemble). Si l'on dispose de n<sub>groupes</sub> groupements candidats,
+                la complexité devient :</p>
+                <pre><code>O( K² × m × (n_pred + n_groupes) )</code></pre>
+                <p class="inline-note">Cette version est polynomiale si K, n<sub>pred</sub> et n<sub>groupes</sub>
+                sont bornés. C'est la version opérationnelle employée dans les outils de tuning automatique.</p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ── BARÈME ── -->
+    <div class="bareme">
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q1 — Ordre et nombre de fragments</span>
+        <span class="bareme-desc">1 pt pour (a) avec exemple · 2 pts pour (b) avec justification par requête</span>
+
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">Q2 — Formalisation</span>
+        <span class="bareme-desc">1 pt fonction objectif · 1 pt contrainte K · 2 pts contraintes de correction (complétude, reconstruction)</span>
+
+        <span class="bareme-pts">4</span>
+        <span class="bareme-label">Q3 — Heuristique glouton</span>
+        <span class="bareme-desc">2 pts algorithme correct (initialisation, évaluation, sélection, arrêt) · 2 pts propriétés (sous-optimal, correct, terminaison)</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q4 — Complexité</span>
+        <span class="bareme-desc">2 pts analyse facteur par facteur · 1 pt identification du terme exponentiel 2<sup>n</sup> et sa variante polynomiale</span>
+
+        <div class="bareme-total">Total : <strong>14 pts</strong></div>
+    </div>
+
+
+    <!-- ── POUR ALLER PLUS LOIN ── -->
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Recherchez l'algorithme <strong>COM_MIN</strong> pour la fragmentation horizontale dérivée et étudiez comment il exploite le graphe d'affinité entre prédicats pour réduire l'espace de recherche.</li>
+            <li>En fragmentation verticale, l'algorithme de <strong>bond energy</strong> regroupe les attributs souvent accédés ensemble. Comment s'intègre-t-il dans la démarche glouton de cet exercice ?</li>
+            <li>Que devient la formalisation (Q2) si l'on ajoute une contrainte de <em>localisation</em> : chaque fragment doit tenir en mémoire vive sur son site d'hébergement ?</li>
+        </ul>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 2 — Évaluation d'une requête répartie</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 4 questions</span>
+            <span class="exo-time">⏱ 25–35 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Analyser la reconstructibilité et la disjonction d'une fragmentation mixte dérivée</li>
+                <li>Réécrire une requête SQL globale en une requête sur les fragments</li>
+                <li>Optimiser une requête répartie en exploitant une hypothèse structurelle</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Fragmentation horizontale et verticale, algèbre relationnelle répartie</em></p>
+    </div>
+
+    <!-- ── CONTEXTE ── -->
+    <div class="context-block">
+        <h3>Contexte</h3>
+        <p>Base de données de deux tables avec le schéma suivant :</p>
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Schéma</span></p>
+                <p><strong>R</strong>(<u>Enum</u>, Name, Age, Rank)</p>
+                <p><strong>S</strong>(<u>Enum</u>, <u>Jnum</u>, Resp, Dur)</p>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Fragments</span></p>
+                <ul>
+                    <li>S1 = σ<sub>Dur &lt; 12</sub>(S)</li>
+                    <li>S2 = σ<sub>Dur ≥ 12</sub>(S)</li>
+                    <li>R1 = π<sub>Enum, Name, Age</sub>(R join S1)</li>
+                    <li>R2 = π<sub>Enum, Rank</sub>(R join S1)</li>
+                    <li>R3 = π<sub>Enum, Name, Age</sub>(R join S2)</li>
+                    <li>R4 = π<sub>Enum, Rank</sub>(R join S2)</li>
+                </ul>
+            </div>
+        </div>
+        <p>On supposera que tout <em>enum</em> de R est aussi présent comme <em>enum</em> de S,
+           et l'optimisation doit utiliser cette information.</p>
+
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Lecture du schéma de fragmentation</span></p>
+            <p><strong>S est fragmenté horizontalement :</strong> S1 et S2 partitionnent S selon la durée des projets (<code>Dur</code>). Chaque tuple de S va dans exactement l'un des deux fragments.</p>
+            <p><strong>R est fragmenté de façon mixte dérivée :</strong> les fragments R1–R4 sont obtenus en joignant R avec les fragments de S, puis en projetant. R1 et R3 portent les attributs biographiques (Name, Age) ; R2 et R4 portent le grade (Rank). Le découpage R1/R2 correspond aux projets courts (S1) ; R3/R4 aux projets longs (S2).</p>
+        </div>
+    </div>
+
+    <!-- ── RAPPEL DE COURS ── -->
+    <button class="hint-btn" data-hint="rappel-fragmentation" data-label="Rappel de cours — Propriétés d'une fragmentation" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Propriétés d'une fragmentation</span>
+    </button>
+    <div class="hint" id="rappel-fragmentation">
+        <p>Une fragmentation valide doit satisfaire trois propriétés :</p>
+        <ul>
+            <li><strong>Complétude :</strong> tout tuple de la relation d'origine appartient à au moins un fragment.</li>
+            <li><strong>Reconstructibilité :</strong> la relation d'origine peut être reconstituée à partir des fragments (par union pour la fragmentation horizontale, par jointure pour la fragmentation verticale, ou par combinaison des deux).</li>
+            <li><strong>Disjonction :</strong> aucun tuple n'apparaît dans deux fragments distincts (sauf pour les fragmentations verticales, où la clé primaire peut être dupliquée pour permettre la reconstruction).</li>
+        </ul>
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Repère méthodologique</span></p>
+            <p>La <em>reconstructibilité</em> se vérifie algébriquement : écrire l'expression qui restitue la relation et montrer qu'elle est sans perte. La <em>disjonction</em> se vérifie en montrant que les prédicats de fragmentation sont mutuellement exclusifs — ou en exhibant un contre-exemple (un tuple présent dans deux fragments).</p>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Exemple</span></p>
+            <p>La fragmentation horizontale <code>σ<sub>Age &lt; 30</sub>(R)</code> et <code>σ<sub>Age ≥ 30</sub>(R)</code> est disjointe et reconstructible par union — les deux prédicats sont mutuellement exclusifs et couvrent tous les cas possibles.</p>
+        </div>
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie</span></p>
+            <p><strong>Intuition :</strong> fragmenter une table, c'est comme découper un fichier papier en chemises thématiques. La reconstructibilité vérifie qu'en ressortant toutes les chemises on retrouve chaque feuille. La disjonction vérifie qu'aucune feuille n'est classée dans deux chemises à la fois.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q5                                            -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q5</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Peut-on reconstruire la base de données à partir de ces fragments ? Comment ?</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Essayer de reconstruire R directement depuis R1 seul (ou R2 seul), en oubliant que chaque fragment ne couvre qu'un sous-ensemble des tuples de R. Il faut d'abord réunir les fragments qui couvrent le même morceau horizontal (R1 ∪ R3, R2 ∪ R4), puis recombiner verticalement par jointure sur la clé.
+        </div>
+
+        <button class="hint-btn" data-hint="q5-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q5-h1">
+            <p>Commencez par <strong>S</strong> : S1 et S2 partitionnent S horizontalement selon <code>Dur</code>. Comment restituer S à partir de S1 et S2 ?</p>
+            <p>Pour <strong>R</strong>, observez que R1 et R3 portent les mêmes attributs (Enum, Name, Age), l'un pour les projets courts, l'autre pour les longs. Même chose pour R2 et R4 avec (Enum, Rank). Réunissez d'abord les fragments "de même nature" avant de les recoller.</p>
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q5-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q5-h2">
+            <p>La clé de R est <code>Enum</code>. Une jointure naturelle sur <code>Enum</code> entre <code>(R1 ∪ R3)</code> et <code>(R2 ∪ R4)</code> est <strong>sans perte</strong> car <code>Enum</code> est clé primaire : il n'y a aucune ambiguïté sur quel Rank correspond à quel (Name, Age) pour un Enum donné.</p>
+            <p>Par hypothèse, tout enum de R est dans S, donc <code>R1 ∪ R3</code> couvre bien tous les tuples de R — aucun n'est perdu lors de la jointure dérivée qui a créé R1 et R3.</p>
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q5…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q5</h4>
+
+            <p><strong>Oui</strong>, la base de données est reconstructible. Voici les expressions de reconstruction :</p>
+
+            <p><strong>Reconstruction de S</strong> (fragmentation horizontale pure) :</p>
+            <pre><code>S = S1 ∪ S2</code></pre>
+            <p class="inline-note">S1 et S2 partitionnent S selon Dur &lt; 12 et Dur ≥ 12 — l'union restitue exactement S sans perte.</p>
+
+            <p><strong>Reconstruction de R</strong> (fragmentation mixte dérivée) :</p>
+            <pre><code>R = (R1 ∪ R3) ⋈[Enum] (R2 ∪ R4)</code></pre>
+
+            <ul class="steps">
+                <li><code>R1 ∪ R3</code> restitue π<sub>Enum, Name, Age</sub>(R) : R1 apporte les employés qui ont des projets dans S1, R3 ceux qui ont des projets dans S2. Par hypothèse, tout enum de R est dans S, donc l'union est complète — aucun employé n'est absent.</li>
+                <li><code>R2 ∪ R4</code> restitue π<sub>Enum, Rank</sub>(R) selon le même raisonnement.</li>
+                <li>La jointure sur <code>Enum</code> (clé primaire de R) est sans perte : Enum détermine fonctionnellement tous les autres attributs de R, donc chaque Enum identifie un unique (Name, Age, Rank).</li>
+            </ul>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Pourquoi la jointure sur Enum est-elle sans perte ?</span></p>
+                <p>La décomposition de R en π<sub>Enum,Name,Age</sub>(R) et π<sub>Enum,Rank</sub>(R) vérifie la dépendance fonctionnelle <code>Enum → {Name, Age, Rank}</code>. C'est exactement la condition de la décomposition sans perte de la théorie de la normalisation : la jointure naturelle sur la clé primaire restitue la relation d'origine sans duplication ni perte de tuple.</p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q6                                            -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q6</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Cette fragmentation est-elle disjointe ? Expliquer.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Se concentrer uniquement sur S1 et S2 — qui sont bien disjoints — et conclure que toute la fragmentation l'est. Il faut analyser <em>tous</em> les fragments, y compris R1–R4. Les fragments de R sont construits par jointure puis projection, ce qui crée une dynamique différente.
+        </div>
+
+        <button class="hint-btn" data-hint="q6-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q6-h1">
+            <p>Pour tester la disjonction, posez-vous : <em>un même tuple peut-il apparaître dans deux fragments distincts ?</em></p>
+            <p>Pour S : un tuple a une valeur Dur fixée. Peut-il satisfaire à la fois Dur &lt; 12 et Dur ≥ 12 ?</p>
+            <p>Pour R : imaginez un employé (Enum = e) qui participe à des projets courts (Dur &lt; 12) <strong>et</strong> à des projets longs (Dur ≥ 12). Dans quels fragments de R apparaît-il ? Rappel : R1 = π<sub>Enum,Name,Age</sub>(R join S1) et R3 = π<sub>Enum,Name,Age</sub>(R join S2).</p>
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q6…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q6</h4>
+
+            <div class="two-col">
+                <div class="highlight-box">
+                    <p><span class="badge badge-green">S — Disjointe ✓</span></p>
+                    <p>Les prédicats <code>Dur &lt; 12</code> et <code>Dur ≥ 12</code> sont mutuellement exclusifs : aucune valeur de Dur ne peut satisfaire les deux simultanément. Donc S1 ∩ S2 = ∅.</p>
+                </div>
+                <div class="highlight-box">
+                    <p><span class="badge badge-red">R — Non disjointe ✗</span></p>
+                    <p>Un employé peut participer à des projets courts <em>et</em> à des projets longs. Son Enum figure alors dans R1 <em>et</em> R3 (et dans R2 <em>et</em> R4). La fragmentation de R est non disjointe en général.</p>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-green">Exemple illustratif</span></p>
+                <p>Soit l'employé Enum = 42, qui participe à deux projets :</p>
+                <ul>
+                    <li>Projet Jnum = 7, Dur = 6 → tuple dans <strong>S1</strong> (Dur &lt; 12)</li>
+                    <li>Projet Jnum = 12, Dur = 24 → tuple dans <strong>S2</strong> (Dur ≥ 12)</li>
+                </ul>
+                <p>Par construction :</p>
+                <ul>
+                    <li>R1 = π<sub>Enum,Name,Age</sub>(R join S1) → l'employé 42 <strong>figure dans R1</strong> (il a un projet dans S1).</li>
+                    <li>R3 = π<sub>Enum,Name,Age</sub>(R join S2) → l'employé 42 <strong>figure aussi dans R3</strong> (il a un projet dans S2).</li>
+                </ul>
+                <p>Le même tuple (42, "Alice", 35) apparaît dans <strong>deux</strong> fragments : R1 et R3 — la disjonction est violée.</p>
+            </div>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Conséquence pratique</span></p>
+                <p>La non-disjonction de R implique une <strong>réplication</strong> des données : certains employés sont stockés sur plusieurs sites. Cela améliore la disponibilité des requêtes locales, mais complique les mises à jour — une modification d'un employé doit être propagée sur tous les sites qui en détiennent une copie.</p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q7                                            -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q7</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Transformer la requête suivante en une requête sur les fragments :</p>
+        <pre><code>SELECT Name
+FROM R, S
+WHERE (R.Enum = S.Enum AND Dur = 30)
+   OR (R.Enum = S.Enum AND Age = 55)</code></pre>
+
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Méthode de réécriture sur fragments</span></p>
+            <ul class="steps">
+                <li>Décomposer la clause WHERE en branches (ici deux branches reliées par OR).</li>
+                <li>Pour chaque attribut filtré, identifier le ou les fragments qui le contiennent.</li>
+                <li>Vérifier si une condition sur un attribut de S permet d'éliminer certains fragments de S (réduction de la portée).</li>
+                <li>Réécrire chaque branche sur les fragments ciblés, puis combiner par UNION.</li>
+            </ul>
+        </div>
+
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analyse attribut par attribut</span></p>
+            <ul>
+                <li><code>Dur = 30</code> — attribut de S. Comme 30 ≥ 12, un tuple avec Dur = 30 ne peut être que dans <strong>S2</strong> (définition : σ<sub>Dur ≥ 12</sub>). S1 est inutile.</li>
+                <li><code>Age = 55</code> — attribut de R. Age figure dans R1 et R3 (les fragments qui projettent Enum, Name, Age). R2 et R4 (qui ne contiennent que Enum, Rank) sont inutiles.</li>
+                <li><code>Name</code> dans le SELECT — également dans R1 et R3 uniquement.</li>
+            </ul>
+        </div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Chercher <code>Dur = 30</code> dans S1 <em>et</em> S2 sans vérifier la valeur. Puisque 30 ≥ 12, S1 ne peut contenir aucun tuple avec Dur = 30 — l'interroger est inutile et coûteux. De même, ne pas utiliser R2 ou R4 pour récupérer Name, car ces fragments ne contiennent pas cet attribut.
+        </div>
+
+        <button class="hint-btn" data-hint="q7-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q7-h1">
+            <p>La requête se décompose en <strong>deux branches OR</strong>, chacune pouvant être traduite indépendamment puis réunie par UNION :</p>
+            <ul>
+                <li><strong>Branche 1</strong> — <code>R.Enum = S.Enum AND Dur = 30</code> : Dur = 30 est dans S2 ; Name est dans R3 (le fragment de R lié à S2). Écrire la jointure entre R3 et σ<sub>Dur=30</sub>(S2).</li>
+                <li><strong>Branche 2</strong> — <code>R.Enum = S.Enum AND Age = 55</code> : Age et Name sont dans R1 <em>et</em> R3. Pour ne manquer aucun employé, il faut interroger les deux fragments.</li>
+            </ul>
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q7-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q7-h2">
+            <p>Pour la branche 2 : un employé avec Age = 55 peut avoir des projets dans S1, dans S2, ou dans les deux. R1 couvre les employés liés à S1 ; R3 ceux liés à S2. Il faut donc :</p>
+            <pre><code>SELECT Name FROM R1 WHERE Age = 55
+UNION
+SELECT Name FROM R3 WHERE Age = 55</code></pre>
+            <p>Combinez ensuite toutes les branches par UNION pour obtenir la requête finale sur les fragments.</p>
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q7…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q7</h4>
+
+            <p>La requête globale se traduit en un UNION de trois sous-requêtes sur les fragments :</p>
+
+            <pre><code>-- Branche 1 : Dur = 30  →  uniquement S2 (car 30 ≥ 12)
+--             Name est dans R3 (fragment de R lié à S2)
+SELECT Name
+FROM   R3, S2
+WHERE  R3.Enum = S2.Enum
+  AND  S2.Dur = 30
+
+UNION
+
+-- Branche 2a : Age = 55 dans les employés liés à S1
+SELECT Name
+FROM   R1
+WHERE  Age = 55
+
+UNION
+
+-- Branche 2b : Age = 55 dans les employés liés à S2
+SELECT Name
+FROM   R3
+WHERE  Age = 55</code></pre>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Pourquoi ne pas interroger S1 dans la branche 1 ?</span></p>
+                <p>Par définition, S1 = σ<sub>Dur &lt; 12</sub>(S). Aucun tuple de S1 ne peut avoir Dur = 30 (car 30 &ngeq; 12 est faux — attendre, 30 ≥ 12 donc 30 n'est pas dans S1). L'interroger produirait un résultat vide et constituerait un coût inutile.</p>
+            </div>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Pourquoi deux sous-requêtes pour Age = 55 ?</span></p>
+                <p>Un employé avec Age = 55 peut avoir des projets dans S1, dans S2, ou dans les deux (cf. Q6 : R est non disjoint). R1 couvre les employés liés à S1 ; R3 ceux liés à S2. Pour garantir l'exhaustivité du résultat, les deux fragments doivent être interrogés. Le UNION élimine les doublons (un employé présent dans R1 et R3 n'est retourné qu'une fois).</p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q8                                            -->
+    <!-- ══════════════════════════════════════════════ -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q8</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Optimiser cette requête.</p>
+
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Hypothèse à exploiter</span></p>
+            <p>L'énoncé précise : <em>tout enum de R est aussi présent comme enum de S</em>. Autrement dit, chaque employé dans R participe à au moins un projet dans S. Cette propriété structurelle permet d'éliminer certaines jointures qui ne filtrent aucun tuple.</p>
+        </div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> Optimiser uniquement l'ordre des jointures, sans exploiter l'hypothèse. L'optimisation principale ici n'est pas un réordonnancement — c'est une <em>suppression de jointure</em>, rendue licite par la garantie que tout enum de R existe dans S.
+        </div>
+
+        <button class="hint-btn" data-hint="q8-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q8-h1">
+            <p>Dans la branche <code>Age = 55</code>, la condition originale est <code>R.Enum = S.Enum AND Age = 55</code>. La jointure <code>R.Enum = S.Enum</code> a pour seul rôle ici de vérifier qu'un tuple de R a bien une contrepartie dans S.</p>
+            <p>Or l'hypothèse garantit que <em>tout</em> enum de R est dans S — la jointure ne peut donc jamais éliminer un tuple de R. Peut-on la supprimer ?</p>
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q8-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q8-h2">
+            <p>Oui : la condition <code>R.Enum = S.Enum AND Age = 55</code> se réduit à <code>Age = 55</code> seul (le join est redondant par hypothèse).</p>
+            <p>Après simplification, la branche <code>Age = 55</code> devient une simple sélection sur les fragments de R contenant Age, sans aucun accès à S. Pour la branche <code>Dur = 30</code>, la jointure reste nécessaire car <code>Dur</code> n'est pas dans R3 — elle ne peut pas être supprimée.</p>
+        </div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q8…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q8</h4>
+
+            <p><strong>Optimisation : élimination de jointure sur la branche Age = 55</strong></p>
+
+            <p>L'hypothèse garantit que ∀ Enum ∈ R, ∃ Enum ∈ S. La jointure <code>R.Enum = S.Enum</code> dans la condition <code>Age = 55</code> ne peut donc éliminer aucun tuple de R — elle est <strong>redondante</strong> et est supprimée.</p>
+
+            <pre><code>-- Avant optimisation (Q7) : jointure implicite via R1 ⊂ (R join S1)
+SELECT Name FROM R1 WHERE Age = 55   -- R1 contient déjà les tuples de R ∩ S1
+UNION
+SELECT Name FROM R3 WHERE Age = 55   -- idem pour S2
+
+-- Après optimisation : la jointure avec S est inutile par hypothèse.
+-- La sélection sur Age s'applique directement aux fragments de R.
+-- L'écriture SQL reste la même, mais la sémantique est simplifiée :
+-- on n'a plus besoin d'accéder à S1 ou S2 pour cette branche.</code></pre>
+
+            <p><strong>Requête optimisée complète :</strong></p>
+
+            <pre><code>-- Branche 1 : Dur = 30 — jointure conservée (Dur ∉ R3, accès à S2 nécessaire)
+SELECT Name
+FROM   R3, S2
+WHERE  R3.Enum = S2.Enum
+  AND  S2.Dur = 30
+
+UNION
+
+-- Branche 2 : Age = 55 — jointure avec S supprimée (hypothèse)
+SELECT Name FROM R1 WHERE Age = 55
+UNION
+SELECT Name FROM R3 WHERE Age = 55</code></pre>
+
+            <ul class="steps">
+                <li><strong>Branche Dur = 30 :</strong> la jointure avec S2 est conservée, car Dur est un attribut de S qui n'est pas inclus dans R3 — on doit accéder à S2 pour filtrer.</li>
+                <li><strong>Branche Age = 55 :</strong> la jointure avec S est supprimée par l'hypothèse. On interroge directement R1 et R3 sans transfert depuis S1 ou S2.</li>
+                <li>La sélection <code>Age = 55</code> est appliquée localement sur les fragments R1 et R3, <em>avant</em> toute opération réseau — principe de l'évaluation la plus tôt possible.</li>
+            </ul>
+
+            <div class="callout-info">
+                <p><span class="badge badge-blue">Pourquoi ce gain est-il significatif en contexte réparti ?</span></p>
+                <p>Dans une base répartie, le coût dominant est le <strong>transfert de données entre sites</strong>, pas le temps de calcul local. Sans l'hypothèse, la branche Age = 55 nécessiterait de rapatrier des données de S1 et S2 pour joindre avec R1 et R3. Avec l'hypothèse, ces transferts sont éliminés : seuls R1 et R3 (déjà présents sur les sites locaux) sont consultés.</p>
+            </div>
+
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Principe général d'optimisation répartie</span></p>
+                <p>L'optimiseur de requêtes réparties cherche à minimiser les données transférées sur le réseau. Les leviers principaux sont :</p>
+                <ul>
+                    <li><strong>Pousser les sélections</strong> le plus tôt possible, avant toute jointure ou transfert.</li>
+                    <li><strong>Éliminer les jointures redondantes</strong> en exploitant les contraintes d'intégrité (comme l'hypothèse ici).</li>
+                    <li><strong>Choisir le site coordinateur</strong> qui reçoit le moins de données (semi-jointure, transfert du plus petit fragment).</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

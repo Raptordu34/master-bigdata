@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <script src="./section-utils.js" defer></script>
+</head>
+<body>
+
+    <h2>Exercice 3 — Optimisation basée sur modèle de coût</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-points">◎ 4 questions</span>
+            <span class="exo-time">⏱ 30–45 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Exprimer une requête en algèbre relationnelle et SQL</li>
+                <li>Calculer le coût en lectures de blocs pour différents plans</li>
+                <li>Comparer les plans d'exécution et proposer des alternatives</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Modèle de coût, Block Nested Loop Join</em></p>
+    </div>
+
+    <div class="context-block">
+        <h3>Contexte</h3>
+        <p>Base de données composée de deux relations :</p>
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Schéma</span></p>
+                <p><strong>Fournisseur</strong>(<u>NF</u>, NomF, Adresse)</p>
+                <p><strong>Livraison</strong>(<u>NP</u>, <u>NF</u>, Date, Quantité)</p>
+            </div>
+            <div class="highlight-box">
+                <p><span class="badge badge-orange">Paramètres</span></p>
+                <ul>
+                    <li>Fournisseur : 10 000 tuples</li>
+                    <li>Livraison : 10 000 tuples (≈100 concernent P1)</li>
+                    <li>Facteur de blocage : 5 tuples/bloc</li>
+                    <li>Les deux tables sont tassées</li>
+                    <li>E/S disque : 20 ms/bloc</li>
+                    <li>Mémoire centrale : 100 tuples max</li>
+                </ul>
+            </div>
+        </div>
+        <p>Requête Q : lister les noms des fournisseurs qui livrent le produit dont le numéro est p1.</p>
+    </div>
+
+    <!-- ── Q9 ───────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q9</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Exprimer cette requête en algèbre relationnelle et en SQL.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q9-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q9-h1">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q9…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q9</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+    <!-- ── Q10 ──────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q10</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Pour chacun des plans (Plan 1, Plan 2, Plan 3), combien de lectures de blocs sont effectuées ?</p>
+
+        <div class="context-block" style="margin-top:1rem;">
+            <p><strong>Plan 1</strong> — Jointure naïve, puis sélection :</p>
+            <pre><code>tant que non fin Fournisseur faire
+    lire F de Fournisseur
+    pour tout tuple f de F faire
+        tant que non fin Livraison faire
+            lire L de Livraison
+            pour tout tuple l de L faire
+                si (f.NF = l.NF et l.NP = "p1") alors
+                    produire le tuple l.NomF
+                fsi</code></pre>
+            <p><strong>Plan 2</strong> — Exploitation de la mémoire (100 tuples en mémoire centrale) :</p>
+            <pre><code>Tant que non fin Fournisseur faire
+    lire 100 tuples de Fournisseur
+    tant que non fin Livraison faire
+        lire L de Livraison
+        pour tout f dans les 100 tuples de Fournisseur faire
+            pour tout l de L faire
+                si (f.NF = l.NF et l.NP = "p1") alors
+                    produire le tuple l.NomF
+                fsi</code></pre>
+            <p><strong>Plan 3</strong> — Évaluation aussitôt que possible de la sélection :</p>
+            <pre><code>tant que non fin Livraison faire
+    lire L de Livraison
+    pour tout l de L faire
+        si l.NP = "p1" alors
+            insérer l dans L1
+        fsi
+tant que non fin Fournisseur faire
+    lire 100 tuples de Fournisseur
+    tant que non fin L1 faire
+        lire l de L1
+        pour tout f dans les 100 tuples de Fournisseur faire
+            pour tout l de L faire
+                si (f.NF = l.NF) alors
+                    produire le tuple l.NomF
+                fsi</code></pre>
+        </div>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q10-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q10-h1">À compléter…</div>
+
+        <button class="hint-btn hint-locked" data-hint="q10-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q10-h2">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q10…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q10</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+    <!-- ── Q11 ──────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q11</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Pour chacun des plans, quel est le temps d'exécution de la requête ?</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q11-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q11-h1">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q11…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q11</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+    <!-- ── Q12 ──────────────────────────────────────────────────── -->
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q12</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Proposez d'autres plans d'exécution.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> À compléter…
+        </div>
+
+        <button class="hint-btn" data-hint="q12-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q12-h1">À compléter…</div>
+    </div>
+
+    <div class="reponse-zone" data-placeholder="Votre réponse à Q12…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q12</h4>
+            <p>À compléter…</p>
+        </div>
+    </div>
+
+</body>
+</html>

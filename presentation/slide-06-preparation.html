@@ -1,0 +1,37 @@
+<!-- Slide 5b — Phase de préparation (Offline) -->
+<div class="slide">
+    <div class="slide-content">
+        <div class="slide-header">
+            <h2>Phase Offline — Préparation du système</h2>
+            <span class="slide-section-label">§2.2 Offline Preparation</span>
+        </div>
+        <style>
+            .slide-06-steps.steps { margin-top: 0; }
+            .slide-06-steps.steps li { gap: 0.6rem; padding: 0.3rem 0.5rem; font-size: 0.86rem; line-height: 1.4; }
+            .slide-06-steps.steps li::before { min-width: 22px; height: 22px; font-size: 0.72rem; line-height: 22px; }
+            .slide-06-steps .li-row { display: flex; align-items: baseline; gap: 0.5rem; flex: 1; }
+            .slide-06-steps .li-row strong { font-size: 0.98rem; white-space: nowrap; min-width: 12rem; flex-shrink: 0; }
+            .slide-06-steps .li-row span { color: var(--text-secondary); }
+        </style>
+        <div class="two-col">
+            <div style="padding:0.3rem 0.3rem 1rem;">
+                <ol class="steps slide-06-steps">
+                    <li><span class="li-row"><strong>Data Source Collection</strong><span>— inventaire des BDD, APIs, outils disponibles</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="1"><span class="li-row"><strong>Tool / Model Collection</strong><span>— catalogage des modèles spécialisés et opérateurs</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="2"><span class="li-row"><strong>Keyword–API Mapping</strong><span>— association mots-clés ↔ outils via LLM</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="3"><span class="li-row"><strong>Domain LLM Training</strong><span>— fine-tuning sur les outils et schémas métier</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="4"><span class="li-row"><strong>LLM Alignment</strong><span>— alignement instruction-following (RLHF / DPO)</span></span></li>
+                    <li class="fragment fade-left" data-fragment-index="5"><span class="li-row"><strong>Vector Data Generation</strong><span>— embedding des connaissances dans la Vector DB</span></span></li>
+                </ol>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:1.4rem;justify-content:center;">
+                <div class="highlight-box fragment" data-fragment-index="6">
+                    <strong>But :</strong> construire une base de connaissances spécialisée <em>avant</em> toute requête utilisateur — le système est « prêt » au moment de l'inférence.
+                </div>
+                <div class="callout-info fragment" data-fragment-index="7">
+                    La Vector DB joue le rôle de <strong>cache sémantique</strong> : elle évite de recalculer ce qui a déjà été appris ou résolu.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

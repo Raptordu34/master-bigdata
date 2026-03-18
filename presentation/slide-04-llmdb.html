@@ -19,12 +19,14 @@
                     </table>
                 </div>
             </div>
-            <div>
-                <ul class="key-points">
-                    <li class="fragment" data-fragment-index="1"><strong>Domain knowledge embedding</strong></li>
-                    <li class="fragment fade-left" data-fragment-index="2"><strong>Vector DB as cache</strong></li>
-                    <li class="fragment fade-left" data-fragment-index="3"><strong>Pipeline agent</strong></li>
-                </ul>
+            <div style="display:flex;flex-direction:column;gap:1.2rem;">
+                <figure class="figure-box fragment" data-fragment-index="1" onclick="openLightbox(this)" style="margin:0;">
+                    <img src="./ressources/figures/fig1_comparaison_paradigmes_LLM.png" alt="Comparaison des 3 paradigmes LLM">
+                    <figcaption>Comparaison : (a) LLM seul · (b) Agent LLM · (c) LLMDB<span class="zoom-hint">↗ zoom</span></figcaption>
+                </figure>
+                <div class="callout-info fragment" data-fragment-index="2" style="font-size:0.82rem;">
+                    LLMDB intègre un <strong>Domain LLM</strong>, une <strong>Vector DB</strong> et un <strong>Pipeline Agent</strong> pour dépasser les limites des approches précédentes.
+                </div>
             </div>
         </div>
     </div>
