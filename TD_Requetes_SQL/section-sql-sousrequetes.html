@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <link rel="stylesheet" href="./sql-components.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+    <script src="./sql-engine.js"></script>
+    <script src="./section-utils.js" defer></script>
+    <script src="./sql-algebra.js" defer></script>
+    <script src="./sql-ui.js" defer></script>
+</head>
+<body>
+
+    <h2>Niveau 4 — Sous-requêtes</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-avance">Avancé</span>
+            <span class="exo-time">⏱ 40–55 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Distinguer sous-requête scalaire, liste et table</li>
+                <li>Utiliser <code>IN</code>, <code>NOT IN</code> et <code>NOT EXISTS</code></li>
+                <li>Écrire une sous-requête corrélée (référence à la requête externe)</li>
+                <li>Placer une sous-requête dans <code>FROM</code>, <code>WHERE</code>, <code>SELECT</code> ou <code>HAVING</code></li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- CONTEXT BLOCK                                  -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="context-block">
+        <h3>Rappel — Types de sous-requêtes</h3>
+
+        <table style="width:100%; border-collapse:collapse; margin-bottom:1rem;">
+            <thead>
+                <tr style="background:var(--color-surface-raised, #f4f4f8);">
+                    <th style="padding:0.5rem 0.75rem; text-align:left; border-bottom:2px solid var(--color-border,#ddd);">Type</th>
+                    <th style="padding:0.5rem 0.75rem; text-align:left; border-bottom:2px solid var(--color-border,#ddd);">Ce qu'elle retourne</th>
+                    <th style="padding:0.5rem 0.75rem; text-align:left; border-bottom:2px solid var(--color-border,#ddd);">Utilisation typique</th>
+                    <th style="padding:0.5rem 0.75rem; text-align:left; border-bottom:2px solid var(--color-border,#ddd);">Exemple</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--color-border,#eee);"><span class="badge badge-green">Scalaire</span></td>
+                    <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--color-border,#eee);">Une seule valeur (1 ligne × 1 col)</td>
+                    <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--color-border,#eee);"><code>WHERE</code>, <code>SELECT</code>, <code>HAVING</code></td>
+                    <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--color-border,#eee);"><code>WHERE salaire &gt; (SELECT AVG(salaire) FROM employes)</code></td>
+                </tr>
+                <tr>
+                    <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--color-border,#eee);"><span class="badge badge-blue">Liste</span></td>
+                    <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--color-border,#eee);">Une colonne de valeurs (n lignes × 1 col)</td>
+                    <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--color-border,#eee);"><code>IN</code>, <code>NOT IN</code>, <code>EXISTS</code></td>
+                    <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--color-border,#eee);"><code>WHERE id IN (SELECT employe_id FROM affectations)</code></td>
+                </tr>
+                <tr>
+                    <td style="padding:0.5rem 0.75rem;"><span class="badge badge-orange">Table</span></td>
+                    <td style="padding:0.5rem 0.75rem;">Un ensemble de lignes et colonnes</td>
+                    <td style="padding:0.5rem 0.75rem;"><code>FROM</code> (table dérivée)</td>
+                    <td style="padding:0.5rem 0.75rem;"><code>FROM (SELECT ... GROUP BY ...) AS stats</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="two-col">
+            <div class="highlight-box">
+                <p><strong>Sous-requête non-corrélée</strong></p>
+                <p>Indépendante de la requête externe. Évaluée <em>une seule fois</em>.</p>
+                <pre><code>-- La sous-requête ne dépend d'aucune table externe
+SELECT nom, salaire
+FROM employes
+WHERE salaire > (SELECT AVG(salaire) FROM employes);</code></pre>
+            </div>
+            <div class="highlight-box">
+                <p><strong>Sous-requête corrélée</strong></p>
+                <p>Référence une colonne de la requête externe. Réévaluée <em>pour chaque ligne</em>.</p>
+                <pre><code>-- e2.departement_id référence la ligne courante de e
+SELECT e.nom, e.salaire
+FROM employes e
+WHERE e.salaire > (
+    SELECT AVG(e2.salaire)
+    FROM employes e2
+    WHERE e2.departement_id = e.departement_id
+);</code></pre>
+            </div>
+        </div>
+
+        <div class="erreur-freq">
+            <strong>Piège classique — <code>NOT IN</code> avec un <code>NULL</code> dans la liste :</strong>
+            si la sous-requête retourne ne serait-ce qu'un <code>NULL</code>,
+            <code>NOT IN</code> ne retourne <em>aucune ligne</em> (le prédicat devient inconnu pour toutes les lignes).
+            Utilisez <code>NOT EXISTS</code> dès que la colonne testée peut contenir des <code>NULL</code>.
+        </div>
+
+        <div class="callout-info">
+            <strong>EXISTS vs IN — lequel choisir ?</strong><br>
+            <code>EXISTS</code> s'arrête dès qu'une ligne est trouvée (court-circuit) : il est souvent plus rapide
+            quand la sous-requête renvoie beaucoup de lignes. <code>IN</code> est plus lisible pour des listes courtes
+            et connues. Sur des colonnes indexées, les optimiseurs modernes produisent généralement des plans équivalents.
+            En cas de doute sur les <code>NULL</code>, préférez toujours <code>EXISTS</code>/<code>NOT EXISTS</code>.
+        </div>
+
+        <p style="margin-top:0.75rem; margin-bottom:0;">
+            <strong>Positions possibles :</strong>
+            <code>WHERE</code> (filtre),
+            <code>FROM</code> (table dérivée — doit avoir un alias),
+            <code>SELECT</code> (colonne calculée),
+            <code>HAVING</code> (filtre après agrégat).
+        </p>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q1                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Listez les employés dont le <strong>salaire est strictement supérieur à la moyenne</strong>
+        de l'ensemble des salaires. Affichez le nom, le prénom et le salaire, triés par salaire décroissant.</p>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            Dans le <code>WHERE</code>, comparez <code>salaire</code> à une sous-requête scalaire :
+            <code>(SELECT AVG(salaire) FROM employes)</code>. Cette sous-requête est évaluée une seule fois
+            avant le filtrage des lignes.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici… (Ctrl+Entrée pour exécuter)"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+            <pre><code>SELECT nom, prenom, salaire
+FROM employes
+WHERE salaire > (SELECT AVG(salaire) FROM employes)
+ORDER BY salaire DESC;</code></pre>
+            <p class="inline-note">La sous-requête scalaire est évaluée une seule fois et retourne une unique valeur (la moyenne globale). Toutes les lignes d'<code>employes</code> sont ensuite comparées à cette valeur — c'est une sous-requête <em>non-corrélée</em>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q2                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Affichez le ou les <strong>département(s) ayant le budget le plus élevé</strong>
+        (nom et budget). Si deux départements sont ex-aequo, ils doivent tous deux apparaître.</p>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Comparez <code>budget</code> à <code>(SELECT MAX(budget) FROM departements)</code>.
+            Contrairement à <code>ORDER BY budget DESC LIMIT 1</code>, cette approche retourne
+            <em>tous</em> les départements qui partagent le budget maximum.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+            <pre><code>SELECT nom, budget
+FROM departements
+WHERE budget = (SELECT MAX(budget) FROM departements);</code></pre>
+            <p class="inline-note"><code>MAX</code> retourne une valeur scalaire — cette sous-requête est donc non-corrélée et évaluée une fois. L'approche <code>ORDER BY ... LIMIT 1</code> retournerait arbitrairement un seul gagnant même en cas d'ex-aequo.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q3                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Listez les employés qui sont <strong>affectés au projet "Alpha"</strong>.
+        Affichez leur nom et prénom. Utilisez une sous-requête avec <code>IN</code>.</p>
+
+        <button class="hint-btn" data-hint="q3-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            La sous-requête doit retourner les <code>employe_id</code> présents dans <code>affectations</code>
+            pour le projet Alpha. Vous devrez joindre <code>affectations</code> et <code>projets</code>
+            à l'intérieur de la sous-requête pour filtrer par nom de projet.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q3-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q3-h2">
+            La sous-requête :
+            <code>SELECT a.employe_id FROM affectations a JOIN projets p ON p.id = a.projet_id WHERE p.nom = 'Alpha'</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+            <pre><code>SELECT nom, prenom
+FROM employes
+WHERE id IN (
+    SELECT a.employe_id
+    FROM affectations a
+    JOIN projets p ON p.id = a.projet_id
+    WHERE p.nom = 'Alpha'
+);</code></pre>
+            <p class="inline-note">La sous-requête de type <em>liste</em> retourne une colonne d'identifiants. La requête externe filtre ensuite les employés dont l'<code>id</code> appartient à cette liste. On aurait pu obtenir le même résultat avec un <code>INNER JOIN</code> + <code>DISTINCT</code>.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q4                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Listez les employés qui ne sont <strong>affectés à aucun projet</strong>.
+        Écrivez deux versions : une avec <code>NOT IN</code> et une avec <code>NOT EXISTS</code>.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège — <code>NOT IN</code> et les <code>NULL</code> :</strong>
+            si <code>affectations.employe_id</code> contient un seul <code>NULL</code>,
+            <code>NOT IN</code> retourne <em>zéro ligne</em> car la comparaison avec <code>NULL</code>
+            est toujours inconnue. <code>NOT EXISTS</code> est immunisé contre ce problème
+            et est généralement à préférer.
+        </div>
+
+        <button class="hint-btn" data-hint="q4-h1" data-label="Indice" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            <strong>NOT IN :</strong> <code>WHERE id NOT IN (SELECT employe_id FROM affectations)</code><br><br>
+            <strong>NOT EXISTS :</strong> pour chaque employé <code>e</code>, vérifiez qu'il n'existe aucune ligne
+            dans <code>affectations</code> où <code>a.employe_id = e.id</code>.
+            C'est une sous-requête corrélée : elle référence <code>e.id</code> depuis la requête externe.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+            <pre><code>-- Version 1 : NOT IN (simple, mais fragile face aux NULL)
+SELECT nom, prenom
+FROM employes
+WHERE id NOT IN (SELECT employe_id FROM affectations);
+
+-- Version 2 : NOT EXISTS (robuste, recommandée)
+SELECT nom, prenom
+FROM employes e
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM affectations a
+    WHERE a.employe_id = e.id
+);</code></pre>
+            <p class="inline-note">
+                La version <code>NOT EXISTS</code> est une sous-requête <em>corrélée</em> :
+                elle est réévaluée pour chaque ligne de <code>employes</code>. Le <code>SELECT 1</code>
+                est une convention — seule l'existence d'une ligne importe, pas sa valeur.
+                Sur nos données, les deux versions donnent le même résultat.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q5                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q5</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Listez les employés dont le salaire est <strong>supérieur à la moyenne de salaire
+        de leur propre département</strong>. Affichez le nom, le prénom, le salaire et l'identifiant
+        du département, triés par département puis par salaire décroissant.</p>
+
+        <div class="callout-info">
+            Il s'agit d'une <strong>sous-requête corrélée</strong> : la sous-requête calcule la moyenne
+            du département de <em>l'employé en cours d'évaluation</em>. Elle est réévaluée pour chaque ligne.
+        </div>
+
+        <button class="hint-btn" data-hint="q5-h1" data-label="Indice 1/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/3</span>
+        </button>
+        <div class="hint" id="q5-h1">
+            Donnez un alias à la table externe : <code>FROM employes e</code>. La sous-requête
+            doit calculer <code>AVG(salaire)</code> sur les employés du <em>même</em> département que <code>e</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q5-h2" data-label="Indice 2/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/3</span>
+        </button>
+        <div class="hint" id="q5-h2">
+            Dans la sous-requête, filtrez sur <code>WHERE e2.departement_id = e.departement_id</code>
+            (où <code>e2</code> est l'alias interne et <code>e</code> est la référence externe).
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q5-h3" data-label="Indice 3/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 3/3</span>
+        </button>
+        <div class="hint" id="q5-h3">
+            Structure complète :
+            <pre style="margin:0.5rem 0 0;"><code>WHERE e.salaire > (
+    SELECT AVG(e2.salaire)
+    FROM employes e2
+    WHERE e2.departement_id = e.departement_id
+)</code></pre>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q5</h4>
+            <pre><code>SELECT e.nom, e.prenom, e.salaire, e.departement_id
+FROM employes e
+WHERE e.salaire > (
+    SELECT AVG(e2.salaire)
+    FROM employes e2
+    WHERE e2.departement_id = e.departement_id
+)
+ORDER BY e.departement_id, e.salaire DESC;</code></pre>
+            <p class="inline-note">
+                La sous-requête est dite <em>corrélée</em> car <code>e.departement_id</code> vient de la
+                requête externe. Elle est réévaluée pour chaque ligne de <code>employes</code> — une fois
+                par employé. Certains SGBD peuvent l'optimiser en une seule passe avec un <code>GROUP BY</code>
+                interne, mais la sémantique reste identique.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q6                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q6</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Listez les <strong>projets ayant plus d'affectations que la moyenne</strong> du nombre d'affectations
+        par projet. Affichez le nom du projet et son nombre d'affectations.</p>
+
+        <div class="callout-info">
+            La sous-requête doit calculer la <em>moyenne des comptages par groupe</em>,
+            ce qui nécessite une sous-requête dans le <code>HAVING</code>.
+            L'ordre d'évaluation SQL est : <code>FROM</code> → <code>WHERE</code> → <code>GROUP BY</code> →
+            <code>HAVING</code> → <code>SELECT</code> → <code>ORDER BY</code>.
+        </div>
+
+        <button class="hint-btn" data-hint="q6-h1" data-label="Indice 1/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/3</span>
+        </button>
+        <div class="hint" id="q6-h1">
+            Commencez par grouper <code>affectations</code> par <code>projet_id</code> et compter les lignes
+            avec <code>COUNT(*)</code>. Joignez ensuite <code>projets</code> pour afficher le nom.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q6-h2" data-label="Indice 2/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/3</span>
+        </button>
+        <div class="hint" id="q6-h2">
+            La condition de filtre va dans le <code>HAVING</code> :
+            <code>HAVING COUNT(*) &gt; (SELECT ...)</code>. La sous-requête doit retourner
+            le nombre moyen d'affectations par projet.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q6-h3" data-label="Indice 3/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 3/3</span>
+        </button>
+        <div class="hint" id="q6-h3">
+            Pour la sous-requête : calculez d'abord les comptes par projet avec un <code>GROUP BY</code>,
+            puis prenez la moyenne de ces comptes avec <code>AVG</code> :
+            <code>SELECT AVG(nb) FROM (SELECT COUNT(*) AS nb FROM affectations GROUP BY projet_id) AS stats</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q6</h4>
+            <pre><code>SELECT p.nom, COUNT(*) AS nb_affectations
+FROM projets p
+JOIN affectations a ON a.projet_id = p.id
+GROUP BY p.id, p.nom
+HAVING COUNT(*) > (
+    SELECT AVG(nb)
+    FROM (
+        SELECT COUNT(*) AS nb
+        FROM affectations
+        GROUP BY projet_id
+    ) AS stats_par_projet
+)
+ORDER BY nb_affectations DESC;</code></pre>
+            <p class="inline-note">
+                La sous-requête imbriquée dans <code>HAVING</code> est non-corrélée et évaluée une seule fois.
+                Elle calcule la moyenne du nombre d'affectations à partir d'une table dérivée (sous-requête dans
+                le <code>FROM</code>) qui regroupe d'abord les affectations par projet.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q7                                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q7</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>En utilisant une <strong>sous-requête dans le <code>FROM</code></strong> (table dérivée),
+        trouvez les départements dont le <strong>salaire moyen dépasse la moyenne globale</strong> des salaires.
+        Affichez le nom du département et son salaire moyen arrondi à l'entier, trié par salaire moyen décroissant.</p>
+
+        <div class="erreur-freq">
+            <strong>Syntaxe obligatoire :</strong> toute sous-requête dans un <code>FROM</code> doit avoir
+            un <strong>alias</strong> (<code>AS nom_alias</code>), sinon la requête génère une erreur.
+        </div>
+
+        <button class="hint-btn" data-hint="q7-h1" data-label="Indice 1/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/3</span>
+        </button>
+        <div class="hint" id="q7-h1">
+            Créez une table dérivée dans le <code>FROM</code> qui calcule le salaire moyen par département.
+            Quelque chose comme :
+            <code>FROM (SELECT departement_id, AVG(salaire) AS sal_moyen FROM employes GROUP BY departement_id) AS stats</code>
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q7-h2" data-label="Indice 2/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/3</span>
+        </button>
+        <div class="hint" id="q7-h2">
+            Joignez cette table dérivée avec <code>departements</code> pour récupérer le nom du département.
+            Filtrez ensuite avec un <code>WHERE</code> comparant <code>sal_moyen</code> à la moyenne globale.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q7-h3" data-label="Indice 3/3" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 3/3</span>
+        </button>
+        <div class="hint" id="q7-h3">
+            La condition de filtre :
+            <code>WHERE stats.sal_moyen &gt; (SELECT AVG(salaire) FROM employes)</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q7</h4>
+            <pre><code>SELECT d.nom AS departement,
+       ROUND(stats.sal_moyen) AS salaire_moyen
+FROM (
+    SELECT departement_id,
+           AVG(salaire) AS sal_moyen
+    FROM employes
+    GROUP BY departement_id
+) AS stats
+JOIN departements d ON d.id = stats.departement_id
+WHERE stats.sal_moyen > (SELECT AVG(salaire) FROM employes)
+ORDER BY salaire_moyen DESC;</code></pre>
+            <p class="inline-note">
+                La table dérivée (<code>stats</code>) pré-agrège les salaires par département avant
+                que la requête externe ne filtre et n'affiche les résultats. Cette approche évite
+                de répéter le <code>GROUP BY</code> et facilite la lecture. Les CTE (<code>WITH ... AS</code>)
+                offrent une syntaxe encore plus lisible pour ce type de construction.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- POUR ALLER PLUS LOIN                           -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Réécrivez la Q7 en utilisant une CTE (<code>WITH stats AS (...) SELECT ...</code>) et comparez la lisibilité.</li>
+            <li>Affichez, pour chaque employé, son salaire et l'écart par rapport à la moyenne de son département
+                en utilisant une sous-requête scalaire corrélée dans le <code>SELECT</code>.</li>
+            <li>Listez les départements qui n'ont <em>aucun</em> projet assigné
+                (combinez <code>NOT EXISTS</code> avec la table <code>projets</code> sur <code>departement_id</code>).</li>
+            <li>Trouvez les employés affectés à <em>tous</em> les projets du département 1
+                (requête de division relationnelle — piste : double <code>NOT EXISTS</code>).</li>
+        </ul>
+    </div>
+
+</body>
+</html>

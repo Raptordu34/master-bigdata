@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./components.css">
+    <link rel="stylesheet" href="./sql-components.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+    <script src="./sql-engine.js"></script>
+    <script src="./section-utils.js" defer></script>
+    <script src="./sql-algebra.js" defer></script>
+    <script src="./sql-ui.js" defer></script>
+</head>
+<body>
+
+    <h2>Niveau 2 — Agrégats et GROUP BY</h2>
+
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-time">⏱ 35–45 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Maîtriser les cinq fonctions d'agrégation : <code>COUNT</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code></li>
+                <li>Regrouper des lignes avec <code>GROUP BY</code> et comprendre la règle de cohérence du <code>SELECT</code></li>
+                <li>Filtrer des groupes avec <code>HAVING</code> et distinguer son rôle de celui de <code>WHERE</code></li>
+                <li>Combiner jointures et agrégats pour des analyses multi-tables</li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- RAPPEL DE COURS                                -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="context-block">
+        <strong>Rappel de cours — Fonctions d'agrégation</strong>
+
+        <div class="two-col" style="margin-top: 1rem;">
+            <div>
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background: var(--color-surface-alt, #f3f4f6);">
+                            <th style="padding:0.5rem 0.75rem; text-align:left; border-bottom:2px solid var(--color-border, #e5e7eb);">Fonction</th>
+                            <th style="padding:0.5rem 0.75rem; text-align:left; border-bottom:2px solid var(--color-border, #e5e7eb);">Rôle</th>
+                            <th style="padding:0.5rem 0.75rem; text-align:left; border-bottom:2px solid var(--color-border, #e5e7eb);">Comportement avec NULL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><code>COUNT(*)</code></td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);">Compte toutes les lignes du groupe</td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><span class="badge badge-green">Inclut les NULL</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><code>COUNT(col)</code></td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);">Compte les valeurs non-nulles d'une colonne</td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><span class="badge badge-orange">Ignore les NULL</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><code>SUM(col)</code></td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);">Somme des valeurs d'une colonne</td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><span class="badge badge-orange">Ignore les NULL</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><code>AVG(col)</code></td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);">Moyenne des valeurs non-nulles</td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><span class="badge badge-orange">Ignore les NULL</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><code>MIN(col)</code></td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);">Valeur minimale du groupe</td>
+                            <td style="padding:0.45rem 0.75rem; border-bottom:1px solid var(--color-border, #e5e7eb);"><span class="badge badge-orange">Ignore les NULL</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding:0.45rem 0.75rem;"><code>MAX(col)</code></td>
+                            <td style="padding:0.45rem 0.75rem;">Valeur maximale du groupe</td>
+                            <td style="padding:0.45rem 0.75rem;"><span class="badge badge-orange">Ignore les NULL</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <div class="highlight-box">
+                    <p><span class="badge badge-blue">Règle fondamentale du SELECT</span></p>
+                    <p>Toute colonne présente dans <code>SELECT</code> et <strong>non agrégée</strong> doit obligatoirement figurer dans la clause <code>GROUP BY</code>.</p>
+                    <pre style="margin:0.5rem 0 0;"><code>-- OK
+SELECT dept_id, COUNT(*)
+FROM employes
+GROUP BY dept_id;
+
+-- ERREUR : nom non agrégé et absent du GROUP BY
+SELECT dept_id, nom, COUNT(*)
+FROM employes
+GROUP BY dept_id;</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="highlight-box" style="margin-top: 1.25rem;">
+            <p><span class="badge badge-blue">Ordre d'exécution logique d'une requête SQL</span></p>
+            <p style="font-family: monospace; font-size: 0.95rem; letter-spacing: 0.02em;">
+                <span style="color: var(--color-primary, #3b82f6); font-weight: 600;">FROM</span>
+                &nbsp;→&nbsp;
+                <span style="color: var(--color-primary, #3b82f6); font-weight: 600;">WHERE</span>
+                &nbsp;→&nbsp;
+                <span style="color: var(--color-primary, #3b82f6); font-weight: 600;">GROUP BY</span>
+                &nbsp;→&nbsp;
+                <span style="color: var(--color-primary, #3b82f6); font-weight: 600;">HAVING</span>
+                &nbsp;→&nbsp;
+                <span style="color: var(--color-primary, #3b82f6); font-weight: 600;">SELECT</span>
+                &nbsp;→&nbsp;
+                <span style="color: var(--color-primary, #3b82f6); font-weight: 600;">ORDER BY</span>
+            </p>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem;">
+                <code>WHERE</code> filtre les <em>lignes</em> <strong>avant</strong> le regroupement.<br>
+                <code>HAVING</code> filtre les <em>groupes</em> <strong>après</strong> agrégation — c'est la seule clause où l'on peut conditionner sur un agrégat.
+            </p>
+        </div>
+
+        <div class="callout-info" style="margin-top: 1rem;">
+            <strong>Astuce :</strong> Pour arrondir un résultat décimal, utilisez <code>ROUND(AVG(salaire), 2)</code>.
+            Le second argument indique le nombre de décimales souhaitées.
+        </div>
+
+        <div class="erreur-freq" style="margin-top: 0.75rem;">
+            <strong>Erreur classique :</strong> <code>WHERE COUNT(*) &gt; x</code> est syntaxiquement invalide.
+            <code>WHERE</code> s'exécute avant que les groupes n'existent — il ne peut donc pas porter sur un agrégat.
+            Utilisez toujours <code>HAVING COUNT(*) &gt; x</code> pour filtrer après regroupement.
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q1 — Fondamental                               -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>Comptez le <strong>nombre total d'employés</strong> dans l'entreprise.</p>
+        <div class="callout-info">
+            <strong>Rappel :</strong> <code>COUNT(*)</code> compte toutes les lignes de la table, y compris celles
+            dont certaines colonnes contiennent <code>NULL</code>. C'est la façon standard de compter des enregistrements.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false"><span class="btn-arrow">▶</span><span class="btn-label">Voir la solution</span></button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+            <pre><code>SELECT COUNT(*) AS nb_employes
+FROM employes;</code></pre>
+            <p class="inline-note">
+                <code>COUNT(*)</code> renvoie ici 15 (le nombre total de lignes de la table).
+                Donner un alias explicite avec <code>AS nb_employes</code> rend le résultat immédiatement lisible.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q2 — Fondamental                               -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>En <strong>une seule requête</strong>, calculez le <strong>salaire moyen</strong> (arrondi à 2 décimales),
+        le <strong>salaire minimum</strong> et le <strong>salaire maximum</strong> de tous les employés.</p>
+
+        <div class="callout-info">
+            <strong>Astuce :</strong> Plusieurs fonctions d'agrégation peuvent coexister dans le même <code>SELECT</code>
+            sans nécessiter de <code>GROUP BY</code> dès lors qu'elles s'appliquent toutes à l'ensemble de la table.
+            Pensez à <code>ROUND(..., 2)</code> pour l'arrondi du salaire moyen.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false"><span class="btn-arrow">▶</span><span class="btn-label">Voir la solution</span></button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+            <pre><code>SELECT
+    ROUND(AVG(salaire), 2) AS salaire_moyen,
+    MIN(salaire)           AS salaire_min,
+    MAX(salaire)           AS salaire_max
+FROM employes;</code></pre>
+            <p class="inline-note">
+                Les trois fonctions s'appliquent simultanément à l'ensemble des lignes. Sans <code>GROUP BY</code>,
+                la table entière constitue un unique groupe. Le résultat attendu : moyenne autour de 55 000 €,
+                minimum à 38 000 €, maximum à 80 000 €.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q3 — Intermédiaire                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Affichez le <strong>nombre d'employés par département</strong>, en affichant le <strong>nom du département</strong>
+        (et non son identifiant). Triez par nombre d'employés décroissant.</p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> En joignant deux tables, toute colonne du <code>SELECT</code>
+            non agrégée (ici <code>d.nom</code>) doit figurer dans le <code>GROUP BY</code>.
+            Oublier <code>d.nom</code> dans le <code>GROUP BY</code> provoque une erreur.
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Commencez par joindre <code>employes e</code> et <code>departements d</code>
+            sur <code>e.departement_id = d.id</code>, puis sélectionnez <code>d.nom</code>
+            et <code>COUNT(*)</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q3-h2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2</span>
+        </button>
+        <div class="hint" id="q3-h2">
+            Le <code>GROUP BY</code> doit porter sur <code>d.id, d.nom</code> (ou simplement <code>d.nom</code>
+            si les noms sont uniques). L'ordre final : <code>ORDER BY nb_employes DESC</code>.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false"><span class="btn-arrow">▶</span><span class="btn-label">Voir la solution</span></button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+            <pre><code>SELECT
+    d.nom            AS departement,
+    COUNT(*)         AS nb_employes
+FROM employes e
+JOIN departements d ON e.departement_id = d.id
+GROUP BY d.id, d.nom
+ORDER BY nb_employes DESC;</code></pre>
+            <p class="inline-note">
+                Grouper sur <code>d.id, d.nom</code> est une bonne pratique : <code>d.id</code> garantit l'unicité
+                du groupe même si deux départements avaient le même nom, tandis que <code>d.nom</code> est requis
+                car il apparaît dans le <code>SELECT</code>.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q4 — Intermédiaire                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Calculez le <strong>salaire moyen par département</strong> (avec le nom du département).
+        Affichez le résultat trié par salaire moyen <strong>décroissant</strong>, arrondi à 2 décimales.</p>
+
+        <button class="hint-btn" data-hint="q4-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            Reprenez la structure JOIN de Q3, remplacez <code>COUNT(*)</code>
+            par <code>ROUND(AVG(e.salaire), 2)</code>, et triez sur cet alias.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false"><span class="btn-arrow">▶</span><span class="btn-label">Voir la solution</span></button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+            <pre><code>SELECT
+    d.nom                       AS departement,
+    ROUND(AVG(e.salaire), 2)    AS salaire_moyen
+FROM employes e
+JOIN departements d ON e.departement_id = d.id
+GROUP BY d.id, d.nom
+ORDER BY salaire_moyen DESC;</code></pre>
+            <p class="inline-note">
+                Il est possible d'utiliser directement l'alias <code>salaire_moyen</code> dans <code>ORDER BY</code>
+                en SQLite. Dans d'autres SGBD (PostgreSQL strict, MySQL ancien), il faut répéter l'expression :
+                <code>ORDER BY ROUND(AVG(e.salaire), 2) DESC</code>.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q5 — Intermédiaire                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q5</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Affichez uniquement les <strong>départements comptant plus de 3 employés</strong>,
+        avec le nom du département et le nombre d'employés.</p>
+
+        <div class="erreur-freq">
+            <strong>Erreur fréquente :</strong> <code>WHERE COUNT(*) &gt; 3</code> est syntaxiquement invalide —
+            <code>WHERE</code> s'exécute <em>avant</em> le regroupement, les agrégats n'existent donc pas encore.
+            La bonne clause est <code>HAVING COUNT(*) &gt; 3</code>, placée <em>après</em> <code>GROUP BY</code>.
+        </div>
+
+        <button class="hint-btn" data-hint="q5-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q5-h1">
+            Après <code>GROUP BY d.id, d.nom</code>, ajoutez la ligne <code>HAVING COUNT(*) &gt; 3</code>.
+            Cette clause filtre les groupes dont l'effectif ne dépasse pas le seuil.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false"><span class="btn-arrow">▶</span><span class="btn-label">Voir la solution</span></button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q5</h4>
+            <pre><code>SELECT
+    d.nom        AS departement,
+    COUNT(*)     AS nb_employes
+FROM employes e
+JOIN departements d ON e.departement_id = d.id
+GROUP BY d.id, d.nom
+HAVING COUNT(*) > 3
+ORDER BY nb_employes DESC;</code></pre>
+            <div class="highlight-box" style="margin-top:1rem;">
+                <p><span class="badge badge-blue">WHERE vs HAVING — résumé</span></p>
+                <ul style="margin: 0.4rem 0 0; font-size: 0.9rem;">
+                    <li><code>WHERE salaire &gt; 40000</code> — élimine les lignes <em>avant</em> le regroupement</li>
+                    <li><code>HAVING COUNT(*) &gt; 3</code> — élimine les groupes <em>après</em> le regroupement</li>
+                    <li>Les deux peuvent coexister dans la même requête</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q6 — Intermédiaire                             -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q6</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>Calculez le <strong>total des heures travaillées par projet</strong> à partir de la table
+        <code>affectations</code>. Affichez le <strong>nom du projet</strong> (jointure avec <code>projets</code>)
+        et triez par total d'heures décroissant.</p>
+
+        <div class="callout-info">
+            <strong>Rappel :</strong> La table <code>affectations</code> contient une ligne par couple
+            (employé, projet). La colonne <code>heures</code> indique le nombre d'heures investies
+            par cet employé sur ce projet. <code>SUM(heures)</code> additionne toutes ces contributions
+            pour un même projet.
+        </div>
+
+        <button class="hint-btn" data-hint="q6-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q6-h1">
+            Joignez <code>affectations a</code> et <code>projets p</code> sur <code>a.projet_id = p.id</code>,
+            groupez par <code>p.id, p.nom</code>, et calculez <code>SUM(a.heures)</code>.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false"><span class="btn-arrow">▶</span><span class="btn-label">Voir la solution</span></button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q6</h4>
+            <pre><code>SELECT
+    p.nom               AS projet,
+    SUM(a.heures)       AS total_heures
+FROM affectations a
+JOIN projets p ON a.projet_id = p.id
+GROUP BY p.id, p.nom
+ORDER BY total_heures DESC;</code></pre>
+            <p class="inline-note">
+                <code>SUM</code> ignore les <code>NULL</code> : si une affectation ne renseigne pas les heures,
+                elle ne contribue pas au total. Pour détecter ce cas, comparez <code>COUNT(*)</code>
+                et <code>COUNT(a.heures)</code> — une différence signale des valeurs manquantes.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q7 — Avancé                                    -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q7</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Affichez le <strong>nombre d'employés par poste</strong>, mais uniquement pour les postes
+        dont le <strong>salaire moyen dépasse 50 000 €</strong>. Triez par salaire moyen décroissant.</p>
+
+        <div class="callout-info">
+            <strong>Méthode :</strong> Cette question combine <code>GROUP BY poste</code>,
+            un calcul de <code>COUNT(*)</code> et de <code>AVG(salaire)</code>, puis un filtre
+            <code>HAVING</code> sur l'agrégat de salaire. Deux agrégats différents dans le même groupe.
+        </div>
+
+        <button class="hint-btn" data-hint="q7-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1</span>
+        </button>
+        <div class="hint" id="q7-h1">
+            Commencez par : <code>SELECT poste, COUNT(*) AS nb, AVG(salaire) AS moy FROM employes GROUP BY poste</code>.
+            Ajoutez ensuite le filtre <code>HAVING</code> sur <code>AVG(salaire)</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q7-h2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2</span>
+        </button>
+        <div class="hint" id="q7-h2">
+            La clause de filtre est <code>HAVING AVG(salaire) &gt; 50000</code>.
+            Vous pouvez afficher les deux agrégats simultanément dans le <code>SELECT</code>.
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false"><span class="btn-arrow">▶</span><span class="btn-label">Voir la solution</span></button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q7</h4>
+            <pre><code>SELECT
+    poste,
+    COUNT(*)                    AS nb_employes,
+    ROUND(AVG(salaire), 2)      AS salaire_moyen
+FROM employes
+GROUP BY poste
+HAVING AVG(salaire) > 50000
+ORDER BY salaire_moyen DESC;</code></pre>
+            <p class="inline-note">
+                Notez que le <code>HAVING</code> utilise <code>AVG(salaire)</code> (l'expression complète)
+                et non l'alias <code>salaire_moyen</code> — les alias du <code>SELECT</code> ne sont
+                pas disponibles dans <code>HAVING</code> dans la plupart des SGBD (sauf SQLite qui est plus permissif).
+                Habituer-vous à répéter l'expression dans <code>HAVING</code> pour écrire du SQL portable.
+            </p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- Q8 — Avancé                                    -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q8</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>Pour chaque département, affichez en une seule requête : le <strong>nom du département</strong>,
+        le <strong>nombre d'employés</strong>, le <strong>salaire moyen</strong> (arrondi à 2 décimales)
+        et le <strong>salaire maximum</strong>. Triez par nombre d'employés décroissant.</p>
+
+        <div class="callout-info">
+            <strong>Conseil :</strong> Cette requête synthétise les techniques de Q3, Q4 et Q5 en une seule.
+            Pensez à préfixer chaque colonne par son alias de table (<code>e.</code> ou <code>d.</code>)
+            pour éviter toute ambiguïté, et n'oubliez pas de mettre <em>toutes</em> les colonnes
+            non-agrégées dans le <code>GROUP BY</code>.
+        </div>
+
+        <button class="hint-btn" data-hint="q8-h1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice</span>
+        </button>
+        <div class="hint" id="q8-h1">
+            Structure : <code>SELECT d.nom, COUNT(*), ROUND(AVG(e.salaire),2), MAX(e.salaire) FROM employes e JOIN departements d ON ... GROUP BY d.id, d.nom ORDER BY ...</code>
+        </div>
+    </div>
+
+    <div class="sql-editor-zone">
+        <textarea class="sql-input" placeholder="Écrivez votre requête SQL ici…"></textarea>
+        <div class="sql-autocomplete" hidden></div>
+        <div class="sql-toolbar">
+            <button class="sql-run-btn">▶ Exécuter</button>
+            <span class="sql-status"></span>
+            <span class="sql-shortcut-hint">Ctrl+Entrée pour exécuter</span>
+        </div>
+        <div class="sql-result-area"></div>
+    </div>
+
+    <button class="solution-btn" aria-expanded="false"><span class="btn-arrow">▶</span><span class="btn-label">Voir la solution</span></button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q8</h4>
+            <pre><code>SELECT
+    d.nom                       AS departement,
+    COUNT(*)                    AS nb_employes,
+    ROUND(AVG(e.salaire), 2)    AS salaire_moyen,
+    MAX(e.salaire)              AS salaire_max
+FROM employes e
+JOIN departements d ON e.departement_id = d.id
+GROUP BY d.id, d.nom
+ORDER BY nb_employes DESC;</code></pre>
+            <div class="highlight-box" style="margin-top:1rem;">
+                <p><span class="badge badge-blue">Récapitulatif des colonnes</span></p>
+                <ul style="margin:0.4rem 0 0; font-size:0.9rem;">
+                    <li><code>d.nom</code> — non agrégée → dans <code>GROUP BY</code></li>
+                    <li><code>COUNT(*)</code> — agrégée → pas dans <code>GROUP BY</code></li>
+                    <li><code>ROUND(AVG(e.salaire), 2)</code> — agrégée → pas dans <code>GROUP BY</code></li>
+                    <li><code>MAX(e.salaire)</code> — agrégée → pas dans <code>GROUP BY</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- POUR ALLER PLUS LOIN                           -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>
+                <strong>Diversité des postes par département :</strong> utilisez <code>COUNT(DISTINCT poste)</code>
+                pour compter le nombre de postes distincts dans chaque département — distinguez ce résultat
+                de <code>COUNT(*)</code> qui compte les employés.
+            </li>
+            <li>
+                <strong>Impact des NULL sur AVG :</strong> insérez un employé fictif avec <code>salaire = NULL</code>
+                et observez comment <code>AVG(salaire)</code>, <code>COUNT(*)</code> et <code>COUNT(salaire)</code>
+                se comportent différemment — une illustration concrète des règles sur les valeurs manquantes.
+            </li>
+            <li>
+                <strong>Département avec la plus haute masse salariale :</strong> calculez <code>SUM(salaire)</code>
+                par département et limitez le résultat à 1 ligne avec <code>LIMIT 1</code> après tri décroissant.
+            </li>
+            <li>
+                <strong>Projets sans affectations :</strong> reprenez Q6 avec un <code>LEFT JOIN</code> entre
+                <code>projets</code> et <code>affectations</code> pour faire apparaître les projets dont le
+                total d'heures est <code>NULL</code> (aucune affectation enregistrée).
+            </li>
+            <li>
+                <strong>Double agrégation — employés multi-projets :</strong> à partir des tables
+                <code>affectations</code> et <code>employes</code>, calculez pour chaque employé
+                le nombre de projets auxquels il participe (<code>COUNT(DISTINCT projet_id)</code>),
+                puis filtrez avec <code>HAVING</code> ceux qui interviennent sur plus d'un projet.
+            </li>
+        </ul>
+    </div>
+
+</body>
+</html>
