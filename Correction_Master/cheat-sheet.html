@@ -146,235 +146,1499 @@
 
     <button class="no-print" onclick="window.print()">IMPRIMER / EXPORTER PDF</button>
 
-    <!-- PAGE 1 : FONDAMENTAUX & FRAGMENTATION -->
+    <!-- PAGE 1 : FRAGMENTATION & REQUÊTES DISTRIBUÉES -->
     <div class="page">
         <div class="header">
-            <h1>Mémento SQL & BD — Page 1 : Fondamentaux & Architecture</h1>
+            <h1>Mémento BD Distribuées — Page 1 : Fragmentation &amp; Requêtes Distribuées</h1>
             <span>Examen 2026</span>
         </div>
         <div class="grid">
-            
-            <!-- COLONNE 1 -->
+
+            <!-- COLONNE 1 : Fragmentation — Bases -->
             <div class="col">
                 <div class="section">
-                    <h2>1. Syntaxe & Ordre d'Exécution</h2>
+                    <h2>1. Fragmentation Horizontale (FH)</h2>
                     <div class="section-content">
-                        <pre>SELECT [DISTINCT] col1, AVG(col2)
-FROM table_A [JOIN table_B ON A.id = B.id]
-WHERE condition_lignes (filtre brut)
-GROUP BY col_regroupement
-HAVING condition_groupes (filtre post-agrégat)
-ORDER BY col [ASC|DESC]
-LIMIT n OFFSET m</pre>
-                        <div class="important">
-                            Ordre réel : FROM → JOIN → WHERE → GROUP BY → HAVING → SELECT → ORDER BY.
-                        </div>
+                        <p><strong>Opérateur :</strong> <code>Ri = σ_pi(R)</code> (sélection par prédicat)</p>
+                        <p><strong>Reconstruction :</strong> <code>R = R1 ∪ R2 ∪ ... ∪ Rn</code></p>
+                        <table>
+                            <tr><th>Propriété</th><th>Définition</th></tr>
+                            <tr><td><strong>Complétude</strong></td><td>∀t ∈ R, ∃i : t ∈ Ri (aucune donnée perdue)</td></tr>
+                            <tr><td><strong>Disjonction</strong></td><td>Ri ∩ Rj = ∅ (pas de duplication)</td></tr>
+                            <tr><td><strong>Reconstruction</strong></td><td>R = ∪ Ri (opération inverse possible)</td></tr>
+                        </table>
+                        <p><span class="badge">Exemple</span> <code>R1 = σ_{Pays='FR'}(R)</code>, <code>R2 = σ_{Pays='DE'}(R)</code></p>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>2. Opérateurs de Filtrage</h2>
+                    <h2>2. Fragmentation Verticale (FV)</h2>
+                    <div class="section-content">
+                        <p><strong>Opérateur :</strong> <code>Ri = π_Ai(R)</code> (projection sur colonnes)</p>
+                        <p><strong>⚠️ Clé primaire</strong> dupliquée dans <em>chaque</em> fragment</p>
+                        <p><strong>Reconstruction :</strong> <code>R = F1 ⋈ F2 ⋈ ... (jointure sur PK)</code></p>
+                        <p><span class="badge">Exemple</span> <code>F1 = π_{id,nom,adresse}(R)</code>, <code>F2 = π_{id,salaire}(R)</code></p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>3. Reconstruction — Récapitulatif</h2>
                     <div class="section-content">
                         <table>
-                            <tr><td><code>=, <>, !=, <, ></code></td><td>Comparaison standard</td></tr>
-                            <tr><td><code>BETWEEN a AND b</code></td><td>Inclusif : [a, b]</td></tr>
-                            <tr><td><code>IN (v1, v2, ...)</code></td><td>Appartenance à une liste</td></tr>
-                            <tr><td><code>LIKE 'patt%'</code></td><td><code>%</code> (0+), <code>_</code> (1 seul car.)</td></tr>
-                            <tr><td><code>IS NULL</code></td><td>Test de valeur nulle</td></tr>
+                            <tr><th>Type</th><th>Opérateur</th><th>Condition</th></tr>
+                            <tr><td>Horizontale</td><td><code>∪</code></td><td>Prédicats couvrent R</td></tr>
+                            <tr><td>Verticale</td><td><code>⋈ (PK)</code></td><td>PK dans chaque fragment</td></tr>
+                            <tr><td>Mixte HV</td><td><code>∪</code> puis <code>⋈</code></td><td>Reconstituer H, puis joindre V</td></tr>
+                            <tr><td>Mixte VH</td><td><code>⋈</code> puis <code>∪</code></td><td>Joindre V, puis réunir H</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Fragmentation — Avancée -->
+            <div class="col">
+                <div class="section">
+                    <h2>4. HV vs VH — Différences clés</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th></th><th>HV (H puis V)</th><th>VH (V puis H)</th></tr>
+                            <tr><td><strong>Ordre</strong></td><td>Filtrer lignes → projeter colonnes</td><td>Projeter colonnes → filtrer lignes</td></tr>
+                            <tr><td><strong>Nb fragments</strong></td><td>n_H × n_V</td><td>≤ n_V × n_H (souvent moins)</td></tr>
+                            <tr><td><strong>Risque</strong></td><td>Aucun</td><td>⚠️ Colonne de filtrage peut avoir été supprimée par V</td></tr>
+                        </table>
+                        <div class="important">VH : si la colonne du prédicat H a été projetée hors de V, le fragment H devient vide ou impossible.</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>5. Fragmentation Dérivée</h2>
+                    <div class="section-content">
+                        <p>Fragments obtenus par jointure avec d'autres fragments, puis projection :</p>
+                        <pre>R1 = π_cols(R ⋈ S1)
+R2 = π_cols(R ⋈ S2)</pre>
+                        <p><span class="badge">Usage</span> Distribuer une table en suivant la localisation d'une autre (semi-jointure implicite).</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>6. Fragmentation Non-Disjointe</h2>
+                    <div class="section-content">
+                        <p>Un même tuple peut apparaître dans <strong>plusieurs fragments</strong>.</p>
+                        <p><strong>Conséquences :</strong></p>
+                        <ul>
+                            <li>Lecture : OK, données redondantes mais complètes.</li>
+                            <li>MAJ (INSERT/UPDATE/DELETE) : propagation requise sur tous les fragments contenant le tuple → coût élevé, risque d'incohérence.</li>
+                        </ul>
+                        <p><span class="badge">Exemple</span> Fragment par région ET par responsable → un vendeur couvrant 2 régions apparaît 2 fois.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Requêtes Distribuées -->
+            <div class="col">
+                <div class="section">
+                    <h2>7. Réécriture pour Exécution Distribuée</h2>
+                    <div class="section-content">
+                        <p><strong>Algorithme de réécriture :</strong></p>
+                        <ol style="margin:2px 0; padding-left:16px;">
+                            <li>Décomposer le <code>WHERE</code> en branches (conditions OR)</li>
+                            <li>Pour chaque prédicat, identifier quels fragments contiennent l'attribut filtré</li>
+                            <li>Éliminer les fragments <em>impossibles</em> par contradiction de prédicat</li>
+                            <li>Combiner les résultats des fragments restants avec <code>UNION</code></li>
+                        </ol>
+                        <pre>-- Requête originale
+SELECT * FROM R WHERE Dur=30 OR Dur=6
+
+-- Après réécriture (fragments : R1:Dur<12, R2:Dur≥12)
+SELECT * FROM R1 WHERE Dur=6   -- Dur=30 éliminé (30<12 faux)
+UNION
+SELECT * FROM R2 WHERE Dur=30  -- Dur=6 éliminé (6<12 vrai → dans R1)</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>8. Élimination Jointures Redondantes</h2>
+                    <div class="section-content">
+                        <p>Si <strong>∀ tuple ∈ R, ∃ clé correspondante ∈ S</strong> (contrainte d'intégrité référentielle garantie) → la jointure avec S est superflue.</p>
+                        <p>Elle peut être supprimée si S n'apporte aucune colonne au SELECT.</p>
+                        <div class="important">Push-down en distribué : appliquer σ et π <em>avant</em> les jointures inter-sites → réduction des transferts réseau.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 1/13 · Fragmentation &amp; Requêtes Distribuées</div>
+    </div>
+
+    <!-- PAGE 2 : OPTIMISATION COÛT + INDEX + VUES MATÉRIALISÉES -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento BD Distribuées — Page 2 : Optimisation Coût, Index &amp; Vues Matérialisées</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : BNLJ -->
+            <div class="col">
+                <div class="section">
+                    <h2>9. BNLJ — Formule &amp; Composants</h2>
+                    <div class="section-content">
+                        <div class="important">
+                            Coût = B(R) + ⌈B(R) / M⌉ × B(S)
+                        </div>
+                        <table>
+                            <tr><th>Variable</th><th>Signification</th></tr>
+                            <tr><td><code>B(R)</code></td><td>Blocs table <em>externe</em> (lue 1 fois)</td></tr>
+                            <tr><td><code>B(S)</code></td><td>Blocs table <em>interne</em> (relue entièrement à chaque lot)</td></tr>
+                            <tr><td><code>M</code></td><td>Taille buffer en blocs (mémoire vive)</td></tr>
+                            <tr><td><code>⌈B(R)/M⌉</code></td><td>Nombre de lots/itérations sur R</td></tr>
+                        </table>
+                        <p><span class="badge">Mnémo</span> "R est chargé, S est relu" — S paie le prix de chaque lot.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>10. BNLJ — Scénarios Numériques</h2>
+                    <div class="section-content">
+                        <p><em>B(Livraison)=2000, B(Fournisseur)=2000, débit=10 000 blocs/s</em></p>
+                        <table>
+                            <tr><th>Scénario</th><th>Coût (blocs)</th><th>Durée</th></tr>
+                            <tr><td>M=1 (externe=Liv.)</td><td>2000 + 2000×2000 = <strong>4 002 000</strong></td><td>~6m40s</td></tr>
+                            <tr><td>M=20 (externe=Liv.)</td><td>2000 + 100×2000 = <strong>202 000</strong></td><td>~20s</td></tr>
+                            <tr><td>M=20 + push-down σ</td><td>2000 + 2×2000 = <strong>6 000</strong></td><td>~0.6s</td></tr>
+                            <tr><td>Inversion rôles (S filtrée tient en mémoire)</td><td><strong>4 000</strong></td><td>~0.4s</td></tr>
+                        </table>
+                        <div class="important">Règle : choisir la plus petite table en interne ; appliquer σ avant jointure.</div>
+                        <p><span class="badge">Inversion</span> Si S filtrée tient dans le buffer → chargée 1 seule fois → coût = B(R) + B(S_filtré).</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Index B-Tree & BJI -->
+            <div class="col">
+                <div class="section">
+                    <h2>11. Index B-Tree</h2>
+                    <div class="section-content">
+                        <p><strong>Efficace pour :</strong> égalité (<code>=</code>), plage (<code>BETWEEN</code>), tri (<code>ORDER BY</code>).</p>
+                        <p><strong>Règle préfixe :</strong> index <code>(A, B, C)</code> utilisable si prédicat porte sur :</p>
+                        <ul>
+                            <li>A seul ✓ — (A, B) ✓ — (A, B, C) ✓</li>
+                            <li>B seul ✗ — C seul ✗ — (B, C) sans A ✗</li>
+                        </ul>
+                        <p><strong>Sélectivité :</strong> utile si résultat &lt; ~5-10% de la table. Au-delà, scan complet peut être préférable.</p>
+                        <pre>CREATE INDEX idx_nom ON R (A, B, C);
+-- Utilisable : WHERE A=1 AND B>5
+-- Inutilisable : WHERE B=3 (A absent)</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>12. Binary Join Index (BJI) — Pipeline</h2>
+                    <div class="section-content">
+                        <p><strong>Structure :</strong> <code>D_RID → {F_RIDs}</code> (pré-matérialise la jointure D⋈F)</p>
+                        <p><strong>Pipeline 4 étapes :</strong></p>
+                        <ol style="margin:2px 0; padding-left:16px;">
+                            <li><strong>Filtre D</strong> : appliquer σ sur dimension → <code>D_RIDs</code></li>
+                            <li><strong>Lookup BJI</strong> : pour chaque D_RID → récupérer <code>F_RIDs</code></li>
+                            <li><strong>Intersection</strong> : croiser les sets F_RIDs de tous les BJIs actifs (opération sur identifiants, pas données physiques)</li>
+                            <li><strong>Accès physique</strong> : lire uniquement les tuples de F désignés</li>
+                        </ol>
+                        <table>
+                            <tr><th>Nb BJIs activés</th><th>Réduction tuples F</th></tr>
+                            <tr><td>1 BJI</td><td>~-41%</td></tr>
+                            <tr><td>2 BJIs</td><td>~-70%</td></tr>
+                            <tr><td>3 BJIs</td><td>~-93%</td></tr>
+                        </table>
+                        <div class="important">Contexte : schéma en étoile OLAP. Coût : maintenance sur INSERT/UPDATE — pertinent pour lecture intensive.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Vues Matérialisées + SQL Référence -->
+            <div class="col">
+                <div class="section">
+                    <h2>13. Vues Matérialisées</h2>
+                    <div class="section-content">
+                        <pre>-- Création
+CREATE MATERIALIZED VIEW v AS
+  SELECT dept, SUM(salaire) FROM Emp GROUP BY dept
+WITH DATA;
+
+-- Rafraîchissement complet
+REFRESH MATERIALIZED VIEW v;
+
+-- Rafraîchissement incrémental (non bloquant)
+REFRESH MATERIALIZED VIEW v CONCURRENTLY;</pre>
+                        <table>
+                            <tr><th>Stratégie</th><th>Déclencheur</th></tr>
+                            <tr><td>On-demand</td><td>Manuel (REFRESH)</td></tr>
+                            <tr><td>On-commit</td><td>Automatique après chaque commit</td></tr>
+                            <tr><td>Scheduled</td><td>Planifié (cron, pg_cron)</td></tr>
+                        </table>
+                        <p><strong>Cas d'usage :</strong> agrégats coûteux, jointures répétées sur données stables.</p>
+                        <p><strong>Réécriture transparente :</strong> l'optimiseur peut substituer la requête originale par la vue mat. si les résultats sont équivalents.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>14. SQL — Référence Compacte</h2>
+                    <div class="section-content">
+                        <p><strong>Sous-requêtes :</strong></p>
+                        <pre>WHERE x IN (SELECT ...)      -- ensemble
+WHERE NOT EXISTS (SELECT ...) -- anti-jointure
+WITH cte AS (SELECT ...) SELECT * FROM cte</pre>
+                        <p><strong>Fenêtrage :</strong></p>
+                        <pre>RANK()       OVER (PARTITION BY d ORDER BY v DESC)
+DENSE_RANK() -- pas de trous dans la numérotation
+ROW_NUMBER() -- numéro unique même à égalité</pre>
+                        <p><strong>CASE :</strong></p>
+                        <pre>CASE WHEN cond THEN val ELSE defaut END</pre>
+                        <p><strong>Jointures (rappel) :</strong> INNER (∩), LEFT (A+NULL), RIGHT (B+NULL), FULL (A∪B+NULLs), NATURAL (⚠️ auto sur noms).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 2/13 · Optimisation Coût, Index &amp; Vues Matérialisées</div>
+    </div>
+
+    <!-- PAGE 3 : OLAP, SCHÉMA ÉTOILE, INDEX EN PROFONDEUR -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento BD Distribuées — Page 3 : OLAP, Schéma Étoile &amp; Index (Concepts)</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : OLAP + Schéma étoile -->
+            <div class="col">
+                <div class="section">
+                    <h2>15. OLAP — Pourquoi ça existe ?</h2>
+                    <div class="section-content">
+                        <p>Les bases OLTP (transactionnelles) sont normalisées pour éviter la redondance. Résultat : une requête analytique comme <em>"total des ventes par région, par mois, par catégorie de produit"</em> nécessite 5-6 jointures sur des millions de lignes → très lent.</p>
+                        <p><strong>OLAP</strong> = stocker les données dans un format dénormalisé, optimisé pour la <em>lecture analytique</em> en acceptant la redondance.</p>
+                        <div class="important">Idée clé : on tolère la redondance pour avoir des lectures rapides. Les données OLAP sont souvent en lecture seule (chargées en batch, pas mises à jour tuple par tuple).</div>
+                        <p><strong>Opérations OLAP typiques :</strong></p>
+                        <ul>
+                            <li><strong>Roll-up :</strong> agréger vers le haut (jour → mois → année)</li>
+                            <li><strong>Drill-down :</strong> décomposer vers le bas (pays → région → ville)</li>
+                            <li><strong>Slice :</strong> fixer une dimension (ex : seulement 2025)</li>
+                            <li><strong>Dice :</strong> sous-cube sur plusieurs dimensions</li>
+                            <li><strong>Pivot :</strong> pivoter les axes d'analyse</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>16. Schéma en Étoile — Structure &amp; Concept</h2>
+                    <div class="section-content">
+                        <p><strong>Table de Faits</strong> = ce qu'on mesure. Très volumineuse (millions à milliards de lignes). Contient : des FK vers chaque dimension + les mesures numériques.</p>
+                        <p><strong>Tables de Dimensions</strong> = le contexte descriptif. Petites (milliers à millions de lignes). Contiennent les attributs qui servent de filtres et de regroupements.</p>
+                        <pre>         Client(id, nom, ville, pays)
+              ↑ FK_Client
+Ventes(FK_Client, FK_Produit, FK_Date, FK_Magasin,
+       montant, quantite, remise)
+              ↓ FK_Produit    ↓ FK_Date
+         Produit(id, nom,  Date(id, jour,
+          categorie, prix)  mois, annee,
+                            trimestre)</pre>
+                        <p><span class="badge">Règle</span> La table de faits ne contient <em>que</em> des FK et des mesures — jamais de libellés textuels (ceux-ci sont dans les dimensions).</p>
+                        <p><strong>Schéma Flocon (Snowflake) :</strong> variante où les dimensions sont elles-mêmes normalisées (ex : Produit → Catégorie → Rayon). Plus économe en espace, mais plus de jointures.</p>
+                        <div class="important">Étoile = 1 jointure par dimension. Flocon = plusieurs jointures par dimension. Étoile préféré en OLAP pour la performance.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Index B-Tree en profondeur + Bitmap -->
+            <div class="col">
+                <div class="section">
+                    <h2>17. Index B-Tree — Fonctionnement Interne</h2>
+                    <div class="section-content">
+                        <p>Un B-Tree est un arbre équilibré. Chaque <strong>nœud interne</strong> contient des clés de routage. Les <strong>feuilles</strong> contiennent les couples (valeur, pointeur vers le tuple physique).</p>
+                        <pre>          [50 | 80]           ← nœud racine
+         /    |    \
+   [20|35] [60|70] [85|95]  ← nœuds internes
+      ↓↓↓    ↓↓↓     ↓↓↓
+   (valeur → RID)           ← feuilles</pre>
+                        <p><strong>Recherche :</strong> descendre depuis la racine en comparant les clés → O(log n), typiquement 3-4 niveaux pour des millions de tuples.</p>
+                        <p><strong>Index Clustered :</strong> les tuples sont physiquement triés dans l'ordre de l'index. 1 seul par table. Idéal pour les plages.</p>
+                        <p><strong>Index Non-Clustered :</strong> les feuilles pointent vers les tuples (qui peuvent être n'importe où). Plusieurs possibles. Chaque accès = 1 I/O aléatoire.</p>
+                        <div class="important">Si la requête ramène >5-10% des tuples, le SGBD ignore l'index et fait un scan complet (moins d'I/O aléatoires). L'optimiseur décide.</div>
+                        <p><strong>Règle préfixe (composite) :</strong> index <code>(A,B,C)</code> → utilisable uniquement si A est dans le prédicat. Sans A, l'arbre ne peut pas être traversé dans le bon ordre.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>18. Index Bitmap — Pour OLAP</h2>
+                    <div class="section-content">
+                        <p>Pour chaque valeur possible d'un attribut, on stocke un vecteur de bits (1 bit par tuple) :</p>
+                        <pre>Couleur   tuple: 1 2 3 4 5 6
+ROUGE          : 1 0 0 1 0 1
+BLEU           : 0 1 0 0 1 0
+VERT           : 0 0 1 0 0 0</pre>
+                        <p><strong>Avantage :</strong> opérations AND/OR/NOT sur les bitmaps = très rapide, traite des millions de tuples en quelques cycles CPU.</p>
+                        <p><span class="badge">Exemple</span> <code>WHERE couleur='ROUGE' AND taille='L'</code> → AND bit-à-bit des deux bitmaps → positions des tuples qualifiants.</p>
+                        <p><strong>Idéal quand :</strong> faible cardinalité (peu de valeurs distinctes : couleur, genre, région). Mauvais sur les attributs à haute cardinalité (id, email).</p>
+                        <div class="important">B-Tree : haute cardinalité, requêtes ponctuelles, OLTP. Bitmap : faible cardinalité, requêtes analytiques multi-critères, OLAP.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : BJI en profondeur + Vues mat. -->
+            <div class="col">
+                <div class="section">
+                    <h2>19. BJI — Pourquoi le B-Tree Ne Suffit Pas</h2>
+                    <div class="section-content">
+                        <p><strong>Problème du schéma étoile :</strong> la table de faits est énorme. Une requête analytique filtre sur plusieurs dimensions à la fois :</p>
+                        <pre>SELECT SUM(montant) FROM Ventes V
+JOIN Client C ON V.FK_Client = C.id
+JOIN Produit P ON V.FK_Produit = P.id
+WHERE C.pays = 'France'
+  AND P.categorie = 'Electronique'</pre>
+                        <p>Avec un B-Tree sur FK_Client : on récupère les tuples France, puis on joint Produit → on lit quand même beaucoup de tuples de Faits inutiles.</p>
+                        <p><strong>Solution BJI :</strong> pré-matérialiser la jointure sous forme de bitmap.</p>
+                        <p>Le BJI entre Client et Ventes = pour chaque tuple Client, la liste des RIDs dans Ventes qui lui correspondent.</p>
+                        <pre>Client RID 42 (France) → Ventes RIDs {1,5,8,12,99,...}
+Client RID 43 (Germany) → Ventes RIDs {3,7,11,...}</pre>
+                        <p><strong>Avec 2 BJIs (Client + Produit) :</strong></p>
+                        <ol style="margin:2px 0; padding-left:16px;">
+                            <li>BJI_Client(pays='France') → set F_RIDs A</li>
+                            <li>BJI_Produit(cat='Electro') → set F_RIDs B</li>
+                            <li>Intersection A ∩ B = F_RIDs qualifiants</li>
+                            <li>Lire <em>seulement</em> ces tuples dans Ventes</li>
+                        </ol>
+                        <div class="important">On n'a jamais touché physiquement à la table Faits jusqu'à l'étape 4. L'intersection est 100% sur des identifiants en mémoire.</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>20. Vues Matérialisées — Cas d'Usage Détaillés</h2>
+                    <div class="section-content">
+                        <p><strong>Quand utiliser une vue mat. :</strong></p>
+                        <ul>
+                            <li>Agrégat coûteux recalculé souvent : <code>SUM, COUNT, AVG</code> sur des millions de lignes</li>
+                            <li>Jointure répétée entre tables stables (dimensions OLAP)</li>
+                            <li>Requête complexe exposée à des utilisateurs BI (Tableau, Power BI)</li>
+                        </ul>
+                        <p><strong>Quand ne pas utiliser :</strong></p>
+                        <ul>
+                            <li>Données très fréquemment mises à jour (fraîcheur compromise)</li>
+                            <li>Requête exécutée une seule fois</li>
+                        </ul>
+                        <p><strong>Réécriture transparente :</strong> l'optimiseur détecte automatiquement que la requête est couverte par une vue mat. → la substitue sans modifier le SQL.</p>
+                        <pre>-- Requête utilisateur
+SELECT region, SUM(montant) FROM Ventes
+GROUP BY region;
+-- → optimiseur utilise silencieusement
+--   la vue mat. pre_ventes_region si elle existe</pre>
+                        <div class="important">Vue simple (VIEW) = juste un alias de requête, recalculée à chaque appel. Vue matérialisée = résultat stocké physiquement sur disque.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 3/13 · OLAP, Schéma Étoile &amp; Index (Concepts)</div>
+    </div>
+
+    <!-- PAGE 4 : ALGORITHMES DE JOINTURE + SEMI-JOINTURE + ALGÈBRE + TRANSACTIONS -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento BD Distribuées — Page 4 : Jointures Avancées, Algèbre &amp; Transactions</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : Algorithmes de jointure + calcul blocs -->
+            <div class="col">
+                <div class="section">
+                    <h2>21. Comparaison Algorithmes de Jointure</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Algo</th><th>Formule coût</th><th>Condition</th></tr>
+                            <tr><td><strong>BNLJ</strong></td><td>B(R) + ⌈B(R)/M⌉ × B(S)</td><td>Toujours applicable</td></tr>
+                            <tr><td><strong>Sort-Merge</strong></td><td>3(B(R)+B(S))</td><td>M suffisant pour trier</td></tr>
+                            <tr><td><strong>Hash Join</strong></td><td>3(B(R)+B(S))</td><td>M ≥ √B(R)</td></tr>
+                            <tr><td><strong>Index NLJ</strong></td><td>B(R) + |R| × coût_idx</td><td>Index sur attr. jointure de S</td></tr>
+                        </table>
+                        <div class="important">Sort-Merge et Hash Join = même coût O(B(R)+B(S)) mais Hash n'exige pas de données triées. BNLJ reste utile quand M est très petit.</div>
+                        <p><strong>BNLJ — Pseudo-code :</strong></p>
+                        <pre>Pour chaque lot de M blocs de R :
+  charger M blocs de R en RAM
+  Pour chaque bloc b de S :
+    Pour chaque r dans le lot :
+      Pour chaque s dans b :
+        si r.A = s.B → émettre (r,s)</pre>
+                        <p><span class="badge">Cas limite</span> M ≥ B(R)+2 → R tient entièrement en RAM → coût = B(R)+B(S).</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>22. Taille en Blocs — Calcul</h2>
+                    <div class="section-content">
+                        <p><code>B(R) = ⌈ NbTuples / FacteurBlocage ⌉</code></p>
+                        <pre>Ex : 20 000 tuples, tuple=200o, bloc=4096o
+FB = ⌊4096/200⌋ = 20
+B(R) = ⌈20000/20⌉ = 1 000 blocs</pre>
+                        <p><strong>Cardinalité d'une jointure :</strong></p>
+                        <p><code>|R⋈S| ≈ |R|×|S| / max(V(A,R), V(A,S))</code></p>
+                        <p>où V(A,T) = nb valeurs distinctes de A dans T.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Semi-jointure + Algèbre + Sélectivité -->
+            <div class="col">
+                <div class="section">
+                    <h2>23. Semi-Jointure Distribuée</h2>
+                    <div class="section-content">
+                        <p><strong>Problème :</strong> R sur site 1, S sur site 2 → transférer une table entière = coûteux.</p>
+                        <ol style="margin:2px 0; padding-left:16px;">
+                            <li>Projeter S sur l'attribut de jointure : <code>S' = π_A(S)</code> → envoyer S' (petit) au site 1</li>
+                            <li>Filtrer R : <code>R' = R ⋉ S'</code> (seules les lignes matchant)</li>
+                            <li>Envoyer R' au site 2 → jointure finale <code>R' ⋈ S</code></li>
+                        </ol>
+                        <div class="important">Gain si |S'| + |R'| ≪ |R| + |S|. Inutile si R matche entièrement avec S.</div>
+                        <pre>R ⋉ S = π_R(R ⋈ S)
+(tuples de R ayant un partenaire dans S)</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>24. Algèbre Relationnelle — Équivalences</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Règle</th><th>Formule</th></tr>
+                            <tr><td>Commutativité ⋈</td><td>R ⋈ S ≡ S ⋈ R</td></tr>
+                            <tr><td>Associativité ⋈</td><td>(R⋈S)⋈T ≡ R⋈(S⋈T)</td></tr>
+                            <tr><td>Push-down σ</td><td>σ_p(R⋈S) ≡ σ_p(R)⋈S si p porte sur R seul</td></tr>
+                            <tr><td>Push-down π</td><td>π_A(R⋈S) ≡ π_A(π_{A∪K}(R) ⋈ π_{A∪K}(S))</td></tr>
+                            <tr><td>σ sur ∪</td><td>σ_p(R∪S) ≡ σ_p(R) ∪ σ_p(S)</td></tr>
+                            <tr><td>σ conjonction</td><td>σ_{p∧q}(R) ≡ σ_p(σ_q(R))</td></tr>
+                        </table>
+                        <p><span class="badge">Principe</span> Toujours descendre σ et π le plus bas possible dans l'arbre → réduire la taille des relations avant les jointures coûteuses.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>25. Estimation Sélectivité</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Prédicat</th><th>Estimation f</th></tr>
+                            <tr><td><code>A = val</code></td><td>1 / V(A,R)</td></tr>
+                            <tr><td><code>A BETWEEN a AND b</code></td><td>(b−a) / (max−min)</td></tr>
+                            <tr><td><code>p AND q</code></td><td>f(p) × f(q)</td></tr>
+                            <tr><td><code>p OR q</code></td><td>f(p)+f(q)−f(p)×f(q)</td></tr>
+                            <tr><td><code>NOT p</code></td><td>1 − f(p)</td></tr>
+                        </table>
+                        <p><code>Tuples résultants ≈ |R| × f</code></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Transactions + ACID + OLTP vs OLAP -->
+            <div class="col">
+                <div class="section">
+                    <h2>26. Transactions Distribuées — 2PC</h2>
+                    <div class="section-content">
+                        <p><strong>2PC (Two-Phase Commit) :</strong> garantir l'atomicité d'un commit sur plusieurs sites.</p>
+                        <p><strong>Phase 1 — Vote :</strong> coordinateur envoie <code>PREPARE</code> à chaque participant. Chacun répond <code>VOTE_COMMIT</code> (données sauvegardées en log) ou <code>VOTE_ABORT</code>.</p>
+                        <p><strong>Phase 2 — Décision :</strong></p>
+                        <ul>
+                            <li>Tous COMMIT → <code>GLOBAL_COMMIT</code> → chaque site commit</li>
+                            <li>≥1 ABORT → <code>GLOBAL_ABORT</code> → chaque site rollback</li>
+                        </ul>
+                        <div class="important">Point de blocage : si le coordinateur tombe <em>après</em> avoir envoyé PREPARE mais <em>avant</em> la décision → participants bloqués indéfiniment (verrous maintenus). 3PC ajoute une phase "pre-commit" pour contourner ce problème.</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>27. OLTP vs OLAP — Comparatif</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th></th><th>OLTP</th><th>OLAP</th></tr>
+                            <tr><td><strong>Usage</strong></td><td>Opérationnel (commandes, paiements)</td><td>Analytique (reporting, BI)</td></tr>
+                            <tr><td><strong>Requêtes</strong></td><td>Simples, rapides, fréquentes</td><td>Complexes, longues, rares</td></tr>
+                            <tr><td><strong>Tuples/req.</strong></td><td>Quelques-uns</td><td>Millions</td></tr>
+                            <tr><td><strong>Écriture</strong></td><td>Intensive (INSERT/UPDATE)</td><td>Rare (chargement batch)</td></tr>
+                            <tr><td><strong>Index</strong></td><td>B-Tree sur PK/FK</td><td>Bitmap, BJI, column store</td></tr>
+                            <tr><td><strong>Modèle</strong></td><td>3NF normalisé</td><td>Étoile / Flocon (dénormalisé)</td></tr>
+                            <tr><td><strong>Vue mat.</strong></td><td>Rarement</td><td>Systématiquement</td></tr>
                         </table>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>3. Agrégats & Groupements</h2>
+                    <h2>28. Propriétés ACID</h2>
                     <div class="section-content">
-                        <p><code>COUNT(*)</code>, <code>SUM()</code>, <code>AVG()</code>, <code>MIN()</code>, <code>MAX()</code></p>
-                        <p><span class="badge">Règle</span> : Toute colonne dans <code>SELECT</code> non agrégée <strong>doit</strong> figurer dans <code>GROUP BY</code>.</p>
-                        <p><code>HAVING</code> s'utilise uniquement avec des fonctions d'agrégation.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- COLONNE 2 -->
-            <div class="col">
-                <div class="section">
-                    <h2>4. Jointures Standards</h2>
-                    <div class="section-content">
-                        <ul>
-                            <li><strong>INNER JOIN</strong> : Intersection stricte.</li>
-                            <li><strong>LEFT JOIN</strong> : Tout A + B correspondant (ou NULL).</li>
-                            <li><strong>LEFT JOIN</strong> : Tout A + B correspondant (ou NULL).</li>
-                            <li><strong>FULL JOIN</strong> : Union des deux (avec NULLs).</li>
-                            <li><strong>NATURAL JOIN</strong> : Jointure auto sur colonnes de même nom (⚠️ DANGEREUX).</li>
-                        </ul>
-                        <p class="important">Piège : Oublier la clause ON crée un produit cartésien (A × B lignes).</p>
-                    </div>
-                </div>
-
-                <div class="section">
-                    <h2>5. Fragmentation (Systèmes Répartis)</h2>
-                    <div class="section-content">
-                        <p><strong>Fragmentation Horizontale (FH) :</strong></p>
-                        <ul>
-                            <li>Découpe par lignes via <code>σ</code> (Sélection).</li>
-                            <li>Fragments disjoints : <code>R1 ∩ R2 = ∅</code>.</li>
-                            <li>Reconstruction : <code>R = R1 ∪ R2 ∪ ...</code> (Union).</li>
-                        </ul>
-                        <p><strong>Fragmentation Verticale (FV) :</strong></p>
-                        <ul>
-                            <li>Découpe par colonnes via <code>π</code> (Projection).</li>
-                            <li>⚠️ La <strong>clé primaire</strong> doit être dans chaque fragment.</li>
-                            <li>Reconstruction : <code>R = F1 ⋈ F2 ⋈ ...</code> (Jointure).</li>
-                        </ul>
-                        <p><strong>Propriétés obligatoires :</strong></p>
-                        <ul>
-                            <li><strong>Complétude :</strong> Aucune donnée perdue.</li>
-                            <li><strong>Reconstructibilité :</strong> Opération inverse possible.</li>
-                            <li><strong>Disjonction :</strong> Pas de duplication (sauf PK en FV).</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- COLONNE 3 -->
-            <div class="col">
-                <div class="section">
-                    <h2>6. Fragmentation Mixte & Ordre</h2>
-                    <div class="section-content">
-                        <p><strong>HV (H puis V) :</strong> On filtre par lignes d'abord. On peut ensuite projeter différemment sur chaque groupe de lignes.</p>
-                        <p><strong>VH (V puis H) :</strong> On projette d'abord. ⚠️ Si la colonne de filtrage de H est supprimée par V, H devient impossible.</p>
-                        <p class="important">Reconstruction mixte : Reconstituer d'abord les horizontaux (Union), puis joindre le tout.</p>
-                    </div>
-                </div>
-
-                <div class="section">
-                    <h2>7. Fonctions Utilitaires</h2>
-                    <div class="section-content">
-                        <p><strong>Texte :</strong> <code>UPPER()</code>, <code>LOWER()</code>, <code>CONCAT(a, b)</code>, <code>SUBSTR(s, start, len)</code>, <code>TRIM()</code>.</p>
-                        <p><strong>Maths :</strong> <code>ROUND(v, d)</code>, <code>COALESCE(val, replacement)</code> (gère les NULLs).</p>
-                        <p><strong>Date :</strong> <code>NOW()</code>, <code>DATE_PART('year', d)</code>, <code>DATEDIFF(end, start)</code>.</p>
+                        <table>
+                            <tr><th>Propriété</th><th>Signification</th></tr>
+                            <tr><td><strong>Atomicité</strong></td><td>Tout ou rien — pas de commit partiel</td></tr>
+                            <tr><td><strong>Cohérence</strong></td><td>Contraintes d'intégrité respectées avant et après</td></tr>
+                            <tr><td><strong>Isolation</strong></td><td>Transactions concurrentes ≡ exécution séquentielle</td></tr>
+                            <tr><td><strong>Durabilité</strong></td><td>Commit persisté sur disque, survit aux pannes</td></tr>
+                        </table>
+                        <p><span class="badge">En distribué</span> ACID est garanti par 2PC pour l'atomicité, et par le journal de transactions (WAL) pour la durabilité.</p>
                     </div>
                 </div>
             </div>
         </div>
-        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 1/2 (Recto)</div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 4/13 · Jointures Avancées, Algèbre &amp; Transactions</div>
     </div>
 
-    <!-- PAGE 2 : AVANCÉ, CBA & INDEX -->
+
+    <!-- PAGE 5 : ALGÈBRE RELATIONNELLE — OPÉRATEURS & REQUÊTES -->
     <div class="page">
         <div class="header">
-            <h1>Mémento SQL & BD — Page 2 : Avancé & Optimisation</h1>
+            <h1>Mémento SQL/Algèbre — Page 5 : Algèbre Relationnelle : Opérateurs &amp; Requêtes</h1>
             <span>Examen 2026</span>
         </div>
         <div class="grid">
-            
-            <!-- COLONNE 1 -->
+
+            <!-- COLONNE 1 : Opérateurs Unaires + Schéma -->
             <div class="col">
                 <div class="section">
-                    <h2>8. Sous-requêtes & CTE</h2>
+                    <h2>Schéma Gestion_Employé (référence)</h2>
                     <div class="section-content">
-                        <p><strong>IN / NOT IN :</strong> Test sur ensemble.</p>
-                        <p><strong>EXISTS / NOT EXISTS :</strong> Plus performant que IN (s'arrête dès le 1er match).</p>
-                        <p><strong>CTE (WITH) :</strong> Lisibilité accrue.</p>
-                        <pre>WITH TableTemp AS (
-  SELECT ... FROM ...
-) SELECT * FROM TableTemp;</pre>
+                        <pre>Employé(NSS, Nom, Prénom, Salaire, NoDep, Supérieur)
+Département(NoDep, NomDep, NSS_Directeur)
+Projet(NoProjet, NomProjet, Lieu)
+Travaille(NSS, NoProjet, NbHeures)</pre>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>9. Logique Conditionnelle (CASE)</h2>
+                    <h2>σ — Sélection (filtre lignes)</h2>
                     <div class="section-content">
-                        <pre>SELECT Name,
- CASE 
-  WHEN Age < 18 THEN 'Enfant'
-  WHEN Age < 65 THEN 'Adulte'
-  ELSE 'Senior'
- END as Tranche
-FROM Personne;</pre>
+                        <div class="important">σ<sub>cond</sub>(R) → conserve les tuples satisfaisant <em>cond</em></div>
+                        <p><span class="badge">Ex</span> <code>σ_{Lieu='Genève'}(Projet)</code> → projets à Genève</p>
+                        <p><span class="badge">SQL</span> <code>SELECT * FROM Projet WHERE Lieu='Genève'</code></p>
+                        <p><strong>Composition :</strong> <code>σ_{p∧q}(R) ≡ σ_p(σ_q(R))</code></p>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>10. Fonctions de Fenêtrage (Over)</h2>
+                    <h2>π — Projection (filtre colonnes)</h2>
                     <div class="section-content">
-                        <p>Calculs sans grouper les lignes.</p>
-                        <pre>SELECT Dept, Salaire,
- RANK() OVER(PARTITION BY Dept ORDER BY Salaire DESC) as Rang
-FROM Employes;</pre>
-                        <ul>
-                            <li><code>PARTITION BY</code> : Définit la fenêtre.</li>
-                            <li><code>ORDER BY</code> : Trie dans la fenêtre.</li>
-                            <li><code>RANK()</code> vs <code>DENSE_RANK()</code> (trous vs pas de trous).</li>
-                        </ul>
+                        <div class="important">π<sub>A,B</sub>(R) → conserve uniquement les colonnes A, B</div>
+                        <p><span class="badge">Ex</span> <code>π_{Nom,Prénom}(Employé)</code></p>
+                        <p><span class="badge">SQL</span> <code>SELECT Nom, Prénom FROM Employé</code></p>
+                        <p>Élimine les doublons automatiquement (opérateur ensembliste).</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>ρ — Renommage (alias d'attribut)</h2>
+                    <div class="section-content">
+                        <div class="important">ρ<sub>ancien→nouveau</sub>(R) — indispensable pour lever l'ambiguïté en auto-jointure</div>
+                        <p><span class="badge">Ex</span> <code>Sup ← ρ_{NSS→NSS_sup}(Employé)</code></p>
+                        <p><span class="badge">SQL</span> <code>FROM Employé E1, Employé E2</code> (alias de table)</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Ordre d'application optimal</h2>
+                    <div class="section-content">
+                        <div class="important">σ avant π : réduire les lignes <em>d'abord</em>, puis les colonnes</div>
+                        <p><strong>R1 :</strong> <code>π<sub>cols</sub>(σ<sub>cond</sub>(R))</code></p>
+                        <p><strong>R2 :</strong> <code>π<sub>cols</sub>(σ<sub>cond</sub>(R ⨝ S))</code></p>
                     </div>
                 </div>
             </div>
 
-            <!-- COLONNE 2 -->
+            <!-- COLONNE 2 : Opérateurs Binaires -->
             <div class="col">
                 <div class="section">
-                    <h2>11. Optimisation Coût (CBA)</h2>
+                    <h2>⨝ — Jointure Naturelle</h2>
                     <div class="section-content">
-                        <p><strong>Modèle de coût :</strong> Principalement basé sur les lectures de blocs (I/O).</p>
-                        <p><strong>Taille en blocs :</strong> <code>B(R) = ⌈ NbTuples / FacteurBlocage ⌉</code>.</p>
-                        <p><strong>Block Nested Loop Join (BNLJ) :</strong></p>
-                        <pre>Coût = B(R) + ⌈ B(R) / M ⌉ × B(S)</pre>
-                        <ul>
-                            <li>R : Table externe (chargée par lots).</li>
-                            <li>S : Table interne (relue entièrement).</li>
-                            <li>M : Taille du Buffer (mémoire vive).</li>
-                        </ul>
-                        <p class="important">Règle d'or : La table interne est relue <code>B(R)/M</code> fois. Toujours mettre la plus petite table en externe pour minimiser les relectures.</p>
+                        <div class="important">R ⨝ S — relie les tuples sur l'attribut de même nom</div>
+                        <p><span class="badge">Ex</span> <code>Employé ⨝ Département</code> (sur NoDep)</p>
+                        <p><span class="badge">SQL</span> <code>Employé JOIN Département USING (NoDep)</code></p>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>12. Optimisation Logique</h2>
+                    <h2>⨝θ — Jointure Thêta (condition explicite)</h2>
                     <div class="section-content">
-                        <p><strong>Push-down selection :</strong> Toujours appliquer <code>σ</code> le plus tôt possible pour réduire la taille des relations avant jointure.</p>
-                        <p><strong>Projection précoce :</strong> Supprimer les colonnes inutiles avant les opérations lourdes.</p>
+                        <div class="important">R ⨝<sub>cond</sub> S — condition quelconque entre attributs</div>
+                        <p><span class="badge">Ex</span> <code>Employé ⨝<sub>Supérieur=NSS_sup</sub> Sup</code></p>
+                        <p><span class="badge">SQL</span> <code>E1 JOIN E2 ON E1.Supérieur = E2.NSS</code></p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Auto-jointure (R3 pattern)</h2>
+                    <div class="section-content">
+                        <p>Copie logique de la table + ρ pour distinguer les rôles :</p>
+                        <pre>Sup ← ρ_{NSS→NSS_sup, Nom→NomSup}(Employé)
+π_{Nom,NomSup}(Employé ⨝_{Supérieur=NSS_sup} Sup)</pre>
+                        <pre>-- SQL
+SELECT E.Nom, S.Nom AS NomSup
+FROM Employé E JOIN Employé S
+     ON E.Supérieur = S.NSS</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Opérateurs Ensemblistes (schémas compatibles)</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Op.</th><th>Sens</th><th>Diagramme</th><th>SQL</th></tr>
+                            <tr><td><strong>∪</strong></td><td>R OU S</td><td>Tout</td><td>UNION</td></tr>
+                            <tr><td><strong>∩</strong></td><td>R ET S</td><td>Centre</td><td>INTERSECT</td></tr>
+                            <tr><td><strong>−</strong></td><td>R sans S</td><td>Gauche excl.</td><td>EXCEPT</td></tr>
+                        </table>
+                        <div class="important">∪ et ∩ commutatives. − non commutative : R−S ≠ S−R.</div>
+                        <p><span class="badge">Condition</span> Schémas compatibles : même nombre et types de colonnes.</p>
                     </div>
                 </div>
             </div>
 
-            <!-- COLONNE 3 -->
+            <!-- COLONNE 3 : Correspondance Algèbre → SQL (R1–R7) -->
             <div class="col">
                 <div class="section">
-                    <h2>13. Indexation : B-Tree & BJI</h2>
+                    <h2>Correspondance Algèbre → SQL : Requêtes R1–R7</h2>
                     <div class="section-content">
-                        <p><strong>B-Tree (Standard) :</strong></p>
-                        <ul>
-                            <li>Efficace pour <code>=, <, >, BETWEEN</code>.</li>
-                            <li>Règle du <strong>préfixe le plus sélectif</strong> : Dans un index composite (A, B), l'ordre doit suivre la probabilité de filtrage.</li>
-                        </ul>
-                        <p><strong>Binary Join Index (BJI) :</strong></p>
-                        <ul>
-                            <li>Mémorise les liens entre une Dimension (D) et une table de Faits (F).</li>
-                            <li>Stocke des paires (D_RID, {F_RIDs}).</li>
-                        </ul>
-                        <div class="important">
-                            Utilisation BJI :<br>
-                            1. Filtre sur Dimension → D_RIDs.<br>
-                            2. Accès BJI → F_RIDs (identifiants faits).<br>
-                            3. Intersection des F_RIDs si multi-index.<br>
-                            4. Lecture physique finale dans F.
-                        </div>
+                        <table>
+                            <tr><th>Req.</th><th>Pattern algèbre</th><th>Pattern SQL</th></tr>
+                            <tr><td><strong>R1</strong></td><td>π + σ (1 table)</td><td><code>SELECT cols FROM T WHERE cond</code></td></tr>
+                            <tr><td><strong>R2</strong></td><td>π + σ + ⨝</td><td><code>SELECT … FROM T1 JOIN T2 ON … WHERE …</code></td></tr>
+                            <tr><td><strong>R3</strong></td><td>σ + ρ + ⨝θ (auto-jointure)</td><td><code>FROM T E1 JOIN T E2 ON E1.A = E2.B</code></td></tr>
+                            <tr><td><strong>R4</strong></td><td>σ×2 + π×3 + ⨝×2</td><td><code>3 JOINs chaînées + 2 WHERE</code></td></tr>
+                            <tr><td><strong>R5</strong></td><td>∪ (union)</td><td><code>SELECT … UNION SELECT …</code></td></tr>
+                            <tr><td><strong>R6</strong></td><td>∩ (intersection)</td><td><code>SELECT … INTERSECT SELECT …</code></td></tr>
+                            <tr><td><strong>R7</strong></td><td>− (différence)</td><td><code>SELECT … EXCEPT SELECT …</code></td></tr>
+                        </table>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>14. Vues Matérialisées</h2>
+                    <h2>R3 — Auto-jointure détaillée</h2>
                     <div class="section-content">
-                        <p>Stocke le résultat sur disque. Doit être rafraîchie.</p>
-                        <pre>CREATE MATERIALIZED VIEW MV AS
-SELECT ... WITH DATA;</pre>
-                        <p>Optimise les requêtes répétitives sur gros volumes.</p>
+                        <p><em>Trouver les employés dont le supérieur travaille à Genève :</em></p>
+                        <pre>π_{Nom}(σ_{Lieu='Genève'}(
+  Employé ⨝_{Supérieur=NSS_sup}
+  ρ_{NSS→NSS_sup}(Employé) ⨝ Travaille ⨝ Projet
+))</pre>
+                        <pre>SELECT E.Nom FROM Employé E
+JOIN Employé S ON E.Supérieur = S.NSS
+JOIN Travaille T ON S.NSS = T.NSS
+JOIN Projet P ON T.NoProjet = P.NoProjet
+WHERE P.Lieu = 'Genève'</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>R5–R7 — Ensemblistes détaillés</h2>
+                    <div class="section-content">
+                        <p><strong>R5 ∪ :</strong> NSS des employés de dep. 5 OU travaillant &gt;10h sur proj. X</p>
+                        <pre>σ_{NoDep=5}(Employé)  ∪
+π_{NSS}(σ_{NbHeures>10 ∧ NoProjet=X}(Travaille))</pre>
+                        <p><strong>R6 ∩ :</strong> NSS travaillant sur proj. 1 ET proj. 2</p>
+                        <pre>π_{NSS}(σ_{NoProjet=1}(T)) ∩ π_{NSS}(σ_{NoProjet=2}(T))</pre>
+                        <p><strong>R7 − :</strong> NSS des employés ne travaillant sur aucun projet</p>
+                        <pre>π_{NSS}(Employé) − π_{NSS}(Travaille)</pre>
                     </div>
                 </div>
             </div>
         </div>
-        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 2/2 (Verso)</div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 5/13 · Algèbre Relationnelle : Opérateurs &amp; Requêtes</div>
+    </div>
+
+    <!-- PAGE 6 : OPTIMISATION SQL — EXPLAIN, INDEX COMPOSITE & VUES MAT. -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento SQL/Algèbre — Page 6 : Optimisation SQL : EXPLAIN, Index Composite &amp; Vues Matérialisées</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : EXPLAIN ANALYZE -->
+            <div class="col">
+                <div class="section">
+                    <h2>EXPLAIN vs EXPLAIN ANALYZE</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th></th><th>EXPLAIN</th><th>EXPLAIN ANALYZE</th></tr>
+                            <tr><td><strong>Exécution</strong></td><td>Non</td><td>Oui (réelle)</td></tr>
+                            <tr><td><strong>Coût</strong></td><td>Estimé</td><td>Estimé + mesuré</td></tr>
+                            <tr><td><strong>Lignes</strong></td><td>Estimation</td><td>Réel vs estimé</td></tr>
+                        </table>
+                        <pre>EXPLAIN ANALYZE
+SELECT * FROM Inscriptions
+WHERE semestre='S1' AND note > 12;</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Métriques clés du plan</h2>
+                    <div class="section-content">
+                        <pre>Seq Scan on Inscriptions
+  (cost=0.00..540.00 rows=850 width=36)
+  (actual time=0.042..12.3 rows=823 loops=1)</pre>
+                        <table>
+                            <tr><th>Métrique</th><th>Sens</th></tr>
+                            <tr><td><code>cost=X..Y</code></td><td>Coût estimé (start..total)</td></tr>
+                            <tr><td><code>actual time=X..Y</code></td><td>Temps réel en ms</td></tr>
+                            <tr><td><code>rows=N</code></td><td>Lignes retournées</td></tr>
+                            <tr><td><code>loops=N</code></td><td>Nb fois ce nœud exécuté</td></tr>
+                        </table>
+                        <div class="important">Lire de bas en haut : les feuilles s'exécutent en premier. L'indentation = hiérarchie des nœuds fils.</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Types de nœuds d'accès</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Nœud</th><th>Complexité</th><th>Quand</th></tr>
+                            <tr><td><strong>Seq Scan</strong></td><td>O(n)</td><td>Toujours possible, coûteux sur grandes tables</td></tr>
+                            <tr><td><strong>Index Scan</strong></td><td>O(log n + k)</td><td>Index disponible, résultat sélectif (&lt;10%)</td></tr>
+                            <tr><td><strong>Index Only Scan</strong></td><td>O(log n)</td><td>Toutes les colonnes dans l'index (covering)</td></tr>
+                            <tr><td><strong>Hash Join</strong></td><td>O(B(R)+B(S))</td><td>Grande table sans ordre</td></tr>
+                            <tr><td><strong>Merge Join</strong></td><td>O(B(R)+B(S))</td><td>Tables triées sur attribut de jointure</td></tr>
+                            <tr><td><strong>Nested Loop</strong></td><td>O(B(R)×B(S))</td><td>Petite relation interne ou index dispo</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Index Composite -->
+            <div class="col">
+                <div class="section">
+                    <h2>Règle d'ordre des colonnes dans l'index</h2>
+                    <div class="section-content">
+                        <div class="important">1. Colonnes d'égalité (=) — 2. Colonnes de range (&lt;, &gt;, BETWEEN) — 3. Colonnes de tri (ORDER BY)</div>
+                        <p><span class="badge">Requête cible</span></p>
+                        <pre>WHERE semestre='S1'    -- égalité
+  AND note > 12        -- range
+ORDER BY nom           -- tri</pre>
+                        <p><span class="badge">Index optimal</span></p>
+                        <pre>CREATE INDEX idx ON Inscriptions (semestre, note, nom);</pre>
+                        <p>L'index <code>(semestre, note)</code> seul permet déjà un <strong>Index Only Scan</strong> si <code>nom</code> est inclus.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Règle préfixe &amp; sélectivité</h2>
+                    <div class="section-content">
+                        <p>Un index <code>(A, B)</code> est utilisable si <strong>A est dans le prédicat</strong> :</p>
+                        <ul>
+                            <li><code>WHERE A=1 AND B>5</code> ✓ — préfixe A présent</li>
+                            <li><code>WHERE B>5</code> ✗ — A absent, index inutilisable</li>
+                        </ul>
+                        <p><strong>Sélectivité :</strong> indexer si le résultat représente &lt; ~5–10% des lignes. Au-delà, le Seq Scan est parfois préféré par l'optimiseur.</p>
+                        <div class="important">Gain mesuré exemple : 2 400 ms → ~40 ms (×60) avec index composite adapté sur (semestre, note)</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Index Covering (Index Only Scan)</h2>
+                    <div class="section-content">
+                        <p>Inclure dans l'index <strong>toutes les colonnes du SELECT</strong> → l'accès au tas (heap) est évité :</p>
+                        <pre>-- Requête
+SELECT nom, note FROM Inscriptions
+WHERE semestre='S1' AND note > 12;
+
+-- Index covering
+CREATE INDEX idx ON Inscriptions
+  (semestre, note, nom);
+-- → Index Only Scan, 0 accès heap</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Vue Matérialisée complète -->
+            <div class="col">
+                <div class="section">
+                    <h2>Vue Matérialisée — Syntaxe Complète</h2>
+                    <div class="section-content">
+                        <pre>-- Création avec données
+CREATE MATERIALIZED VIEW vm_stats_cours AS
+SELECT c.ID_cours, c.NomCours,
+       i.semestre,
+       COUNT(*)           AS nb_inscrits,
+       AVG(i.note)        AS moy,
+       MAX(i.note)        AS max_note
+FROM Inscriptions i
+JOIN Cours c ON i.ID_cours = c.ID_cours
+GROUP BY c.ID_cours, c.NomCours, i.semestre
+WITH DATA;
+
+-- Index unique (OBLIGATOIRE pour CONCURRENTLY)
+CREATE UNIQUE INDEX idx_vm ON vm_stats_cours
+  (ID_cours, semestre);
+
+-- Refresh non bloquant
+REFRESH MATERIALIZED VIEW CONCURRENTLY
+  vm_stats_cours;
+
+-- Refresh bloquant (table inaccessible)
+REFRESH MATERIALIZED VIEW vm_stats_cours;</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>CONCURRENTLY vs bloquant</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th></th><th>CONCURRENTLY</th><th>Standard</th></tr>
+                            <tr><td><strong>Lectures pendant refresh</strong></td><td>✓ Oui</td><td>✗ Bloquées</td></tr>
+                            <tr><td><strong>Index unique requis</strong></td><td>✓ Obligatoire</td><td>Non requis</td></tr>
+                            <tr><td><strong>Coût</strong></td><td>Plus lent</td><td>Plus rapide</td></tr>
+                            <tr><td><strong>Usage</strong></td><td>Production</td><td>Maintenance</td></tr>
+                        </table>
+                        <div class="important">CONCURRENTLY sans index unique → erreur : <em>"cannot refresh concurrently without unique index"</em></div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Réécriture transparente &amp; quand créer</h2>
+                    <div class="section-content">
+                        <p><strong>Réécriture transparente :</strong> l'optimiseur substitue automatiquement si la requête correspond à la vue mat.</p>
+                        <p><strong>Créer quand :</strong> GROUP BY sur &gt;100 000 lignes relus souvent · jointures stables · rapports BI réguliers.</p>
+                        <p><strong>Patterns R7 — différence :</strong></p>
+                        <pre>SELECT NSS FROM Employé
+EXCEPT SELECT NSS FROM Travaille;
+-- ou
+WHERE NSS NOT IN (SELECT NSS FROM Travaille);
+-- ou
+WHERE NOT EXISTS (SELECT 1 FROM Travaille T
+  WHERE T.NSS = E.NSS);</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 6/13 · Optimisation SQL : EXPLAIN, Index Composite &amp; Vues Matérialisées</div>
+    </div>
+
+
+    <!-- PAGE 7 : HASH JOIN PHASES, COMPARAISON ALGOS & PLANS ORACLE -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento BD Distribuées — Page 7 : Hash Join 2 Phases, Comparaison Algos &amp; Plans Oracle</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : Hash Join — 2 Phases & Mémoire -->
+            <div class="col">
+                <div class="section">
+                    <h2>29. Hash Join — 2 Phases Détaillées</h2>
+                    <div class="section-content">
+                        <p><strong>Phase 1 — Partitionnement :</strong> lire R et S, créer k partitions sur disque</p>
+                        <div class="important">Coût phase 1 = 2(|R| + |S|) — 1 lecture + 1 écriture des partitions</div>
+                        <p><strong>Phase 2 — Probing :</strong> pour chaque paire (Ri, Si) :</p>
+                        <ol style="margin:2px 0; padding-left:16px;">
+                            <li>Charger Ri en RAM → construire table de hachage</li>
+                            <li>Scanner Si → sonder la table de hachage</li>
+                        </ol>
+                        <div class="important">Coût phase 2 = |R| + |S| — relecture des partitions</div>
+                        <div class="important">Total = 3(|R| + |S|) = phase 1 + phase 2</div>
+                        <p><strong>Condition mémoire :</strong> M ≥ √|R| + 1</p>
+                        <p>(les partitions de R doivent tenir en mémoire)</p>
+                        <p><strong>Cas optimal (one-pass) :</strong> si |R| ≤ M → phase 1 inutile</p>
+                        <div class="important">Coût one-pass = |R| + |S| (borne inférieure atteinte !)</div>
+                        <p><span class="badge">Exemple</span> R=100 pages, S=1000, M=12</p>
+                        <p>M ≥ √100+1 = 11 ✓ → coût = 3×1100 = <strong>3300 pages</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Comparaison Algorithmes — Conditions Favorables -->
+            <div class="col">
+                <div class="section">
+                    <h2>30. Comparaison Algos — Conditions Favorables</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Algo</th><th>Coût</th><th>Mémoire</th><th>Favorable quand</th></tr>
+                            <tr><td><strong>BNLJ</strong></td><td>B(R) + ⌈B(R)/M⌉×B(S)</td><td>M ≥ 3</td><td>Toujours applicable, M très petit</td></tr>
+                            <tr><td><strong>NLJ optimal</strong></td><td>B(R) + B(S)</td><td>M ≥ B(R)+2</td><td>R tient entièrement en RAM</td></tr>
+                            <tr><td><strong>Sort-Merge</strong></td><td>3(B(R)+B(S))</td><td>M ≥ √B(R)</td><td>Données partiellement triées, ORDER BY final</td></tr>
+                            <tr><td><strong>Hash Join</strong></td><td>3(B(R)+B(S))</td><td>M ≥ √B(R)+1</td><td>Equi-jointure, grands volumes non triés</td></tr>
+                            <tr><td><strong>Index NLJ</strong></td><td>B(R) + |R|×coût_idx</td><td>Index sur S</td><td>S très sélective, index disponible</td></tr>
+                        </table>
+                        <div class="important">Hash Join = Sort-Merge en coût, mais ne nécessite pas de tri préalable. BNLJ reste utile quand M &lt; √B(R).</div>
+                        <p><span class="badge">Choix pratique</span> Données triées → Sort-Merge. Non triées, grandes → Hash Join. Index dispo sur S → Index NLJ.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Plans d'Exécution Oracle -->
+            <div class="col">
+                <div class="section">
+                    <h2>31. Plans d'Exécution Oracle</h2>
+                    <div class="section-content">
+                        <p><strong>Nœuds Oracle ↔ PostgreSQL :</strong></p>
+                        <table>
+                            <tr><th>Oracle</th><th>PostgreSQL</th></tr>
+                            <tr><td><code>TABLE ACCESS FULL</code></td><td>Seq Scan</td></tr>
+                            <tr><td><code>INDEX RANGE SCAN</code></td><td>Index Scan</td></tr>
+                            <tr><td><code>TABLE ACCESS BY ROWID</code></td><td>accès heap via pointeur</td></tr>
+                            <tr><td><code>NESTED LOOPS</code></td><td>Nested Loop Join</td></tr>
+                            <tr><td><code>SORT JOIN</code></td><td>tri préparatoire Merge</td></tr>
+                            <tr><td><code>MERGE JOIN</code></td><td>Sort-Merge Join final</td></tr>
+                        </table>
+                        <div class="important">Lecture Oracle : de bas en haut, de droite à gauche. Les feuilles (numéros élevés) s'exécutent en premier.</div>
+                        <p><strong>Exemple — Hitchcock (3 tables) :</strong></p>
+                        <pre>1: MERGE JOIN
+  2: SORT JOIN
+    3: NESTED LOOPS
+      4: TABLE ACCESS FULL → ARTISTE
+      5: TABLE ACCESS BY ROWID → FILM
+        6: INDEX RANGE SCAN (IDX-ARTISTE-ID)
+  7: SORT JOIN
+    8: TABLE ACCESS FULL → SEANCE</pre>
+                        <p><span class="badge">Optimisation</span> Push-down σ_{Nom='Hitchcock'} sur ARTISTE et σ_{Heure&gt;20} sur SEANCE <strong>avant</strong> les jointures.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 7/13 · Hash Join 2 Phases, Comparaison Algos &amp; Plans Oracle</div>
+    </div>
+
+    <!-- PAGE 8 : SEMI-JOINTURE AVANCÉE, FULL REDUCER & BORNES DE COÛT -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento BD Distribuées — Page 8 : Semi-Jointure Avancée, Full Reducer &amp; Bornes de Coût</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : Semi-Jointure — Coût Détaillé & Condition d'Avantage -->
+            <div class="col">
+                <div class="section">
+                    <h2>32. Semi-Jointure — Coût Détaillé &amp; Condition d'Avantage</h2>
+                    <div class="section-content">
+                        <p><strong>f</strong> = facteur de réduction = fraction de S matchant avec R (0 &lt; f ≤ 1)</p>
+                        <p><strong>3 étapes et coûts :</strong></p>
+                        <table>
+                            <tr><th>Étape</th><th>Opération</th><th>Coût</th></tr>
+                            <tr><td>1</td><td>Projeter R sur attribut jointure A → envoyer π_A(R)</td><td>|R|</td></tr>
+                            <tr><td>2</td><td>Semi-joindre S avec π_A(R) → écrire S' = f·|S|</td><td>|S| + |π_A(R)|</td></tr>
+                            <tr><td>3</td><td>Hash Join R ⋈ S'</td><td>3(|R| + f·|S|)</td></tr>
+                        </table>
+                        <div class="important">Total semi-jointure ≈ 4|R| + |S|(1 + 4f)</div>
+                        <p><strong>Coût jointure directe</strong> (Hash Join) = 3(|R| + |S|)</p>
+                        <p><strong>Condition d'avantage :</strong> semi-jointure &lt; Hash Join direct</p>
+                        <div class="important">4|R| + |S|(1+4f) &lt; 3(|R|+|S|)<br>→ f &lt; (2|S| − |R|) / (4|S|)</div>
+                        <p><span class="badge">Attention</span> Inutile si f ≈ 1 (R et S matchent presque entièrement). Efficace seulement si f est petit (transfert réseau réduit).</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Full Reducer — n-Way Joins -->
+            <div class="col">
+                <div class="section">
+                    <h2>33. Full Reducer — Jointures n-Way</h2>
+                    <div class="section-content">
+                        <p><strong>Problème :</strong> ordonner n jointures est NP-difficile → approche par réduction successive via semi-jointures.</p>
+                        <p><strong>Algorithme Full Reducer (2 passes) :</strong></p>
+                        <p><em>Passe avant</em> (gauche → droite) :</p>
+                        <pre>R₂ ← R₂ ⋉ R₁
+R₃ ← R₃ ⋉ R₂
+...
+Rₙ ← Rₙ ⋉ Rₙ₋₁</pre>
+                        <p><em>Passe arrière</em> (droite → gauche) :</p>
+                        <pre>Rₙ₋₁ ← Rₙ₋₁ ⋉ Rₙ
+...
+R₁ ← R₁ ⋉ R₂</pre>
+                        <p><strong>Jointure finale :</strong> R₁ ⋈ R₂ ⋈ ... ⋈ Rₙ sur les relations réduites</p>
+                        <div class="important">Propriété : après les 2 passes, chaque tuple restant contribue au résultat final — aucun tuple "dangling".</div>
+                        <p><span class="badge">Contexte</span> Optimisation distribuée où le coût réseau domine — on minimise les tuples transférés avant la jointure finale.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Bornes de Coût & Mémoire Optimale BNLJ -->
+            <div class="col">
+                <div class="section">
+                    <h2>34. Borne Inférieure de Coût &amp; Mémoire Optimale BNLJ</h2>
+                    <div class="section-content">
+                        <p><strong>Borne inférieure absolue :</strong> toute jointure R1 ⋈ R2 nécessite de lire chaque tuple au moins une fois :</p>
+                        <div class="important">Coût minimum = |R1| + |R2| (impossible de faire moins)</div>
+                        <p><span class="badge">Exemple</span> R1=100 pages, R2=1000 → borne inf = <strong>1100 pages</strong></p>
+                        <p><strong>Atteindre la borne avec BNLJ :</strong></p>
+                        <p>Condition : R1 (la plus petite) tient dans M−2 pages de buffer</p>
+                        <div class="important">M ≥ |R_petite| + 2 → coût = |R1| + |R2| (optimal)</div>
+                        <p><span class="badge">Exemple</span> M ≥ 100+2 = 102 → coût = 1100 pages = borne inférieure ✓</p>
+                        <p><strong>Impact de M sur le coût BNLJ</strong> (R1=100, R2=1000) :</p>
+                        <table>
+                            <tr><th>M (pages)</th><th>Coût BNLJ</th><th>Ratio / borne</th></tr>
+                            <tr><td>3</td><td>100 + 100×1000 = <strong>100 100</strong></td><td>×91</td></tr>
+                            <tr><td>12</td><td>100 + 10×1000 = <strong>10 100</strong></td><td>×9</td></tr>
+                            <tr><td>52</td><td>100 + 2×1000 = <strong>2 100</strong></td><td>×1.9</td></tr>
+                            <tr><td>102</td><td>100 + 1×1000 = <strong>1 100</strong></td><td>×1.0 ✓</td></tr>
+                        </table>
+                        <div class="important">Chaque doublement de M réduit drastiquement le coût. Investir en mémoire = levier majeur d'optimisation.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 8/13 · Semi-Jointure Avancée, Full Reducer &amp; Bornes de Coût</div>
+    </div>
+
+    <!-- PAGE 9 : FRAGMENTATION HORIZONTALE DÉRIVÉE (FHD) -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento Révision — Similarité BJI &amp; FHD</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : FHD — Définition & Fragmentation Primaire -->
+            <div class="col">
+                <div class="section">
+                    <h2>35. FHD — Définition &amp; Fragmentation Primaire</h2>
+                    <div class="section-content">
+                        <p><strong>Définition :</strong> partitionnement <em>physique</em> d'une table de faits F en fragments, où chaque fragment contient les tuples matchant une combinaison de valeurs de dimensions.</p>
+                        <p><strong>Fragmentation primaire des dimensions</strong> (par prédicat σ) :</p>
+                        <ul>
+                            <li>Student par Level → <code>S_HCSC</code>, <code>S_MCSC</code>, <code>S_MSC</code></li>
+                            <li>Course par Dept → <code>C_Comp</code>, <code>C_Math</code>, <code>C_Stat</code></li>
+                        </ul>
+                        <p><strong>Fragmentation dérivée</strong> de Grades (via semi-jointure) :</p>
+                        <div class="important">G_ij = Grades ⋉ S_i ⋉ C_j</div>
+                        <p>(tuples de Grades matchant S_i ET C_j)</p>
+                        <p>Résultat : 3 × 3 = <strong>9 fragments</strong></p>
+                        <p><strong>Propriétés :</strong></p>
+                        <ul>
+                            <li><strong>Complétude :</strong> ⋃G_ij = Grades</li>
+                            <li><strong>Disjonction :</strong> G_ij ∩ G_kl = ∅ (si i≠k ou j≠l)</li>
+                        </ul>
+                        <p><span class="badge">Schéma étoile</span> Student ← Grades → Course</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : FHD — Construction en 3 Phases + Matrice -->
+            <div class="col">
+                <div class="section">
+                    <h2>36. FHD — Construction en 3 Phases &amp; Matrice</h2>
+                    <div class="section-content">
+                        <p><strong>Phase 1 :</strong> fragmenter Student</p>
+                        <pre>S_HCSC = σ(Level='HCSC')(Student) → StudIds {101, 303, 606}</pre>
+                        <p><strong>Phase 2 :</strong> fragmenter Course</p>
+                        <pre>C_Stat = σ(Dept='Stat')(Course) → CourIds {S402, S466}</pre>
+                        <p><strong>Phase 3 :</strong> distribuer chaque tuple de Grades dans G_{level}_{dept}</p>
+                        <p><strong>Matrice résultante</strong> (RIDs, total = 27 ✓) :</p>
+                        <table>
+                            <tr><th></th><th>Comp</th><th>Math</th><th>Stat</th></tr>
+                            <tr><td><strong>HCSC</strong></td><td>{1,3,6,7,8,15,26}</td><td>{14,25}</td><td><strong>{9,16,24,27}</strong></td></tr>
+                            <tr><td><strong>MCSC</strong></td><td>{2,4,10,13,19}</td><td>{11,12,20}</td><td>{17,18}</td></tr>
+                            <tr><td><strong>MSC</strong></td><td>{5,21,22}</td><td>∅</td><td>{23}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Partition Pruning -->
+            <div class="col">
+                <div class="section">
+                    <h2>37. FHD — Partition Pruning</h2>
+                    <div class="section-content">
+                        <p><strong>Algorithme :</strong> pour chaque prédicat de la requête, éliminer les fragments dont aucun tuple ne peut satisfaire les conditions.</p>
+                        <p><strong>Exemple :</strong> <code>WHERE Level='HCSC' AND Dept='Stat'</code></p>
+                        <p>→ Accès uniquement à <strong>G_HCSC_Stat</strong> = 4 tuples</p>
+                        <p>→ 8 fragments sur 9 ignorés</p>
+                        <div class="important">Gain : 27 → 4 tuples scannés (85% de réduction)</div>
+                        <p><strong>Requête cible :</strong></p>
+                        <pre>SELECT Count(*) FROM Student, Grades, Course
+WHERE Level='HCSC' AND Dept='Stat'
+  AND Student.StudId = Grades.StudId
+  AND Course.CourId = Grades.CourId</pre>
+                        <p>Résultat = <strong>4</strong></p>
+                        <p><span class="badge">Clé</span> Le pruning est automatique : le SGBD route directement vers G_HCSC_Stat sans scanner les 8 autres fragments.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 9/13 · Fragmentation Horizontale Dérivée (FHD)</div>
+    </div>
+
+    <!-- PAGE 10 : BJI STRUCTURES RID, SIMILARITÉ BJI ≡ FHD & COMPARAISON -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento Révision — BJI Structures RID &amp; Similarité BJI ≡ FHD</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : BJI — Structures RID Explicites -->
+            <div class="col">
+                <div class="section">
+                    <h2>38. BJI — Structures RID Explicites</h2>
+                    <div class="section-content">
+                        <p><strong>JI₁</strong> indexé par Student.Level (RIDs dans Grades) :</p>
+                        <pre>JI₁['HCSC'] = {1,3,6,7,8,9,14,15,16,24,25,26,27} → 13 RIDs
+JI₁['MCSC'] = {2,4,10,11,12,13,17,18,19,20}    → 10 RIDs
+JI₁['MSC']  = {5,21,22,23}                      →  4 RIDs</pre>
+                        <p><strong>JI₂</strong> indexé par Course.Dept (RIDs dans Grades) :</p>
+                        <pre>JI₂['Comp'] = {1,2,3,4,5,6,7,8,10,13,15,19,21,22,26} → 15 RIDs
+JI₂['Math'] = {11,12,14,20,25}                       →  5 RIDs
+JI₂['Stat'] = {9,16,17,18,23,24,27}                  →  7 RIDs</pre>
+                        <p><strong>Évaluation requête</strong> (<code>Level='HCSC' AND Dept='Stat'</code>) :</p>
+                        <pre>L₁ ∩ L₂ = JI₁['HCSC'] ∩ JI₂['Stat']
+        = {1,3,6,7,8,9,14,15,16,24,25,26,27}
+          ∩ {9,16,17,18,23,24,27}
+        = {9, 16, 24, 27}   → Count(*) = 4</pre>
+                        <div class="important">27 tuples totaux → 4 accédés → 85% de réduction</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Comparaison BJI vs FHD -->
+            <div class="col">
+                <div class="section">
+                    <h2>39. Comparaison BJI vs FHD</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Critère</th><th>BJI</th><th>FHD</th></tr>
+                            <tr><td><strong>Mécanisme</strong></td><td>Intersection RIDs (logique)</td><td>Routage vers partition (physique)</td></tr>
+                            <tr><td><strong>Stockage</strong></td><td>Structures d'index auxiliaires</td><td>Réorganisation physique des données</td></tr>
+                            <tr><td><strong>Maintenance</strong></td><td>Rebuild index sur INSERT/UPDATE</td><td>Réorganisation coûteuse si schéma change</td></tr>
+                            <tr><td><strong>Flexibilité</strong></td><td>Haute (multi-BJI possible)</td><td>Faible (schéma fixé à la fragmentation)</td></tr>
+                            <tr><td><strong>Transparence</strong></td><td>Transparente pour l'application</td><td>Visible dans le schéma</td></tr>
+                            <tr><td><strong>Résultat</strong></td><td>{9,16,24,27}</td><td>Identique (4 tuples)</td></tr>
+                        </table>
+                        <p><strong>Insight Clé — Similarité :</strong></p>
+                        <div class="important">L₁ ∩ L₂ = {9,16,24,27} ≡ G_HCSC_Stat → même résultat</div>
+                        <ul>
+                            <li>FHD = matérialisation <em>physique</em> de ce que BJI représente <em>logiquement</em></li>
+                            <li>Les deux pré-calculent la sélectivité de la jointure</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Quand Choisir BJI vs FHD -->
+            <div class="col">
+                <div class="section">
+                    <h2>40. Quand Choisir BJI vs FHD</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Scénario</th><th>Choix</th></tr>
+                            <tr><td>Schéma étoile OLAP, lecture intensive</td><td>BJI</td></tr>
+                            <tr><td>Requêtes ad hoc sur attributs variés</td><td>BJI (flexible)</td></tr>
+                            <tr><td>Jointures toujours sur mêmes dimensions</td><td>FHD</td></tr>
+                            <tr><td>Données rarement modifiées (batch)</td><td>FHD</td></tr>
+                            <tr><td>Mises à jour fréquentes</td><td>BJI (moins coûteux)</td></tr>
+                            <tr><td>Plusieurs dimensions (multi-BJI)</td><td>BJI (−70% à −93%)</td></tr>
+                        </table>
+                        <p><strong>Règle générale :</strong> BJI si flexibilité requise, FHD si schéma stable et gains maximaux.</p>
+                        <div class="important">Complémentarité : on peut combiner BJI sur une dimension + FHD sur une autre</div>
+                        <p><strong>Performance</strong> (27 tuples Grades) :</p>
+                        <ul>
+                            <li>Sans optimisation : 27 tuples scannés</li>
+                            <li>Avec BJI ou FHD : 4 tuples → <strong>6.75× speedup</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 10/13 · BJI Structures RID, Similarité BJI ≡ FHD &amp; Comparaison</div>
+    </div>
+
+    <!-- PAGE 11 : SÉLECTION D'INDEX & IJB BITMAP -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento BD Distribuées — Page 11 : Sélection d'Index &amp; IJB Bitmap</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : Méthodologie Sélection d'Index -->
+            <div class="col">
+                <div class="section">
+                    <h2>41. Méthodologie de Sélection d'Index</h2>
+                    <div class="section-content">
+                        <p><strong>3 étapes :</strong></p>
+                        <ol style="margin:2px 0; padding-left:16px;">
+                            <li><strong>Identifier les candidats</strong> : parcourir chaque requête, relever chaque attribut dans prédicat WHERE/JOIN/ORDER BY → liste des candidats avec leur fréquence</li>
+                            <li><strong>Classifier le type</strong> selon le prédicat dominant et la cardinalité :
+                                <ul>
+                                    <li>Égalité + haute cardinalité → <strong>B-tree</strong></li>
+                                    <li>Égalité + faible cardinalité (&lt; 100 valeurs distinctes) → <strong>Bitmap</strong></li>
+                                    <li>Égalité seule, pas de range ni sort → <strong>Hash</strong></li>
+                                    <li>Range ou ORDER BY → <strong>B-tree</strong> obligatoire</li>
+                                </ul>
+                            </li>
+                            <li><strong>Sélectionner le top-k</strong> : priorité aux attributs couvrant le plus de requêtes, puis à la sélectivité la plus forte</li>
+                        </ol>
+                        <p><span class="badge">Exemple (base HR, 7 requêtes R1–R7)</span></p>
+                        <table>
+                            <tr><th>Candidat</th><th>Type</th><th>Requêtes</th></tr>
+                            <tr><td><code>Employe(Nom, Prénom)</code></td><td>B-tree composite</td><td>R1, R3, R5</td></tr>
+                            <tr><td><code>Travaille(NSS)</code></td><td>B-tree</td><td>R5, R6, R7</td></tr>
+                            <tr><td><code>Travaille(N°Pro, Heures)</code></td><td>B-tree composite</td><td>R4, R5, R6</td></tr>
+                        </table>
+                        <div class="important">Règle composite : colonne la plus sélective en 1ère position ; ajouter les colonnes additionnelles si elles éliminent un accès table (index covering).</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Types d'Index — Matrice de Décision -->
+            <div class="col">
+                <div class="section">
+                    <h2>42. Types d'Index — Matrice de Décision</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Critère</th><th>B-tree</th><th>Bitmap</th><th>Hash</th></tr>
+                            <tr><td><strong>Prédicats</strong></td><td>Égalité + range + sort</td><td>Égalité seulement</td><td>Égalité seulement</td></tr>
+                            <tr><td><strong>Cardinalité</strong></td><td>Toutes</td><td>Faible (&lt; 100 val.)</td><td>Toutes</td></tr>
+                            <tr><td><strong>Charge</strong></td><td>OLTP + OLAP</td><td>OLAP (lecture)</td><td>OLTP (lookup)</td></tr>
+                            <tr><td><strong>AND/OR</strong></td><td>Non-natif</td><td><strong>Natif</strong> (bit ops)</td><td>Non</td></tr>
+                            <tr><td><strong>INSERT lourd ?</strong></td><td>Incrémental</td><td>Coûteux</td><td>Incrémental</td></tr>
+                            <tr><td><strong>Exemples</strong></td><td>Employe(Nom)</td><td>Grades(Level)</td><td>Session(Token)</td></tr>
+                        </table>
+                        <p><strong>Choix multi-attribut :</strong></p>
+                        <ul>
+                            <li>Composite B-tree si colonnes apparaissent ensemble dans WHERE</li>
+                            <li>Multi-Bitmap si colonnes de dimension faible cardinalité → AND direct</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : IJB — Construction Bitmap & AND -->
+            <div class="col">
+                <div class="section">
+                    <h2>43. IJB — Construction Bitmap &amp; AND Operation</h2>
+                    <div class="section-content">
+                        <p><strong>Données TD2 Ex2 :</strong> Grades = 26 tuples ; Student (6), Course (7)</p>
+                        <p><strong>ijb_grade_level[Level='MSC']</strong> (MSC = Carol/Ahmad/Philip) :</p>
+                        <pre>RID: 1..9  10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+Bit: 0 0 1 1 1 0 0 0 0 0  1  1  1  1  1  1  1  0  1  1  0  1  1  1  0  0</pre>
+                        <p><strong>ijb_grade_dept[Dept='Stat']</strong> (Stat = M444, S466) :</p>
+                        <pre>RID: 1..9  10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+Bit: 0 0 0 0 0 0 0 0 1 0   0  0  0  0  0  0  1  1  0  0  1  1  0  0  0  0</pre>
+                        <p><strong>Opération AND :</strong></p>
+                        <pre>MSC : ...1 1 1 1 1 0 1 1 0 1 1 1 0 0
+Stat: ...0 0 0 1 1 0 0 0 1 1 0 0 0 0
+AND : ...0 0 0 1 0 0 0 0 0 1 0 0 0 0
+               ↑               ↑
+             RID 17           RID 22</pre>
+                        <div class="important">Count(*) = 2 (Philip/S466 et Ahmad/M444)<br>Coût : <strong>0 tuple</strong> de Grades accédé (opérations bit pures) vs 39 minimum sans IJB (26+6+7)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 11/13 · Sélection d'Index &amp; IJB Bitmap (TD2 Ex1-Ex2)</div>
+    </div>
+
+    <!-- PAGE 12 : RBA — OPTIMISATION LOGIQUE -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento BD Distribuées — Page 12 : RBA — Optimisation Logique</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : Règles RBA R1–R8 -->
+            <div class="col">
+                <div class="section">
+                    <h2>44. Règles RBA R1–R8</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Règle</th><th>Nom</th><th>Transformation</th></tr>
+                            <tr><td><strong>R1</strong></td><td>Cascade σ</td><td><code>σ_{C₁∧C₂}(E) ≡ σ_{C₁}(σ_{C₂}(E))</code></td></tr>
+                            <tr><td><strong>R2</strong></td><td>Commutativité σ</td><td><code>σ_{C₁}(σ_{C₂}(E)) ≡ σ_{C₂}(σ_{C₁}(E))</code></td></tr>
+                            <tr><td><strong>R3</strong></td><td>Push-down sur ×</td><td><code>σ_C(R×S) ≡ σ_C(R)×S</code> si C ne réf. que R</td></tr>
+                            <tr><td><strong>R4</strong></td><td>Synthèse jointure</td><td><code>σ_{R.A=S.B}(R×S) ≡ R ⋈_{R.A=S.B} S</code></td></tr>
+                            <tr><td><strong>R5</strong></td><td>Push-down sur ⋈</td><td><code>σ_C(R⋈S) ≡ σ_C(R)⋈S</code> si C ne réf. que R</td></tr>
+                            <tr><td><strong>R6</strong></td><td>Commutativité ⋈</td><td><code>R⋈S ≡ S⋈R</code></td></tr>
+                            <tr><td><strong>R7</strong></td><td>Associativité ⋈</td><td><code>(R⋈S)⋈T ≡ R⋈(S⋈T)</code></td></tr>
+                            <tr><td><strong>R8</strong></td><td>Cascade π</td><td><code>π_{L₁}(π_{L₂}(E)) ≡ π_{L₁}(E)</code> si L₁⊆L₂</td></tr>
+                        </table>
+                        <div class="important">R3 = règle clé : descendre σ avant × réduit massivement les volumes intermédiaires avant toute jointure.</div>
+                        <p><span class="badge">Note</span> R4 est invisible en SQL mais le plan naïf commence par un produit cartésien ; cette règle le convertit en équi-jointure efficace.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Application RBA — Exemple Pas-à-Pas -->
+            <div class="col">
+                <div class="section">
+                    <h2>45. Application RBA — Exemple Pas-à-Pas</h2>
+                    <div class="section-content">
+                        <p><strong>Requête Q4 (TD2 Ex3) :</strong></p>
+                        <pre>SELECT Count(*) FROM Student, Grades, Course
+WHERE Level='MSC' AND Dept='Stat'
+  AND Student.StudId = Grades.StudId
+  AND Grades.CourId  = Course.CourId</pre>
+                        <p><strong>Plan naïf :</strong></p>
+                        <pre>γ_{Count(*)}( σ_{Level='MSC'∧Dept='Stat'∧joins}
+             ((Student × Grades) × Course) )
+Volume : 6 × 26 × 7 = 1 092 tuples avant filtre</pre>
+                        <p><strong>Transformations RBA :</strong></p>
+                        <pre>R1×4 : cascader les 4 prédicats
+R3×2 : push-down Level='MSC' → Student
+        push-down Dept='Stat' → Course
+R4×2 : synthétiser 2 jointures</pre>
+                        <p><strong>Plan optimisé :</strong></p>
+                        <pre>γ_{Count(*)}(
+  ( σ_{Level='MSC'}(Student) ⋈_{StudId} Grades )
+              ⋈_{CourId} σ_{Dept='Stat'}(Course)
+)</pre>
+                        <table>
+                            <tr><th>Étape</th><th>Volume</th></tr>
+                            <tr><td>Naïf complet</td><td>1 092 tuples</td></tr>
+                            <tr><td>Après push-down σ(MSC)</td><td>3 × 26 × 7 = 546</td></tr>
+                            <tr><td>Après push-down σ(Stat)</td><td>3 × 26 × 2 = 156</td></tr>
+                            <tr><td>Après jointures effectives</td><td><strong>2 tuples</strong> (Count=2)</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Ordre des Jointures & Sélectivité -->
+            <div class="col">
+                <div class="section">
+                    <h2>46. Ordre des Jointures &amp; Facteurs de Sélectivité</h2>
+                    <div class="section-content">
+                        <p><strong>Facteurs de sélectivité (Ex2) :</strong></p>
+                        <pre>fs(Level='MSC') = 3/6  = 0.50
+fs(Dept='Stat') = 2/7  ≈ 0.29
+Estimation qualif. = 26 × 0.5 × 0.29 ≈ 3.7  (réel : 2)</pre>
+                        <p><strong>Plan A vs Plan B :</strong></p>
+                        <table>
+                            <tr><th>Étape</th><th>Plan A</th><th>Plan B</th></tr>
+                            <tr><td>Filtre 1</td><td>σ(MSC) → <strong>3</strong> students</td><td>σ(Stat) → <strong>2</strong> courses</td></tr>
+                            <tr><td>Join 1</td><td>3 ⋈ Grades ≈ <strong>13</strong></td><td>2 ⋈ Grades ≈ <strong>10</strong></td></tr>
+                            <tr><td>Join 2</td><td>13 ⋈ σ(Stat) ≈ <strong>2</strong></td><td>10 ⋈ σ(MSC) ≈ <strong>2</strong></td></tr>
+                            <tr><td>Verdict</td><td>Correct</td><td><strong>Préférable</strong></td></tr>
+                        </table>
+                        <div class="important">Règle d'or : appliquer en premier la sélection la plus sélective (fs le plus petit). Ici Dept='Stat' (fs≈0.29) &lt; Level='MSC' (fs=0.50) → Plan B part de Course → meilleur.</div>
+                        <p><strong>Sélectivité composite :</strong></p>
+                        <pre>|R ⋈ S| ≈ |R| × |S| / max(V(R,A), V(S,A))
+V(R,A) = nombre de valeurs distinctes de A dans R</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 12/13 · RBA : Règles R1-R8, Plan Naïf → Optimisé, Ordre des Jointures (TD2 Ex3)</div>
+    </div>
+
+    <!-- PAGE 13 : VUES MATÉRIALISÉES AVANCÉES -->
+    <div class="page">
+        <div class="header">
+            <h1>Mémento BD — Page 13 : Vues Matérialisées Avancées (TD_VM)</h1>
+            <span>Examen 2026</span>
+        </div>
+        <div class="grid">
+
+            <!-- COLONNE 1 : Analyse Coût Direct vs VM + Fréquence de Refresh -->
+            <div class="col">
+                <div class="section">
+                    <h2>Analyse Coût : Direct vs VM (Q1.3)</h2>
+                    <div class="section-content">
+                        <p><strong>Données :</strong> Etudiants=50k, Inscriptions=500k, <strong>100 requêtes/jour</strong></p>
+                        <table>
+                            <tr><th>Mode</th><th>Coût par exécution</th><th>Coût journalier</th></tr>
+                            <tr><td><strong>Direct</strong></td><td>JOIN 550k lignes + GROUP BY</td><td>×100 opérations lourdes</td></tr>
+                            <tr><td><strong>VM</strong></td><td>Lecture 50k lignes (index)</td><td>1 refresh + 100 lectures légères</td></tr>
+                        </table>
+                        <div class="important">Gain ≈ ×100 sur temps de réponse — Fraîcheur max 24h (acceptable en contexte académique) — Stockage VM : ~50k lignes (coût marginal)</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Décision Fréquence de Refresh (Q1.7)</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Fréquence</th><th>Avantages</th><th>Inconvénients</th><th>Contexte</th></tr>
+                            <tr><td><strong>Quotidienne (02h)</strong></td><td>1 recalcul/jour</td><td>Données max 24h</td><td><strong>Académique ✓</strong></td></tr>
+                            <tr><td>Horaire</td><td>Fraîcheur 1h</td><td>24× plus de calculs</td><td>Dashboards quasi-réel</td></tr>
+                            <tr><td>Temps-réel</td><td>Données fraîches</td><td>Coût INSERT élevé, perd l'intérêt VM</td><td>Trading, urgences</td></tr>
+                            <tr><td>Hebdomadaire</td><td>Coût minimal</td><td>Données très périmées</td><td>Archivage</td></tr>
+                        </table>
+                        <p><span class="badge">Recommandation</span> <code>pg_cron</code> + <code>REFRESH CONCURRENTLY</code> à 02:00 quotidien</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 2 : Pièges & Bonnes Pratiques -->
+            <div class="col">
+                <div class="section">
+                    <h2>Piège : COUNT sans DISTINCT (Q1.4)</h2>
+                    <div class="section-content">
+<pre>-- Enseignant avec 3 affectations :
+-- JOIN Affectations → 3 lignes pour 1 enseignant
+COUNT(ID_enseignant)          = 3  ✗ (compte affectations)
+COUNT(DISTINCT ID_enseignant) = 1  ✓ (compte personnes)</pre>
+                        <div class="important">Règle : dès qu'un JOIN peut dupliquer des lignes, utiliser <code>COUNT(DISTINCT x)</code></div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>NULLS LAST (Q1.8)</h2>
+                    <div class="section-content">
+<pre>ORDER BY Moyenne_Generale DESC NULLS LAST
+-- Sans NULLS LAST : NULLs apparaissent en tête en DESC</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>NULL Safety (Q1.6)</h2>
+                    <div class="section-content">
+<pre>COALESCE(SUM(nb_heures), 0)
+-- 0 si aucune affectation
+
+NULLIF(COUNT(DISTINCT cours), 0)
+-- NULL si 0 cours (évite division par zéro)
+
+AVG(note) / NULLIF(nb_cours, 0)
+-- division par zéro → NULL (safe)</pre>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Index Composite sur VM (Q1.10)</h2>
+                    <div class="section-content">
+<pre>-- Requête : WHERE Niveau='X' ORDER BY Moyenne DESC
+CREATE INDEX idx_vm_perf_niveau_moy
+  ON VM_Performance_Etudiants
+  (Niveau, Moyenne_Generale DESC NULLS LAST);</pre>
+                        <div class="important">Index covering : si toutes les colonnes du SELECT sont dans l'index → Index-only scan (0 accès heap)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE 3 : Évolution Schéma & Maintenance Incrémentale -->
+            <div class="col">
+                <div class="section">
+                    <h2>Évolution du Schéma Source (Q1.12)</h2>
+                    <div class="section-content">
+                        <table>
+                            <tr><th>Changement</th><th>Impact VM</th><th>Action</th></tr>
+                            <tr><td>Ajouter colonne non utilisée</td><td>Aucun</td><td>Optionnel : REFRESH</td></tr>
+                            <tr><td>Inclure la nouvelle colonne</td><td>VM ne la voit pas</td><td><code>CREATE OR REPLACE MATERIALIZED VIEW</code></td></tr>
+                            <tr><td>Renommer colonne référencée</td><td>VM invalide</td><td>Recréer la VM</td></tr>
+                            <tr><td>Supprimer colonne référencée</td><td>Erreur au REFRESH</td><td>Recréer la VM</td></tr>
+                        </table>
+                        <p><span class="badge">Règle</span> La VM est indépendante des changements source tant que ses colonnes référencées existent.</p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Maintenance Incrémentale (Ex3)</h2>
+                    <div class="section-content">
+<pre>Propriété (distributivité) :
+  (A ∪ B) ⋈ C = (A ⋈ C) ∪ (B ⋈ C)
+
+V = R ⋈ S ⋈ T
+Insertion ΔR → ΔV = ΔR ⋈ S ⋈ T</pre>
+                        <table>
+                            <tr><th>Mode</th><th>Coût</th></tr>
+                            <tr><td>Full recalcul</td><td>B(R)+B(S)+B(T) ≈ 3 000 000 blocs</td></tr>
+                            <tr><td>Incrémental</td><td>B(ΔR) ⋈ S ⋈ T ≈ 500 blocs</td></tr>
+                        </table>
+                        <div class="important">Économie ≈ ×6 000 — Contrainte : S et T ne changent pas pendant l'insertion</div>
+<pre>Généralisation (ΔR et ΔS simultanés) :
+V_new = (R∪ΔR) ⋈ (S∪ΔS) ⋈ T
+→ 4 termes (ΔR∩ΔS souvent ≈ ∅)</pre>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div style="text-align: center; font-size: 7pt; margin-top: 5px;">Mémento Révision — Page 13/13 · Vues Matérialisées Avancées : Coût, Pièges, Index &amp; Maintenance Incrémentale</div>
     </div>
 
 </body>

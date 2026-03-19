@@ -9,5 +9,612 @@
 
     <h2>Exercice 2 — Index de jointure binaire</h2>
 
+    <!-- ── EN-TÊTE ── -->
+    <div class="exo-header">
+        <div class="exo-meta">
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+            <span class="exo-points">◎ 16 pts</span>
+            <span class="exo-time">⏱ 40–55 min</span>
+        </div>
+        <div class="objectifs">
+            <strong>Objectifs</strong>
+            <ul>
+                <li>Distinguer table de faits et tables de dimension dans un schéma en étoile</li>
+                <li>Calculer les facteurs de sélectivité des prédicats de sélection</li>
+                <li>Concevoir des index de jointure binaire (IJB / <em>Bitmap Join Index</em>)</li>
+                <li>Décrire la séquence d'opérations bit-à-bit qui remplace un parcours de table</li>
+            </ul>
+        </div>
+        <p class="exo-prereq"><strong>Prérequis :</strong> <em>Optimisation logique</em> · <em>Index et structures d'accès</em></p>
+    </div>
+
+    <!-- ── CONTEXTE ── -->
+    <div class="context-block">
+        <h3>Contexte — Base de données universitaire</h3>
+        <p>
+            Une base de données universitaire maintient les inscriptions aux cours et les notes des étudiants.
+            Le schéma comporte une <strong>table de faits</strong> centrale (<code>Grades</code>) et deux
+            <strong>tables de dimension</strong> (<code>Student</code>, <code>Course</code>).
+            Aucun index secondaire n'existe au départ — seules les clés primaires sont indexées.
+        </p>
+
+        <div class="two-col">
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>RID</th><th>StudentId</th><th>Name</th><th>Level</th></tr></thead>
+                    <tbody>
+                        <tr><td>1</td><td>101</td><td>Aif</td><td>HCSC</td></tr>
+                        <tr><td>2</td><td>202</td><td>Grant</td><td>MCSC</td></tr>
+                        <tr><td>3</td><td>303</td><td>Carol</td><td>MSC</td></tr>
+                        <tr><td>4</td><td>404</td><td>Ahmad</td><td>MSC</td></tr>
+                        <tr><td>5</td><td>505</td><td>Philip</td><td>MSC</td></tr>
+                        <tr><td>6</td><td>606</td><td>Nicolas</td><td>HCSC</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>RID</th><th>CourId</th><th>Name</th><th>Dept</th></tr></thead>
+                    <tbody>
+                        <tr><td>1</td><td>C306</td><td>Comm</td><td>Comp</td></tr>
+                        <tr><td>2</td><td>C422</td><td>Comm</td><td>Comp</td></tr>
+                        <tr><td>3</td><td>M330</td><td>Calc</td><td>Math</td></tr>
+                        <tr><td>4</td><td>C442</td><td>IDBI</td><td>Comp</td></tr>
+                        <tr><td>5</td><td>M444</td><td>BioS</td><td>Stat</td></tr>
+                        <tr><td>6</td><td>S402</td><td>Algeb</td><td>Math</td></tr>
+                        <tr><td>7</td><td>S466</td><td>Stat</td><td>Stat</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p><strong>Table des faits — Grades</strong> (26 tuples, identifiés par leur RID de 1 à 26) :</p>
+        <div class="table-glass">
+            <table>
+                <thead>
+                    <tr><th>RID</th><th>CourId</th><th>StudentId</th><th>Grade</th>
+                        <th>RID</th><th>CourId</th><th>StudentId</th><th>Grade</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1</td><td>C306</td><td>101</td><td>A+</td>  <td>14</td><td>S402</td><td>404</td><td>B</td></tr>
+                    <tr><td>2</td><td>C306</td><td>202</td><td>A</td>   <td>15</td><td>C442</td><td>404</td><td>A+</td></tr>
+                    <tr><td>3</td><td>C306</td><td>303</td><td>B</td>   <td>16</td><td>C442</td><td>505</td><td>B</td></tr>
+                    <tr><td>4</td><td>C306</td><td>404</td><td>A+</td>  <td>17</td><td>S466</td><td>505</td><td>B-</td></tr>
+                    <tr><td>5</td><td>C306</td><td>505</td><td>A+</td>  <td>18</td><td>M444</td><td>606</td><td>B</td></tr>
+                    <tr><td>6</td><td>C422</td><td>101</td><td>A+</td>  <td>19</td><td>C442</td><td>404</td><td>B</td></tr>
+                    <tr><td>7</td><td>C422</td><td>202</td><td>A+</td>  <td>20</td><td>C442</td><td>505</td><td>B</td></tr>
+                    <tr><td>8</td><td>M330</td><td>202</td><td>B+</td>  <td>21</td><td>S466</td><td>606</td><td>B+</td></tr>
+                    <tr><td>9</td><td>M444</td><td>202</td><td>B-</td>  <td>22</td><td>M444</td><td>404</td><td>A+</td></tr>
+                    <tr><td>10</td><td>C442</td><td>202</td><td>B</td>  <td>23</td><td>C442</td><td>404</td><td>A+</td></tr>
+                    <tr><td>11</td><td>C442</td><td>303</td><td>A+</td> <td>24</td><td>C422</td><td>505</td><td>B-</td></tr>
+                    <tr><td>12</td><td>C442</td><td>303</td><td>A</td>  <td>25</td><td>C442</td><td>606</td><td>B-</td></tr>
+                    <tr><td>13</td><td>S402</td><td>303</td><td>B-</td> <td>26</td><td>S402</td><td>606</td><td>A+</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout-info">
+            <strong>Requête Q à optimiser :</strong>
+        </div>
+        <pre><code>SELECT Count(*)
+FROM   Student, Grades, Course
+WHERE  Level     = 'MSC'
+  AND  Student.StudentId = Grades.StudentId
+  AND  Course.CourId     = Grades.CourId
+  AND  Dept      = 'Stat';</code></pre>
+    </div>
+
+    <!-- ── RAPPEL DE COURS ── -->
+    <button class="hint-btn" data-hint="rappel-ijb" data-label="Rappel de cours — Index de jointure binaire" data-close-label="Masquer le rappel" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Rappel de cours — Index de jointure binaire</span>
+    </button>
+    <div class="hint" id="rappel-ijb">
+        <p><strong>Principe :</strong> un index de jointure binaire (IJB, ou <em>Bitmap Join Index</em>) est construit sur la <strong>table de faits</strong> mais indexe des attributs issus d'une <strong>table de dimension</strong>. Il pré-calcule le résultat de la jointure et l'encode sous forme de <em>bitmap</em> — un vecteur de bits indexé sur les RID de la table de faits.</p>
+        <p><strong>Structure :</strong> pour chaque valeur distincte de l'attribut de dimension (ex. <code>Level='MSC'</code>), l'index stocke un vecteur de <em>n</em> bits où <em>n</em> = nombre de tuples dans la table de faits. Le bit <em>i</em> vaut <strong>1</strong> si le tuple de rang <em>i</em> dans Grades est lié (via la jointure) à un tuple de dimension satisfaisant le prédicat.</p>
+        <ul>
+            <li><strong>Avantage clé :</strong> les opérations AND/OR entre bitmaps sont ultrarapides — gérées nativement par le CPU.</li>
+            <li><strong>Cas d'usage :</strong> entrepôts de données (Data Warehouses), requêtes analytiques avec plusieurs filtres sur dimensions.</li>
+            <li><strong>Limite :</strong> coût élevé en mise à jour — chaque INSERT/UPDATE/DELETE invalide les bitmaps concernés.</li>
+        </ul>
+        <div class="highlight-box">
+            <p><span class="badge badge-orange">Repère</span></p>
+            <p>Un IJB est <strong>inter-table</strong> : il encode une jointure, pas seulement une colonne locale. C'est ce qui le distingue d'un simple index bitmap sur une colonne de la table de faits.</p>
+        </div>
+    </div>
+
+    <!-- ── EXEMPLE + ANALOGIE ── -->
+    <div class="two-col">
+        <div class="highlight-box">
+            <p><span class="badge badge-green">Exemple</span></p>
+            <p>Si <code>Grades</code> contient 26 tuples (RID 1..26) et que 15 correspondent à des étudiants MSC, le bitmap <code>IJB[Level='MSC']</code> contient 15 bits à 1 et 11 bits à 0.</p>
+            <p>Pour compter les étudiants MSC inscrits en cours Stat, il suffit de faire <code>IJB[Level='MSC'] AND IJB[Dept='Stat']</code> et de compter les bits à 1 — sans toucher à la table <code>Grades</code>.</p>
+        </div>
+        <div class="callout-info">
+            <p><span class="badge badge-blue">Analogie</span></p>
+            <p><strong>Image mentale :</strong> imaginez une feuille de pointage par critère. La feuille "MSC" coche les lignes d'inscription des étudiants MSC. La feuille "Stat" coche les inscriptions dans un cours Stat.</p>
+            <p>Superposer les deux feuilles en lumière (AND logique) révèle immédiatement les cases cochées sur les deux — sans relire les dossiers originaux.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 1                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q1</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Identifiez dans la requête Q : (a) la <strong>table de faits</strong>,
+            (b) les <strong>tables de dimension</strong>,
+            (c) les <strong>prédicats de sélection</strong> (filtre sur une valeur scalaire)
+            et (d) les <strong>prédicats de jointure</strong>.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> confondre un prédicat de <em>jointure</em> (<code>A.id = B.id</code>) avec un prédicat de <em>sélection</em> (<code>colonne = valeur</code>). Seuls les prédicats de sélection portant sur des tables de dimension peuvent servir de clé dans un IJB.
+        </div>
+
+        <button class="hint-btn" data-hint="q1-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q1-h1">
+            La table de faits est celle qui contient les mesures (ici : la note). Les tables de dimension décrivent les axes d'analyse (qui a étudié quoi). Les prédicats <code>Level = 'MSC'</code> et <code>Dept = 'Stat'</code> portent chacun sur la colonne d'une table de dimension différente.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Identifiez la table de faits, les dimensions, les prédicats de sélection et de jointure…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q1</h4>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Élément</th><th>Valeur</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Table de faits</strong></td><td><code>Grades</code> — contient les notes, clés étrangères vers Student et Course</td></tr>
+                        <tr><td><strong>Tables de dimension</strong></td><td><code>Student</code>, <code>Course</code></td></tr>
+                        <tr><td><strong>Prédicats de sélection</strong></td><td><code>Level = 'MSC'</code> (sur Student) · <code>Dept = 'Stat'</code> (sur Course)</td></tr>
+                        <tr><td><strong>Prédicats de jointure</strong></td><td><code>Student.StudentId = Grades.StudentId</code> · <code>Course.CourId = Grades.CourId</code></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="inline-note">La requête suit le schéma classique d'une jointure en étoile : une table centrale (Grades) jointe à deux dimensions filtrées (Student par Level, Course par Dept).</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 2                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q2</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Calculez le facteur de sélectivité de chacun des deux prédicats de sélection :
+            <code>Level = 'MSC'</code> et <code>Dept = 'Stat'</code>.
+            Appuyez-vous sur les données fournies.
+        </p>
+        <p class="inline-note">Rappel : <em>fs(p) = nombre de tuples satisfaisant p / nombre total de tuples dans la table source.</em></p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> calculer le facteur de sélectivité sur la table de faits (<code>Grades</code>) plutôt que sur la table de dimension concernée. Le prédicat <code>Level = 'MSC'</code> se mesure sur <code>Student</code>, et non sur <code>Grades</code>.
+        </div>
+
+        <button class="hint-btn" data-hint="q2-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q2-h1">
+            Comptez combien d'étudiants ont <code>Level = 'MSC'</code> dans la table <code>Student</code>,
+            puis divisez par le nombre total d'étudiants. Faites de même pour <code>Dept = 'Stat'</code> dans <code>Course</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q2-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q2-h2">
+            Dans <code>Student</code> : Carol (303), Ahmad (404), Philip (505) ont <code>Level='MSC'</code> — soit 3 étudiants sur 6.
+            Dans <code>Course</code> : M444 et S466 ont <code>Dept='Stat'</code> — soit 2 cours sur 7.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Calculez fs(Level='MSC') et fs(Dept='Stat'), puis estimez le nombre de tuples qualifiants dans Grades…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q2</h4>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>Prédicat</th><th>Table source</th><th>Tuples satisfaisants</th><th>Total</th><th>Facteur fs</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>Level = 'MSC'</code></td><td>Student</td><td>3 — Carol, Ahmad, Philip</td><td>6</td><td><strong>3/6 = 1/2</strong></td></tr>
+                        <tr><td><code>Dept = 'Stat'</code></td><td>Course</td><td>2 — M444, S466</td><td>7</td><td><strong>2/7 ≈ 0,29</strong></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p>Estimation du nombre de tuples de <code>Grades</code> qualifiants (en supposant les prédicats indépendants) :</p>
+            <pre><code>|Grades| × fs(MSC) × fs(Stat) = 26 × 1/2 × 2/7 ≈ 3,7 tuples</code></pre>
+            <p class="inline-note">L'estimation donne ≈ 4 ; la valeur exacte est 2. L'écart est normal : l'hypothèse d'indépendance est une approximation.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 3                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q3</span>
+            <span class="question-pts">3 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Proposez un ou plusieurs <strong>index de jointure binaire</strong> (IJB) pour optimiser la requête Q.
+            Pour chaque index, précisez : la table d'ancrage, l'attribut de dimension indexé et la jointure encodée.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> créer un index ordinaire sur <code>Student.Level</code> ou <code>Course.Dept</code>. Un tel index ne traverse pas la jointure — il faut un IJB <em>ancré sur la table de faits</em> qui pré-calcule la jointure.
+        </div>
+
+        <button class="hint-btn" data-hint="q3-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q3-h1">
+            Il faut un IJB par prédicat de sélection, chacun ancré sur <code>Grades</code>. Le premier encode la jointure <code>Grades.StudentId = Student.StudentId</code> et indexe <code>Student.Level</code>. Le second encode <code>Grades.CourId = Course.CourId</code> et indexe <code>Course.Dept</code>.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Décrivez les IJB à créer (nom, table d'ancrage, attribut indexé, jointure encodée)…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q3</h4>
+            <p>Deux IJB suffisent pour couvrir les deux prédicats de la requête Q :</p>
+            <pre><code>-- IJB 1 : ancré sur Grades, encode la jointure avec Student, indexe Level
+CREATE BITMAP INDEX ijb_grade_level
+    ON Grades (Student.Level)
+    FROM Grades g, Student s
+    WHERE g.StudentId = s.StudentId;
+
+-- IJB 2 : ancré sur Grades, encode la jointure avec Course, indexe Dept
+CREATE BITMAP INDEX ijb_grade_dept
+    ON Grades (Course.Dept)
+    FROM Grades g, Course c
+    WHERE g.CourId = c.CourId;</code></pre>
+
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Index</th><th>Table d'ancrage</th><th>Attribut indexé</th><th>Jointure encodée</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ijb_grade_level</code></td><td>Grades</td><td>Student.Level</td><td>Grades.StudentId = Student.StudentId</td></tr>
+                        <tr><td><code>ijb_grade_dept</code></td><td>Grades</td><td>Course.Dept</td><td>Grades.CourId = Course.CourId</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="inline-note">La syntaxe <code>CREATE BITMAP INDEX … FROM … WHERE</code> est propre à Oracle. D'autres SGBD proposent des mécanismes équivalents via des index sur colonnes calculées ou des index de couverture.</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 4                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q4</span>
+            <span class="question-pts">5 pts</span>
+            <span class="diff-badge diff-moyen">Intermédiaire</span>
+        </div>
+        <p>
+            Montrez comment l'optimiseur utilise les deux IJB pour exécuter la requête Q
+            <strong>sans parcourir la table <code>Grades</code></strong>.
+            Construisez le bitmap <code>ijb_grade_level[Level='MSC']</code>,
+            le bitmap <code>ijb_grade_dept[Dept='Stat']</code>,
+            effectuez l'opération AND bit à bit et identifiez les RIDs qualifiants.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> mettre un bit à 1 dans <code>ijb_grade_level[Level='MSC']</code> pour une ligne de Grades dont le <code>StudentId</code> n'appartient pas à un étudiant MSC. Vérifier systématiquement dans la table <code>Student</code> quel <code>Level</code> correspond à chaque <code>StudentId</code>.
+        </div>
+
+        <button class="hint-btn" data-hint="q4-h1" data-label="Indice 1/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/2</span>
+        </button>
+        <div class="hint" id="q4-h1">
+            Les étudiants MSC sont : Carol (303), Ahmad (404), Philip (505).
+            Pour chaque ligne de <code>Grades</code>, le bit de <code>ijb_grade_level[Level='MSC']</code>
+            vaut 1 si et seulement si <code>StudentId ∈ {303, 404, 505}</code>.
+        </div>
+
+        <button class="hint-btn hint-locked" data-hint="q4-h2" data-label="Indice 2/2" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 2/2</span>
+        </button>
+        <div class="hint" id="q4-h2">
+            Les cours Stat sont : M444 et S466.
+            Le bit de <code>ijb_grade_dept[Dept='Stat']</code> vaut 1 si et seulement si <code>CourId ∈ {M444, S466}</code>.
+            Cherchez ensuite quelles lignes de <code>Grades</code> ont les deux bits à 1 simultanément.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Construisez les deux bitmaps ligne par ligne, effectuez le AND et donnez les RIDs qualifiants…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q4</h4>
+
+            <p><strong>Étape 1 — Construire <code>ijb_grade_level[Level='MSC']</code></strong></p>
+            <p class="inline-note">Étudiants MSC : Carol=303, Ahmad=404, Philip=505. Bit = 1 si Grades.StudentId ∈ {303, 404, 505}.</p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>RID</th><th>StudentId</th><th>Level ?</th><th>Bit</th>
+                            <th>RID</th><th>StudentId</th><th>Level ?</th><th>Bit</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>101</td><td>HCSC</td><td>0</td>  <td>14</td><td>404</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>2</td><td>202</td><td>MCSC</td><td>0</td>  <td>15</td><td>404</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>3</td><td>303</td><td>MSC</td><td>1</td>   <td>16</td><td>505</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>4</td><td>404</td><td>MSC</td><td>1</td>   <td>17</td><td>505</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>5</td><td>505</td><td>MSC</td><td>1</td>   <td>18</td><td>606</td><td>HCSC</td><td>0</td></tr>
+                        <tr><td>6</td><td>101</td><td>HCSC</td><td>0</td>  <td>19</td><td>404</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>7</td><td>202</td><td>MCSC</td><td>0</td>  <td>20</td><td>505</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>8</td><td>202</td><td>MCSC</td><td>0</td>  <td>21</td><td>606</td><td>HCSC</td><td>0</td></tr>
+                        <tr><td>9</td><td>202</td><td>MCSC</td><td>0</td>  <td>22</td><td>404</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>10</td><td>202</td><td>MCSC</td><td>0</td> <td>23</td><td>404</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>11</td><td>303</td><td>MSC</td><td>1</td>  <td>24</td><td>505</td><td>MSC</td><td>1</td></tr>
+                        <tr><td>12</td><td>303</td><td>MSC</td><td>1</td>  <td>25</td><td>606</td><td>HCSC</td><td>0</td></tr>
+                        <tr><td>13</td><td>303</td><td>MSC</td><td>1</td>  <td>26</td><td>606</td><td>HCSC</td><td>0</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <pre><code>ijb_grade_level[MSC]
+RID: 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+Bit: 0  0  1  1  1  0  0  0  0  0  1  1  1  1  1  1  1  0  1  1  0  1  1  1  0  0</code></pre>
+
+            <p><strong>Étape 2 — Construire <code>ijb_grade_dept[Dept='Stat']</code></strong></p>
+            <p class="inline-note">Cours Stat : M444 et S466. Bit = 1 si Grades.CourId ∈ {M444, S466}.</p>
+            <div class="table-glass">
+                <table>
+                    <thead>
+                        <tr><th>RID</th><th>CourId</th><th>Dept ?</th><th>Bit</th>
+                            <th>RID</th><th>CourId</th><th>Dept ?</th><th>Bit</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>C306</td><td>Comp</td><td>0</td>  <td>14</td><td>S402</td><td>Math</td><td>0</td></tr>
+                        <tr><td>2</td><td>C306</td><td>Comp</td><td>0</td>  <td>15</td><td>C442</td><td>Comp</td><td>0</td></tr>
+                        <tr><td>3</td><td>C306</td><td>Comp</td><td>0</td>  <td>16</td><td>C442</td><td>Comp</td><td>0</td></tr>
+                        <tr><td>4</td><td>C306</td><td>Comp</td><td>0</td>  <td>17</td><td>S466</td><td>Stat</td><td>1</td></tr>
+                        <tr><td>5</td><td>C306</td><td>Comp</td><td>0</td>  <td>18</td><td>M444</td><td>Stat</td><td>1</td></tr>
+                        <tr><td>6</td><td>C422</td><td>Comp</td><td>0</td>  <td>19</td><td>C442</td><td>Comp</td><td>0</td></tr>
+                        <tr><td>7</td><td>C422</td><td>Comp</td><td>0</td>  <td>20</td><td>C442</td><td>Comp</td><td>0</td></tr>
+                        <tr><td>8</td><td>M330</td><td>Math</td><td>0</td>  <td>21</td><td>S466</td><td>Stat</td><td>1</td></tr>
+                        <tr><td>9</td><td>M444</td><td>Stat</td><td>1</td>  <td>22</td><td>M444</td><td>Stat</td><td>1</td></tr>
+                        <tr><td>10</td><td>C442</td><td>Comp</td><td>0</td> <td>23</td><td>C442</td><td>Comp</td><td>0</td></tr>
+                        <tr><td>11</td><td>C442</td><td>Comp</td><td>0</td> <td>24</td><td>C422</td><td>Comp</td><td>0</td></tr>
+                        <tr><td>12</td><td>C442</td><td>Comp</td><td>0</td> <td>25</td><td>C442</td><td>Comp</td><td>0</td></tr>
+                        <tr><td>13</td><td>S402</td><td>Math</td><td>0</td> <td>26</td><td>S402</td><td>Math</td><td>0</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <pre><code>ijb_grade_dept[Stat]
+RID: 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+Bit: 0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  1  1  0  0  1  1  0  0  0  0</code></pre>
+
+            <p><strong>Étape 3 — AND bit à bit</strong></p>
+            <pre><code>MSC  : 0  0  1  1  1  0  0  0  0  0  1  1  1  1  1  1  1  0  1  1  0  1  1  1  0  0
+Stat : 0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  1  1  0  0  1  1  0  0  0  0
+AND  : 0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  1  0  0  0  0
+                                                        ↑              ↑
+                                                      RID 17         RID 22</code></pre>
+
+            <div class="callout-info">
+                <strong>Résultat :</strong> seuls les RID <strong>17</strong> et <strong>22</strong> ont leur bit à 1 dans le vecteur AND.
+                <ul>
+                    <li>RID 17 : cours <code>S466</code> (Dept=Stat) — étudiant 505 (Philip, Level=MSC) ✓</li>
+                    <li>RID 22 : cours <code>M444</code> (Dept=Stat) — étudiant 404 (Ahmad, Level=MSC) ✓</li>
+                </ul>
+                L'optimiseur <strong>n'a lu aucun tuple de <code>Grades</code></strong> — tout a été résolu par opérations bit-à-bit sur les index.
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 5                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q5</span>
+            <span class="question-pts">2 pts</span>
+            <span class="diff-badge diff-fondamental">Fondamental</span>
+        </div>
+        <p>
+            Quel est le résultat retourné par la requête Q ?
+            Vérifiez votre réponse en listant les tuples qualifiants avec leurs données complètes.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> compter les étudiants MSC (3) ou les cours Stat (2) au lieu de compter les <em>lignes de Grades</em> satisfaisant simultanément les deux conditions après jointure.
+        </div>
+
+        <button class="hint-btn" data-hint="q5-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q5-h1">
+            La requête compte les lignes de <code>Grades</code> où l'étudiant est MSC <strong>et</strong> le cours est Stat.
+            Le bitmap AND de Q4 vous a déjà identifié les RIDs qualifiants.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Donnez le résultat de Count(*) et listez les tuples qualifiants…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q5</h4>
+            <p>Les deux tuples qualifiants (RID 17 et 22) :</p>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>RID</th><th>CourId</th><th>Dept</th><th>StudentId</th><th>Name</th><th>Level</th><th>Grade</th></tr></thead>
+                    <tbody>
+                        <tr><td>17</td><td>S466</td><td>Stat</td><td>505</td><td>Philip</td><td>MSC</td><td>B-</td></tr>
+                        <tr><td>22</td><td>M444</td><td>Stat</td><td>404</td><td>Ahmad</td><td>MSC</td><td>A+</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <pre><code>SELECT Count(*)  →  2</code></pre>
+            <p class="inline-note">Il y a exactement 2 inscriptions d'étudiants MSC dans un cours du département Stat : Philip en S466 (Stat) et Ahmad en M444 (BioS, Stat).</p>
+        </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════════════ -->
+    <!-- QUESTION 6                                     -->
+    <!-- ══════════════════════════════════════════════ -->
+
+    <div class="question">
+        <div class="question-header">
+            <span class="question-num">Q6</span>
+            <span class="question-pts">1 pt</span>
+            <span class="diff-badge diff-avance">Avancé</span>
+        </div>
+        <p>
+            Quel est le nombre de tuples de la table des faits <code>Grades</code> que l'optimiseur
+            doit physiquement lire pour répondre à la requête Q grâce aux IJB ?
+            Comparez à ce qu'aurait coûté une exécution naïve sans index.
+        </p>
+
+        <div class="erreur-freq">
+            <strong>Piège courant :</strong> répondre "2 tuples" parce qu'il y a 2 lignes qualifiantes. Avec un <code>COUNT(*)</code> et des IJB, l'optimiseur compte les bits à 1 dans le vecteur résultat <em>sans accéder aux tuples de la table</em>.
+        </div>
+
+        <button class="hint-btn" data-hint="q6-h1" data-label="Indice 1/1" aria-expanded="false">
+            <span class="btn-arrow">▶</span>
+            <span class="btn-label">Indice 1/1</span>
+        </button>
+        <div class="hint" id="q6-h1">
+            Pour un <code>COUNT(*)</code>, l'optimiseur n'a besoin d'aucune valeur de colonne de <code>Grades</code> — il lui suffit de compter les bits à 1 dans le bitmap AND résultat. Les IJB ont déjà tout résolu.
+        </div>
+    </div>
+
+    <div class="reponse-zone" contenteditable="true" data-placeholder="Donnez le nombre de tuples de Grades à lire physiquement et comparez avec le coût naïf…"></div>
+
+    <button class="solution-btn" aria-expanded="false">
+        <span class="btn-arrow">▶</span>
+        <span class="btn-label">Voir la solution</span>
+    </button>
+    <div class="solution">
+        <div class="solution-inner">
+            <h4 style="margin-top:0;">Solution — Q6</h4>
+            <div class="two-col">
+                <div class="highlight-box">
+                    <strong>Avec IJB</strong><br>
+                    Tuples de <code>Grades</code> lus physiquement : <strong>0</strong>.<br>
+                    L'optimiseur consulte uniquement les bitmaps en mémoire.
+                    Pour <code>COUNT(*)</code>, il suffit de compter les bits à 1 dans le vecteur AND —
+                    aucun accès aux blocs de données de <code>Grades</code>.
+                </div>
+                <div class="highlight-box">
+                    <strong>Sans IJB (parcours naïf)</strong><br>
+                    L'optimiseur parcourt les 26 tuples de <code>Grades</code>, effectue les jointures
+                    avec <code>Student</code> (6 tuples) et <code>Course</code> (7 tuples),
+                    puis applique les filtres. Lectures minimales : 26 + 6 + 7 = 39 tuples.
+                </div>
+            </div>
+            <div class="table-glass">
+                <table>
+                    <thead><tr><th>Stratégie</th><th>Tuples Grades lus</th><th>Jointures à effectuer</th></tr></thead>
+                    <tbody>
+                        <tr><td>Parcours naïf (sans IJB)</td><td>26 (tous)</td><td>Oui — avec Student et Course</td></tr>
+                        <tr><td>Avec IJB + COUNT(*)</td><td><strong>0</strong></td><td>Non — pré-calculées dans les bitmaps</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="inline-note">Si la requête demandait des colonnes de <code>Grades</code> (ex. <code>SELECT Grade</code>), l'optimiseur n'aurait accédé qu'aux 2 tuples qualifiants (RID 17 et 22) via les RIDs du bitmap résultat — toujours bien mieux que 26.</p>
+        </div>
+    </div>
+
+
+    <!-- ── BARÈME ── -->
+    <div class="bareme">
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">Q1 — Identification des éléments de la requête</span>
+        <span class="bareme-desc">0,5 pt chaque : table de faits, dimensions, prédicats de sélection, prédicats de jointure</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q2 — Facteurs de sélectivité</span>
+        <span class="bareme-desc">1 pt par facteur correct · 1 pt pour l'estimation du nombre de tuples qualifiants</span>
+
+        <span class="bareme-pts">3</span>
+        <span class="bareme-label">Q3 — Proposition d'IJB</span>
+        <span class="bareme-desc">1,5 pt par IJB (table d'ancrage + attribut indexé + jointure encodée)</span>
+
+        <span class="bareme-pts">5</span>
+        <span class="bareme-label">Q4 — Construction et utilisation des bitmaps</span>
+        <span class="bareme-desc">2 pts bitmap MSC · 2 pts bitmap Stat · 1 pt opération AND et RIDs corrects</span>
+
+        <span class="bareme-pts">2</span>
+        <span class="bareme-label">Q5 — Résultat de la requête</span>
+        <span class="bareme-desc">1 pt Count=2 · 1 pt liste des tuples qualifiants avec justification</span>
+
+        <span class="bareme-pts">1</span>
+        <span class="bareme-label">Q6 — Coût avec et sans IJB</span>
+        <span class="bareme-desc">1 pt : 0 tuple lu dans Grades pour COUNT(*) + comparaison naïve justifiée</span>
+
+        <div class="bareme-total">Total : <strong>16 pts</strong></div>
+    </div>
+
+
+    <!-- ── POUR ALLER PLUS LOIN ── -->
+    <div class="pour-aller-plus-loin">
+        <strong>Pour aller plus loin</strong>
+        <ul>
+            <li>Si la requête ajoutait un filtre <code>Grade = 'A+'</code> (colonne de la table de faits), faut-il un troisième IJB ou un index classique ? Justifiez.</li>
+            <li>Comparez IJB et index bitmap simple : quand l'un est-il préférable à l'autre ?</li>
+            <li>Dans un contexte OLTP (nombreux INSERT/UPDATE), pourquoi les IJB sont-ils déconseillés ? Quel surcoût génèrent-ils sur les opérations DML ?</li>
+            <li>Recherchez la <em>compression de bitmap</em> (WAH, BBC) : pourquoi est-elle utile quand les bitmaps sont creux (peu de bits à 1) ?</li>
+        </ul>
+    </div>
+
 </body>
 </html>
